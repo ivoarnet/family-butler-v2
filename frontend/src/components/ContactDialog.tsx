@@ -102,6 +102,7 @@ export function ContactDialog({
                 required
                 label="First name"
                 autoFocus
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.firstName}
                 error={firstNameError}
                 helperText={firstNameError ? "First name is required." : " "}
@@ -109,6 +110,7 @@ export function ContactDialog({
               />
               <FormField
                 label="Last name"
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.lastName}
                 helperText="Optional"
                 onChange={(event) => onFormStateChange((current) => ({ ...current, lastName: event.target.value }))}
@@ -116,6 +118,7 @@ export function ContactDialog({
               <FullWidthField
                 type="email"
                 label="Email"
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.email}
                 helperText="Optional"
                 onChange={(event) => onFormStateChange((current) => ({ ...current, email: event.target.value }))}
@@ -123,6 +126,7 @@ export function ContactDialog({
               <FullWidthField
                 type="tel"
                 label="Mobile phone"
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.mobilePhone}
                 helperText="Optional"
                 onChange={(event) => onFormStateChange((current) => ({ ...current, mobilePhone: event.target.value }))}
@@ -136,7 +140,7 @@ export function ContactDialog({
               <FormField
                 type="number"
                 label="Day"
-                slotProps={{ htmlInput: { min: 1, max: 31 } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: 1, max: 31 } }}
                 value={formState.birthDay}
                 error={birthdayMissingError || birthdayRangeError}
                 helperText={birthdayMissingError ? "Enter day and month together." : birthdayRangeError ? "Use a valid day (1-31)." : " "}
@@ -145,7 +149,7 @@ export function ContactDialog({
               <FormField
                 type="number"
                 label="Month"
-                slotProps={{ htmlInput: { min: 1, max: 12 } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: 1, max: 12 } }}
                 value={formState.birthMonth}
                 error={birthdayMissingError || birthdayRangeError}
                 helperText={birthdayMissingError ? "Enter day and month together." : birthdayRangeError ? "Use a valid month (1-12)." : " "}
@@ -154,7 +158,7 @@ export function ContactDialog({
               <FormField
                 type="number"
                 label="Year (optional)"
-                slotProps={{ htmlInput: { min: 1 } }}
+                slotProps={{ inputLabel: { shrink: true }, htmlInput: { min: 1 } }}
                 value={formState.birthYear}
                 helperText="Optional"
                 onChange={(event) => onFormStateChange((current) => ({ ...current, birthYear: event.target.value }))}

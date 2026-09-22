@@ -45,16 +45,6 @@ const MemberDetailsSection = styled(Box)(({ theme }) => ({
 
 const RelationshipField = styled(FormField)({});
 
-const AvatarUploadField = styled(Box)(({ theme }) => ({
-  borderRadius: 12,
-  border: `1px dashed ${alpha("#b8c2ff", 0.32)}`,
-  background: alpha("#1a1d2b", 0.68),
-  padding: theme.spacing(2),
-  display: "grid",
-  gap: theme.spacing(0.75),
-}));
-
-
 export interface MemberDialogFormState {
   firstName: string;
   role: string;
@@ -123,6 +113,7 @@ export function MemberDialog({
                 required
                 label="First name"
                 autoFocus
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.firstName}
                 error={firstNameError}
                 helperText={firstNameError ? "First name is required." : " "}
@@ -130,12 +121,13 @@ export function MemberDialog({
               />
               <RelationshipField
                 label="Role / relationship"
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.role}
                 helperText="Optional"
                 onChange={(event) => onRoleChange(event.target.value)}
               />
               <FormControl fullWidth>
-                <InputLabel id="member-avatar-color-label" sx={{ color: alpha("#d7dcff", 0.88) }}>
+                <InputLabel id="member-avatar-color-label" shrink sx={{ color: "var(--dialog-muted)" }}>
                   Color
                 </InputLabel>
                 <FormSelect

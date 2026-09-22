@@ -53,10 +53,9 @@ export const DialogDescription = styled(Typography)({
 export const GlassPanel = styled(Box)(({ theme }) => ({
   display: "grid",
   gap: theme.spacing(1.25),
-  padding: theme.spacing(2),
-  borderRadius: 14,
-  border: "1px solid var(--dialog-border)",
-  background: "var(--dialog-panel)",
+  padding: 0,
+  border: "none",
+  background: "transparent",
 }));
 
 export const FieldTitle = styled(Typography)({
