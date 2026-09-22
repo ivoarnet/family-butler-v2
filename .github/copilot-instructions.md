@@ -43,4 +43,6 @@
 
 - Do not commit build artifacts, temporary files, or local settings.
 - Keep docs updated when architecture, commands, or setup steps change.
+- After UI changes, create and include at least one updated screenshot in the PR comment.
+- Document UI screenshot-related updates in the changelog.
 - If CI/build issues are reported, inspect workflow runs and logs before changing code.
