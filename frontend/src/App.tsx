@@ -1,4 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ContactDialog } from "./components/ContactDialog";
+import { MemberDialog } from "./components/MemberDialog";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
@@ -37,13 +39,40 @@ interface ContactFormState {
 const THEME_STORAGE_KEY = "family-butler-theme";
 const DATA_STORAGE_KEY = "family-butler-household-data";
 const DEMO_LOCALE = "de-CH";
-const MEMBER_COLORS: MemberAvatarColor[] = ["blue", "orange", "pink", "purple"];
+const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
+  blue: "#3b82f6",
+  orange: "#f97316",
+  pink: "#ec4899",
+  purple: "#7c3aed",
+};
+const MEMBER_COLORS: MemberAvatarColor[] = ["#3b82f6", "#f97316", "#ec4899", "#7c3aed"];
+const MEMBER_COLOR_LABELS: Record<string, string> = {
+  "#3b82f6": "Blue",
+  "#f97316": "Orange",
+  "#ec4899": "Pink",
+  "#7c3aed": "Purple",
+};
+const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
+
+const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
+  if (typeof color !== "string") {
+    return DEFAULT_MEMBER_COLOR;
+  }
+  const trimmed = color.trim();
+  if (!trimmed) {
+    return DEFAULT_MEMBER_COLOR;
+  }
+  const legacy = LEGACY_MEMBER_COLOR_MAP[trimmed.toLowerCase()];
+  return legacy ?? trimmed;
+};
+
+const getMemberColorLabel = (color: MemberAvatarColor): string => MEMBER_COLOR_LABELS[color] ?? color;
 
 const createDefaultMembers = (): FamilyMember[] => [
-  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "blue", visibleInCalendar: true, order: 0 },
-  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "orange", visibleInCalendar: false, order: 1 },
-  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "pink", visibleInCalendar: true, order: 2 },
-  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "purple", visibleInCalendar: true, order: 3 },
+  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "#3b82f6", visibleInCalendar: true, order: 0 },
+  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "#f97316", visibleInCalendar: false, order: 1 },
+  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "#ec4899", visibleInCalendar: true, order: 2 },
+  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "#7c3aed", visibleInCalendar: true, order: 3 },
 ];
 
 const defaultHouseholdData: HouseholdData = {
@@ -123,7 +152,7 @@ const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
       ...member,
       order: index,
       role: member.role?.trim() || undefined,
-      avatarColor: MEMBER_COLORS.includes(member.avatarColor) ? member.avatarColor : "blue",
+      avatarColor: normalizeMemberColor(member.avatarColor),
     }));
 
 const getInitialHouseholdData = (): HouseholdData => {
@@ -195,7 +224,7 @@ const buildDemoSpecialEvents = (periodStart: Date): SpecialEvent[] => [
 const buildMemberFormState = (member?: FamilyMember): MemberFormState => ({
   firstName: member?.firstName ?? "",
   role: member?.role ?? "",
-  avatarColor: member?.avatarColor ?? "blue",
+  avatarColor: member?.avatarColor ? normalizeMemberColor(member.avatarColor) : DEFAULT_MEMBER_COLOR,
   visibleInCalendar: member?.visibleInCalendar ?? true,
 });
 
@@ -215,7 +244,7 @@ const getBestAvailableColor = (members: FamilyMember[]): MemberAvatarColor => {
       return color;
     }
   }
-  return MEMBER_COLORS[0];
+  return DEFAULT_MEMBER_COLOR;
 };
 
 function DashboardApp({
@@ -360,7 +389,9 @@ function DashboardApp({
                   {visibleMembers.map((member) => (
                     <th key={member.id}>
                       <div className="member-header">
-                        <span className={`avatar avatar-${member.avatarColor}`}>{member.firstName.charAt(0)}</span>
+                        <span className="avatar" style={{ backgroundColor: member.avatarColor }}>
+                          {member.firstName.charAt(0)}
+                        </span>
                         <span>{member.firstName}</span>
                       </div>
                     </th>
@@ -434,8 +465,10 @@ function SettingsPage({
   const [contactFormState, setContactFormState] = useState<ContactFormState>(buildContactFormState);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [memberFormSubmitted, setMemberFormSubmitted] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
 
   useEffect(() => {
@@ -470,6 +503,7 @@ function SettingsPage({
 
   const openAddMember = () => {
     setEditingMemberId(null);
+    setMemberFormSubmitted(false);
     setMemberFormState({
       firstName: "",
       role: "",
@@ -481,6 +515,7 @@ function SettingsPage({
 
   const openEditMember = (member: FamilyMember) => {
     setEditingMemberId(member.id);
+    setMemberFormSubmitted(false);
     setMemberFormState(buildMemberFormState(member));
     setMemberModalOpen(true);
   };
@@ -488,10 +523,12 @@ function SettingsPage({
   const closeMemberModal = () => {
     setMemberModalOpen(false);
     setEditingMemberId(null);
+    setMemberFormSubmitted(false);
   };
 
   const submitMember = (event: FormEvent) => {
     event.preventDefault();
+    setMemberFormSubmitted(true);
     const firstName = memberFormState.firstName.trim();
     if (!firstName) {
       return;
@@ -529,6 +566,20 @@ function SettingsPage({
     closeMemberModal();
   };
 
+  const memberFirstNameError = memberFormSubmitted && !memberFormState.firstName.trim();
+  const birthDay = contactFormState.birthDay.trim();
+  const birthMonth = contactFormState.birthMonth.trim();
+  const birthYear = contactFormState.birthYear.trim();
+  const hasAnyBirthdayData = Boolean(birthDay || birthMonth || birthYear);
+  const birthDayNumber = birthDay ? Number.parseInt(birthDay, 10) : undefined;
+  const birthMonthNumber = birthMonth ? Number.parseInt(birthMonth, 10) : undefined;
+  const contactFirstNameError = contactFormSubmitted && !contactFormState.firstName.trim();
+  const contactBirthdayMissingError = contactFormSubmitted && hasAnyBirthdayData && (!birthDay || !birthMonth);
+  const contactBirthdayRangeError =
+    contactFormSubmitted &&
+    ((birthDayNumber !== undefined && (birthDayNumber < 1 || birthDayNumber > 31)) ||
+      (birthMonthNumber !== undefined && (birthMonthNumber < 1 || birthMonthNumber > 12)));
+
   const updateMemberRow = (memberId: string, updater: (member: FamilyMember) => FamilyMember) => {
     setHouseholdData((current) => ({
       ...current,
@@ -558,12 +609,14 @@ function SettingsPage({
 
   const openAddContact = () => {
     setEditingContactId(null);
+    setContactFormSubmitted(false);
     setContactFormState(buildContactFormState());
     setContactModalOpen(true);
   };
 
   const openEditContact = (contact: Contact) => {
     setEditingContactId(contact.id);
+    setContactFormSubmitted(false);
     setContactFormState(buildContactFormState(contact));
     setContactModalOpen(true);
   };
@@ -571,10 +624,12 @@ function SettingsPage({
   const closeContactModal = () => {
     setContactModalOpen(false);
     setEditingContactId(null);
+    setContactFormSubmitted(false);
   };
 
   const submitContact = (event: FormEvent) => {
     event.preventDefault();
+    setContactFormSubmitted(true);
     const firstName = contactFormState.firstName.trim();
     if (!firstName) {
       return;
@@ -709,7 +764,9 @@ function SettingsPage({
                   <tr key={member.id}>
                     <td>
                       <div className="member-header">
-                        <span className={`avatar avatar-${member.avatarColor}`}>{member.firstName.charAt(0)}</span>
+                        <span className="avatar" style={{ backgroundColor: member.avatarColor }}>
+                          {member.firstName.charAt(0)}
+                        </span>
                         <span>
                           {member.firstName}
                           {member.role ? <small> · {member.role}</small> : null}
@@ -762,7 +819,7 @@ function SettingsPage({
                       >
                         {MEMBER_COLORS.map((color) => (
                           <option key={color} value={color}>
-                            {color}
+                            {getMemberColorLabel(color)}
                           </option>
                         ))}
                       </select>
@@ -778,76 +835,19 @@ function SettingsPage({
             </table>
           </div>
 
-          {memberModalOpen ? (
-            <div className="settings-modal-backdrop" onClick={closeMemberModal}>
-              <form
-                className="edit-sheet settings-modal"
-                onSubmit={submitMember}
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label={editingMemberId ? "Edit member" : "Add member"}
-              >
-              <h3>{editingMemberId ? "Edit member" : "Add member"}</h3>
-              <div className="edit-grid">
-                <label>
-                  First name
-                  <input
-                    type="text"
-                    required
-                    value={memberFormState.firstName}
-                    onChange={(event) => setMemberFormState((current) => ({ ...current, firstName: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Role / relationship
-                  <input
-                    type="text"
-                    value={memberFormState.role}
-                    onChange={(event) => setMemberFormState((current) => ({ ...current, role: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Color
-                  <select
-                    value={memberFormState.avatarColor}
-                    onChange={(event) =>
-                      setMemberFormState((current) => ({ ...current, avatarColor: event.target.value as MemberAvatarColor }))
-                    }
-                  >
-                    {MEMBER_COLORS.map((color) => (
-                      <option key={color} value={color}>
-                        {color}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Visible in calendar
-                  <input
-                    type="checkbox"
-                    checked={memberFormState.visibleInCalendar}
-                    onChange={(event) =>
-                      setMemberFormState((current) => ({ ...current, visibleInCalendar: event.target.checked }))
-                    }
-                  />
-                </label>
-                <label>
-                  Avatar/photo upload (coming soon)
-                  <input type="file" disabled aria-disabled="true" />
-                </label>
-              </div>
-              <div className="sheet-actions">
-                <button type="button" onClick={closeMemberModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-pill">
-                  Save member
-                </button>
-              </div>
-              </form>
-            </div>
-          ) : null}
+          <MemberDialog
+            open={memberModalOpen}
+            editing={Boolean(editingMemberId)}
+            colors={MEMBER_COLORS}
+            formState={memberFormState}
+            firstNameError={memberFirstNameError}
+            onClose={closeMemberModal}
+            onSubmit={submitMember}
+            onFirstNameChange={(value) => setMemberFormState((current) => ({ ...current, firstName: value }))}
+            onRoleChange={(value) => setMemberFormState((current) => ({ ...current, role: value }))}
+            onAvatarColorChange={(value) => setMemberFormState((current) => ({ ...current, avatarColor: value }))}
+            onVisibleInCalendarChange={(value) => setMemberFormState((current) => ({ ...current, visibleInCalendar: value }))}
+          />
         </section>
 
         <section className="settings-card">
@@ -913,92 +913,17 @@ function SettingsPage({
             </table>
           </div>
 
-          {contactModalOpen ? (
-            <div className="settings-modal-backdrop" onClick={closeContactModal}>
-              <form
-                className="edit-sheet settings-modal"
-                onSubmit={submitContact}
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label={editingContactId ? "Edit contact" : "Add contact"}
-              >
-              <h3>{editingContactId ? "Edit contact" : "Add contact"}</h3>
-              <div className="edit-grid">
-                <label>
-                  First name
-                  <input
-                    type="text"
-                    required
-                    value={contactFormState.firstName}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, firstName: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Last name
-                  <input
-                    type="text"
-                    value={contactFormState.lastName}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, lastName: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Birthday day
-                  <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={contactFormState.birthDay}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, birthDay: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Birthday month
-                  <input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={contactFormState.birthMonth}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, birthMonth: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Birthday year (optional)
-                  <input
-                    type="number"
-                    min={1}
-                    value={contactFormState.birthYear}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, birthYear: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    value={contactFormState.email}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, email: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Mobile phone
-                  <input
-                    type="tel"
-                    value={contactFormState.mobilePhone}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, mobilePhone: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="sheet-actions">
-                <button type="button" onClick={closeContactModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-pill">
-                  Save contact
-                </button>
-              </div>
-              </form>
-            </div>
-          ) : null}
+          <ContactDialog
+            open={contactModalOpen}
+            editing={Boolean(editingContactId)}
+            formState={contactFormState}
+            firstNameError={contactFirstNameError}
+            birthdayMissingError={contactBirthdayMissingError}
+            birthdayRangeError={contactBirthdayRangeError}
+            onClose={closeContactModal}
+            onSubmit={submitContact}
+            onFormStateChange={(updater) => setContactFormState((current) => updater(current))}
+          />
         </section>
       </main>
     </div>

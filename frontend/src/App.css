@@ -8,9 +8,19 @@
   --border: rgba(112, 122, 157, 0.22);
   --row: rgba(255, 255, 255, 0.35);
   --accent: #7f8bff;
+  --accent-strong: #6f7cff;
   --today-bg: rgba(127, 139, 255, 0.16);
   --weekend-bg: rgba(110, 120, 154, 0.08);
   --shadow: 0 20px 36px rgba(20, 26, 49, 0.14);
+  --dialog-surface: rgba(252, 253, 255, 0.9);
+  --dialog-panel: rgba(247, 250, 255, 0.7);
+  --dialog-field: rgba(255, 255, 255, 0.82);
+  --dialog-border: rgba(112, 122, 157, 0.28);
+  --dialog-muted: rgba(74, 82, 106, 0.88);
+  --dialog-soft-text: rgba(46, 52, 71, 0.8);
+  --dialog-backdrop: rgba(12, 18, 32, 0.45);
+  --action-gradient-start: #7f8bff;
+  --action-gradient-end: #9a7dff;
 }
 
 :root[data-theme="dark"] {
@@ -23,9 +33,19 @@
   --border: rgba(142, 151, 184, 0.24);
   --row: rgba(24, 27, 39, 0.52);
   --accent: #7f8bff;
+  --accent-strong: #8a97ff;
   --today-bg: rgba(110, 128, 255, 0.22);
   --weekend-bg: rgba(62, 74, 92, 0.22);
   --shadow: 0 20px 45px rgba(0, 0, 0, 0.45);
+  --dialog-surface: rgba(24, 26, 36, 0.9);
+  --dialog-panel: rgba(21, 24, 36, 0.68);
+  --dialog-field: rgba(27, 31, 45, 0.78);
+  --dialog-border: rgba(184, 194, 255, 0.24);
+  --dialog-muted: rgba(216, 223, 255, 0.86);
+  --dialog-soft-text: rgba(211, 218, 255, 0.74);
+  --dialog-backdrop: rgba(7, 10, 18, 0.58);
+  --action-gradient-start: #7f8bff;
+  --action-gradient-end: #9a7dff;
 }
 
 * {
@@ -395,19 +415,6 @@ body,
   color: #fff;
 }
 
-.avatar-blue {
-  background: #3b82f6;
-}
-
-.avatar-orange {
-  background: #f97316;
-}
-
-.avatar-pink {
-  background: #ec4899;
-}
-
-.avatar-purple,
 .avatar-birthday {
   background: #7c3aed;
 }
