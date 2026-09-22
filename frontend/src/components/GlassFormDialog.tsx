@@ -91,6 +91,13 @@ export const FormField = styled(TextField)(({ theme }) => ({
   },
   "& .MuiInputBase-input": {
     color: "var(--text-primary)",
+    backgroundColor: "transparent",
+    "&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus, &:-webkit-autofill:active": {
+      WebkitBoxShadow: "0 0 0 100px var(--dialog-field) inset",
+      WebkitTextFillColor: "var(--text-primary)",
+      caretColor: "var(--text-primary)",
+      borderRadius: "inherit",
+    },
   },
   "& .MuiFormHelperText-root": {
     marginLeft: 2,
