@@ -56,13 +56,9 @@ Family Butler connects to Azure SQL only through the server-side Azure Functions
 
 ## 5) Deploy and verify
 
-1. Ensure `DATABASE_URL` is configured in Azure app settings.
-2. Ensure the Azure SQL schema is applied before app verification:
-
-   ```bash
-   npm run prisma:migrate:deploy
-   ```
-
-3. Deploy via the existing GitHub workflow.
-4. Open the app, edit household/member/contact data in Settings, refresh the browser, and confirm values persist.
-5. Re-open after redeployment and confirm the same persisted values are returned.
+1. Add `DATABASE_URL` as a GitHub Environment secret (for example in `production` and/or `staging`).
+2. Run `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/deploy-prisma-schema.yml` via **Run workflow** and select the matching environment.
+3. Ensure `DATABASE_URL` is configured in Azure app settings for runtime API access.
+4. Deploy via the existing Static Web Apps workflow.
+5. Open the app, edit household/member/contact data in Settings, refresh the browser, and confirm values persist.
+6. Re-open after redeployment and confirm the same persisted values are returned.

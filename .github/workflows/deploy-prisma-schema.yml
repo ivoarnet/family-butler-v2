@@ -1,0 +1,38 @@
+name: Deploy Prisma Schema
+
+on:
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "GitHub Environment containing DATABASE_URL"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - staging
+
+jobs:
+  deploy_prisma_schema:
+    name: Deploy Prisma schema migrations
+    runs-on: ubuntu-latest
+    environment: ${{ inputs.environment }}
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Deploy Prisma migrations
+        run: npm run prisma:migrate:deploy
+        env:
+          DATABASE_URL: ${{ secrets.DATABASE_URL }}

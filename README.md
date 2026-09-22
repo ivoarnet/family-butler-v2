@@ -93,9 +93,11 @@ The API is implemented as Azure Functions handlers for Static Web Apps compatibi
 This repository includes an Azure Static Web Apps workflow under:
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml`
+- `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/deploy-prisma-schema.yml` (manual Prisma schema deployment)
 
 You should manually create Azure resources, then configure GitHub secrets:
 
 - `AZURE_STATIC_WEB_APPS_API_TOKEN`
+- `DATABASE_URL` (recommended as an Environment secret for migration workflow)
 
 No Infrastructure-as-Code is included by design.
