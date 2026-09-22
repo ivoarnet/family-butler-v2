@@ -1,0 +1,18 @@
+{
+  "name": "family-butler-api",
+  "private": true,
+  "version": "0.1.0",
+  "scripts": {
+    "postinstall": "prisma generate --schema ../prisma/schema.prisma",
+    "dev": "func start",
+    "build": "node -e \"console.log('Azure Functions API: no build step required')\"",
+    "prisma:generate": "prisma generate --schema ../prisma/schema.prisma",
+    "prisma:migrate": "prisma migrate dev --schema ../prisma/schema.prisma"
+  },
+  "dependencies": {
+    "@prisma/client": "^5.20.0"
+  },
+  "devDependencies": {
+    "prisma": "^5.20.0"
+  }
+}
