@@ -53,6 +53,12 @@ Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL D
    npm run prisma:migrate
    ```
 
+   For Azure-hosted environments, apply committed migrations with:
+
+   ```bash
+   npm run prisma:migrate:deploy
+   ```
+
 5. Start frontend + backend:
 
    ```bash
@@ -65,6 +71,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL D
 - `npm run build` - Build backend and frontend
 - `npm run prisma:generate` - Generate Prisma client
 - `npm run prisma:migrate` - Run Prisma migrations (dev)
+- `npm run prisma:migrate:deploy` - Apply committed Prisma migrations (staging/production)
 
 
 ## Frontend Build Output

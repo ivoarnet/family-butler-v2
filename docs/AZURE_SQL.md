@@ -46,11 +46,23 @@ Family Butler connects to Azure SQL only through the server-side Azure Functions
    npm run prisma:migrate
    ```
 
-3. Verify API starts and can read/write household data through `/api/households/{householdId}`.
+3. Initialize/update schema in Azure SQL (production/staging):
+
+   ```bash
+   npm run prisma:migrate:deploy
+   ```
+
+4. Verify API starts and can read/write household data through `/api/households/{householdId}`.
 
 ## 5) Deploy and verify
 
 1. Ensure `DATABASE_URL` is configured in Azure app settings.
-2. Deploy via the existing GitHub workflow.
-3. Open the app, edit household/member/contact data in Settings, refresh the browser, and confirm values persist.
-4. Re-open after redeployment and confirm the same persisted values are returned.
+2. Ensure the Azure SQL schema is applied before app verification:
+
+   ```bash
+   npm run prisma:migrate:deploy
+   ```
+
+3. Deploy via the existing GitHub workflow.
+4. Open the app, edit household/member/contact data in Settings, refresh the browser, and confirm values persist.
+5. Re-open after redeployment and confirm the same persisted values are returned.

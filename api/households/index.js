@@ -1,4 +1,5 @@
 const { randomUUID } = require("crypto");
+const { Prisma } = require("@prisma/client");
 const prisma = require("../shared/prisma");
 
 const DEFAULT_HOUSEHOLD_NAME = "Family Butler";
@@ -273,7 +274,13 @@ module.exports = async function households(context, req) {
     };
   } catch (error) {
     context.log.error("households handler failed", error);
-    const message = error instanceof Error ? error.message : "Internal server error";
+    const isPrismaTableMissing =
+      error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2021" || error.code === "P2022");
+    const message = isPrismaTableMissing
+      ? "Database schema is not initialized. Run `npm run prisma:migrate:deploy` against the target Azure SQL database."
+      : error instanceof Error
+        ? error.message
+        : "Internal server error";
     const status = message.includes("required") ? 400 : 500;
     context.res = {
       status,
