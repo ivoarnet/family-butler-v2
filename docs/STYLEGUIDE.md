@@ -1,5 +1,9 @@
 # Family Butler Dashboard Styleguide
 
+## Current implementation screenshot
+
+![Current dashboard implementation](./assets/dashboard-current-implementation.png)
+
 ## Chosen UI stack
 
 - **Framework:** React + TypeScript + Vite (existing repository stack)
