@@ -80,7 +80,7 @@ const getWeekdayAbbreviation = (date: Date, locale: string): string => {
 };
 
 const getDayLabel = (date: Date, locale: string): string =>
-  new Intl.DateTimeFormat(locale, { day: "numeric", month: "long" }).format(date);
+  new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date);
 
 const formatBirthdayLabel = (specialEvent: SpecialEvent): string => {
   if (!specialEvent.birthYear) {

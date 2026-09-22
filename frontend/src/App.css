@@ -266,8 +266,9 @@ body,
 .day-cell strong {
   display: block;
   margin-top: 0.25rem;
-  font-size: 1.8rem;
+  font-size: 1rem;
   line-height: 1.1;
+  white-space: nowrap;
 }
 
 .weekday-label-wrap {
@@ -377,6 +378,6 @@ body,
   }
 
   .day-cell strong {
-    font-size: 1.2rem;
+    font-size: 0.9rem;
   }
 }
