@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { MemberDialog } from "./components/MemberDialog";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
@@ -434,6 +435,7 @@ function SettingsPage({
   const [contactFormState, setContactFormState] = useState<ContactFormState>(buildContactFormState);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
   const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [memberFormSubmitted, setMemberFormSubmitted] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactSearch, setContactSearch] = useState("");
@@ -470,6 +472,7 @@ function SettingsPage({
 
   const openAddMember = () => {
     setEditingMemberId(null);
+    setMemberFormSubmitted(false);
     setMemberFormState({
       firstName: "",
       role: "",
@@ -481,6 +484,7 @@ function SettingsPage({
 
   const openEditMember = (member: FamilyMember) => {
     setEditingMemberId(member.id);
+    setMemberFormSubmitted(false);
     setMemberFormState(buildMemberFormState(member));
     setMemberModalOpen(true);
   };
@@ -488,10 +492,12 @@ function SettingsPage({
   const closeMemberModal = () => {
     setMemberModalOpen(false);
     setEditingMemberId(null);
+    setMemberFormSubmitted(false);
   };
 
   const submitMember = (event: FormEvent) => {
     event.preventDefault();
+    setMemberFormSubmitted(true);
     const firstName = memberFormState.firstName.trim();
     if (!firstName) {
       return;
@@ -528,6 +534,8 @@ function SettingsPage({
 
     closeMemberModal();
   };
+
+  const memberFirstNameError = memberFormSubmitted && !memberFormState.firstName.trim();
 
   const updateMemberRow = (memberId: string, updater: (member: FamilyMember) => FamilyMember) => {
     setHouseholdData((current) => ({
@@ -778,76 +786,19 @@ function SettingsPage({
             </table>
           </div>
 
-          {memberModalOpen ? (
-            <div className="settings-modal-backdrop" onClick={closeMemberModal}>
-              <form
-                className="edit-sheet settings-modal"
-                onSubmit={submitMember}
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label={editingMemberId ? "Edit member" : "Add member"}
-              >
-              <h3>{editingMemberId ? "Edit member" : "Add member"}</h3>
-              <div className="edit-grid">
-                <label>
-                  First name
-                  <input
-                    type="text"
-                    required
-                    value={memberFormState.firstName}
-                    onChange={(event) => setMemberFormState((current) => ({ ...current, firstName: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Role / relationship
-                  <input
-                    type="text"
-                    value={memberFormState.role}
-                    onChange={(event) => setMemberFormState((current) => ({ ...current, role: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Color
-                  <select
-                    value={memberFormState.avatarColor}
-                    onChange={(event) =>
-                      setMemberFormState((current) => ({ ...current, avatarColor: event.target.value as MemberAvatarColor }))
-                    }
-                  >
-                    {MEMBER_COLORS.map((color) => (
-                      <option key={color} value={color}>
-                        {color}
-                      </option>
-                    ))}
-                  </select>
-                </label>
-                <label>
-                  Visible in calendar
-                  <input
-                    type="checkbox"
-                    checked={memberFormState.visibleInCalendar}
-                    onChange={(event) =>
-                      setMemberFormState((current) => ({ ...current, visibleInCalendar: event.target.checked }))
-                    }
-                  />
-                </label>
-                <label>
-                  Avatar/photo upload (coming soon)
-                  <input type="file" disabled aria-disabled="true" />
-                </label>
-              </div>
-              <div className="sheet-actions">
-                <button type="button" onClick={closeMemberModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-pill">
-                  Save member
-                </button>
-              </div>
-              </form>
-            </div>
-          ) : null}
+          <MemberDialog
+            open={memberModalOpen}
+            editing={Boolean(editingMemberId)}
+            colors={MEMBER_COLORS}
+            formState={memberFormState}
+            firstNameError={memberFirstNameError}
+            onClose={closeMemberModal}
+            onSubmit={submitMember}
+            onFirstNameChange={(value) => setMemberFormState((current) => ({ ...current, firstName: value }))}
+            onRoleChange={(value) => setMemberFormState((current) => ({ ...current, role: value }))}
+            onAvatarColorChange={(value) => setMemberFormState((current) => ({ ...current, avatarColor: value }))}
+            onVisibleInCalendarChange={(value) => setMemberFormState((current) => ({ ...current, visibleInCalendar: value }))}
+          />
         </section>
 
         <section className="settings-card">
