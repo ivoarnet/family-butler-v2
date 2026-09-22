@@ -222,10 +222,12 @@ function DashboardApp({
   theme,
   setTheme,
   householdData,
+  onOpenSettings,
 }: {
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
+  onOpenSettings: () => void;
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
@@ -336,9 +338,15 @@ function DashboardApp({
             {theme === "dark" ? "☀" : "☾"}
           </button>
 
-          <a className="icon-button" href="/settings" title="Open settings" aria-label="Open settings">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onOpenSettings}
+            title="Open settings"
+            aria-label="Open settings"
+          >
             ⚙
-          </a>
+          </button>
         </div>
       </header>
 
@@ -415,9 +423,11 @@ function DashboardApp({
 function SettingsPage({
   householdData,
   setHouseholdData,
+  onGoHome,
 }: {
   householdData: HouseholdData;
   setHouseholdData: React.Dispatch<React.SetStateAction<HouseholdData>>;
+  onGoHome: () => void;
 }) {
   const [householdNameDraft, setHouseholdNameDraft] = useState(householdData.householdName);
   const [memberFormState, setMemberFormState] = useState<MemberFormState>(buildMemberFormState);
@@ -627,7 +637,7 @@ function SettingsPage({
       window.history.back();
       return;
     }
-    window.location.href = "/";
+    onGoHome();
   };
 
   return (
@@ -642,9 +652,15 @@ function SettingsPage({
             <p>Household, family members, contacts</p>
           </div>
         </div>
-        <a className="icon-button" href="/" title="Go to dashboard" aria-label="Go to dashboard">
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onGoHome}
+          title="Go to dashboard"
+          aria-label="Go to dashboard"
+        >
           ⌂
-        </a>
+        </button>
       </header>
 
       <main className="settings-main">
@@ -974,6 +990,7 @@ function SettingsPage({
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -989,9 +1006,28 @@ export function App() {
     window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(toPersist));
   }, [householdData]);
 
-  return window.location.pathname === "/settings" ? (
-    <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} />
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigateTo = (nextPathname: "/" | "/settings") => {
+    if (window.location.pathname === nextPathname) {
+      return;
+    }
+    window.history.pushState({}, "", nextPathname);
+    setPathname(nextPathname);
+  };
+
+  return pathname === "/settings" ? (
+    <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
   ) : (
-    <DashboardApp theme={theme} setTheme={setTheme} householdData={householdData} />
+    <DashboardApp
+      theme={theme}
+      setTheme={setTheme}
+      householdData={householdData}
+      onOpenSettings={() => navigateTo("/settings")}
+    />
   );
 }
