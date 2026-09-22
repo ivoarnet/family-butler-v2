@@ -66,6 +66,13 @@ Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
 - `npm run prisma:generate` - Generate Prisma client
 - `npm run prisma:migrate` - Run Prisma migrations (dev)
 
+
+## Frontend Build Output
+
+For Azure Static Web Apps deployment, the frontend build output folder is:
+
+- `frontend/dist` (configured in workflow as `app_location: frontend` + `output_location: dist`)
+
 ## API Runtime (Azure Functions)
 
 The API is implemented as Azure Functions handlers for Static Web Apps compatibility:
