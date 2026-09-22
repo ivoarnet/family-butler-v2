@@ -245,6 +245,10 @@ body,
   cursor: pointer;
 }
 
+.no-wrap-button {
+  white-space: nowrap;
+}
+
 .coming-soon-card {
   margin-top: 1rem;
   padding: 0.95rem;
@@ -318,9 +322,16 @@ body,
 }
 
 .edit-sheet {
-  margin-top: 1rem;
-  border-top: 1px solid var(--border);
-  padding-top: 1rem;
+  width: min(860px, calc(100vw - 2rem));
+  max-height: calc(100vh - 2rem);
+  overflow-y: auto;
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--border);
+  border-radius: 1rem;
+  box-shadow: var(--shadow);
+  padding: 1rem;
 }
 
 .edit-sheet h3 {
@@ -344,6 +355,16 @@ body,
   display: flex;
   justify-content: flex-end;
   gap: 0.5rem;
+}
+
+.settings-modal-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 40;
+  background: rgba(7, 10, 18, 0.55);
+  display: grid;
+  place-items: center;
+  padding: 1rem;
 }
 
 .calendar-grid thead th {

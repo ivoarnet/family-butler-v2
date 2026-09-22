@@ -779,7 +779,15 @@ function SettingsPage({
           </div>
 
           {memberModalOpen ? (
-            <form className="edit-sheet" onSubmit={submitMember}>
+            <div className="settings-modal-backdrop" onClick={closeMemberModal}>
+              <form
+                className="edit-sheet settings-modal"
+                onSubmit={submitMember}
+                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label={editingMemberId ? "Edit member" : "Add member"}
+              >
               <h3>{editingMemberId ? "Edit member" : "Add member"}</h3>
               <div className="edit-grid">
                 <label>
@@ -837,7 +845,8 @@ function SettingsPage({
                   Save member
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           ) : null}
         </section>
 
@@ -851,7 +860,7 @@ function SettingsPage({
                 value={contactSearch}
                 onChange={(event) => setContactSearch(event.target.value)}
               />
-              <button type="button" className="primary-pill" onClick={openAddContact}>
+              <button type="button" className="primary-pill no-wrap-button" onClick={openAddContact}>
                 + Contact
               </button>
             </div>
@@ -905,7 +914,15 @@ function SettingsPage({
           </div>
 
           {contactModalOpen ? (
-            <form className="edit-sheet" onSubmit={submitContact}>
+            <div className="settings-modal-backdrop" onClick={closeContactModal}>
+              <form
+                className="edit-sheet settings-modal"
+                onSubmit={submitContact}
+                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label={editingContactId ? "Edit contact" : "Add contact"}
+              >
               <h3>{editingContactId ? "Edit contact" : "Add contact"}</h3>
               <div className="edit-grid">
                 <label>
@@ -979,7 +996,8 @@ function SettingsPage({
                   Save contact
                 </button>
               </div>
-            </form>
+              </form>
+            </div>
           ) : null}
         </section>
       </main>
