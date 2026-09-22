@@ -2,9 +2,6 @@ import { FormEvent } from "react";
 import {
   Box,
   Button,
-  FormControl,
-  InputLabel,
-  MenuItem,
   Switch,
   Typography,
   useMediaQuery,
@@ -18,7 +15,6 @@ import {
   DialogHeader,
   FieldTitle,
   FormField,
-  FormSelect,
   GlassDialog,
   GlassPanel,
   GradientButton,
@@ -44,6 +40,55 @@ const MemberDetailsSection = styled(Box)(({ theme }) => ({
 }));
 
 const RelationshipField = styled(FormField)({});
+
+const ColorPickerContainer = styled(Box)(({ theme }) => ({
+  position: "relative",
+  minHeight: 52,
+  borderRadius: 12,
+  border: "1px solid var(--dialog-border)",
+  background: "var(--dialog-field)",
+  padding: theme.spacing(1.35, 1.2, 1, 1.2),
+  display: "flex",
+  alignItems: "center",
+}));
+
+const ColorPickerLabel = styled("span")({
+  position: "absolute",
+  top: -9,
+  left: 11,
+  padding: "0 6px",
+  fontSize: "0.75rem",
+  lineHeight: 1,
+  color: "var(--dialog-muted)",
+  background: "var(--dialog-surface)",
+});
+
+const ColorPickerSwatches = styled(Box)(({ theme }) => ({
+  display: "flex",
+  alignItems: "center",
+  gap: theme.spacing(1),
+}));
+
+const ColorSwatchButton = styled("button")<{ $selected: boolean; $swatch: string }>(({ $selected, $swatch }) => ({
+  width: 28,
+  height: 28,
+  borderRadius: "999px",
+  border: $selected ? "2px solid var(--accent-strong)" : "1px solid rgba(255, 255, 255, 0.22)",
+  boxShadow: $selected ? "0 0 0 2px rgba(127, 139, 255, 0.24)" : "none",
+  background: $swatch,
+  cursor: "pointer",
+  "&:focus-visible": {
+    outline: "2px solid rgba(221, 226, 255, 0.9)",
+    outlineOffset: 2,
+  },
+}));
+
+const COLOR_SWATCH_MAP: Record<MemberAvatarColor, string> = {
+  blue: "#3b82f6",
+  orange: "#f97316",
+  pink: "#ec4899",
+  purple: "#7c3aed",
+};
 
 export interface MemberDialogFormState {
   firstName: string;
@@ -126,23 +171,27 @@ export function MemberDialog({
                 helperText="Optional"
                 onChange={(event) => onRoleChange(event.target.value)}
               />
-              <FormControl fullWidth>
-                <InputLabel id="member-avatar-color-label" shrink sx={{ color: "var(--dialog-muted)" }}>
-                  Color
-                </InputLabel>
-                <FormSelect
-                  labelId="member-avatar-color-label"
-                  label="Color"
-                  value={formState.avatarColor}
-                  onChange={(event) => onAvatarColorChange(event.target.value as MemberAvatarColor)}
-                >
-                  {colors.map((color) => (
-                    <MenuItem key={color} value={color}>
-                      {color.charAt(0).toUpperCase() + color.slice(1)}
-                    </MenuItem>
-                  ))}
-                </FormSelect>
-              </FormControl>
+              <ColorPickerContainer role="radiogroup" aria-label="Color">
+                <ColorPickerLabel>Color</ColorPickerLabel>
+                <ColorPickerSwatches>
+                  {colors.map((color) => {
+                    const selected = formState.avatarColor === color;
+                    return (
+                      <ColorSwatchButton
+                        key={color}
+                        type="button"
+                        role="radio"
+                        aria-label={`${color} avatar color`}
+                        aria-checked={selected}
+                        title={color.charAt(0).toUpperCase() + color.slice(1)}
+                        $selected={selected}
+                        $swatch={COLOR_SWATCH_MAP[color]}
+                        onClick={() => onAvatarColorChange(color)}
+                      />
+                    );
+                  })}
+                </ColorPickerSwatches>
+              </ColorPickerContainer>
               <Box sx={{ display: "grid", alignContent: "center" }}>
                 <CalendarVisibilityToggle
                   control={
