@@ -222,7 +222,8 @@ const syncContacts = async (tx, householdId, contacts) => {
 };
 
 module.exports = async function households(context, req) {
-  const householdId = req.params?.householdId ?? context.bindingData?.householdId;
+  const httpRequest = req ?? context.req;
+  const householdId = httpRequest?.params?.householdId ?? context.bindingData?.householdId;
   if (!householdId) {
     context.res = {
       status: 400,
@@ -232,7 +233,13 @@ module.exports = async function households(context, req) {
   }
 
   try {
-    if (req.method === "GET") {
+    if (!httpRequest) {
+      throw new Error("request context is missing");
+    }
+
+    const method = typeof httpRequest.method === "string" ? httpRequest.method.toUpperCase() : "";
+
+    if (method === "GET") {
       const householdData = await prisma.$transaction(async (tx) => {
         await ensureHousehold(tx, householdId, DEFAULT_HOUSEHOLD_NAME);
         const household = await getHouseholdOrThrow(tx, householdId);
@@ -246,11 +253,11 @@ module.exports = async function households(context, req) {
       return;
     }
 
-    if (req.method === "PUT") {
-      const requestedName = cleanOptionalText(req.body?.householdName);
+    if (method === "PUT") {
+      const requestedName = cleanOptionalText(httpRequest.body?.householdName);
       const householdName = requestedName || DEFAULT_HOUSEHOLD_NAME;
-      const members = parseIncomingMembers(req.body?.familyMembers);
-      const contacts = parseIncomingContacts(req.body?.contacts);
+      const members = parseIncomingMembers(httpRequest.body?.familyMembers);
+      const contacts = parseIncomingContacts(httpRequest.body?.contacts);
 
       const householdData = await prisma.$transaction(async (tx) => {
         await ensureHousehold(tx, householdId, householdName);
@@ -275,7 +282,7 @@ module.exports = async function households(context, req) {
   } catch (error) {
     context.log.error("households handler failed", error);
     const isPrismaTableMissing =
-      error instanceof Prisma.PrismaClientKnownRequestError && (error.code === "P2021" || error.code === "P2022");
+      error instanceof Prisma?.PrismaClientKnownRequestError && (error.code === "P2021" || error.code === "P2022");
     const message = isPrismaTableMissing
       ? "Database schema is not initialized. Run `npm run prisma:migrate:deploy` against the target Azure SQL database."
       : error instanceof Error
