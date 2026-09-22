@@ -5,7 +5,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
 ## Stack
 
 - Frontend: React + Vite + TypeScript (`/frontend`)
-- Backend: Node.js + Express + TypeScript (`/api`)
+- Backend: Azure Functions (Node.js) (`/api`)
 - Database: PostgreSQL via Prisma (`/prisma/schema.prisma`)
 - Deployment target: Azure Static Web Apps with API backend (Azure resources created manually)
 
@@ -24,6 +24,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
 - Node.js 20+
 - npm 10+
 - PostgreSQL database
+- Azure Functions Core Tools (for local API runtime)
 
 ## Local Setup
 
@@ -64,6 +65,13 @@ Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
 - `npm run build` - Build backend and frontend
 - `npm run prisma:generate` - Generate Prisma client
 - `npm run prisma:migrate` - Run Prisma migrations (dev)
+
+## API Runtime (Azure Functions)
+
+The API is implemented as Azure Functions handlers for Static Web Apps compatibility:
+
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
 
 ## Azure Deployment Notes (Manual Resource Creation)
 
