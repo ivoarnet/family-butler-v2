@@ -8,10 +8,12 @@ Family Butler connects to Azure SQL only through the server-side Azure Functions
 2. Use the SQL Server Prisma connection format:
 
    ```text
-   sqlserver://<server>.database.windows.net:1433;database=<db>;user=<user>;******;encrypt=true;trustServerCertificate=false;
+   sqlserver://<server>.database.windows.net:1433;database=<db>;user=<user>;password=<password>;encrypt=true;trustServerCertificate=false;
    ```
 
 3. Keep credentials server-side only. Do not expose DB credentials in frontend env vars.
+
+   If you get `P1013` with "Property pairs must be joined by a =", check that each segment is `key=value` (for example `user=...;******;`).
 
 ## 2) Azure SQL firewall/network requirements
 
