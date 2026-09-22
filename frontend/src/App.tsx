@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { ContactDialog } from "./components/ContactDialog";
 import { MemberDialog } from "./components/MemberDialog";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
@@ -438,6 +439,7 @@ function SettingsPage({
   const [memberFormSubmitted, setMemberFormSubmitted] = useState(false);
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
 
   useEffect(() => {
@@ -536,6 +538,18 @@ function SettingsPage({
   };
 
   const memberFirstNameError = memberFormSubmitted && !memberFormState.firstName.trim();
+  const birthDay = contactFormState.birthDay.trim();
+  const birthMonth = contactFormState.birthMonth.trim();
+  const birthYear = contactFormState.birthYear.trim();
+  const hasAnyBirthdayData = Boolean(birthDay || birthMonth || birthYear);
+  const birthDayNumber = birthDay ? Number.parseInt(birthDay, 10) : undefined;
+  const birthMonthNumber = birthMonth ? Number.parseInt(birthMonth, 10) : undefined;
+  const contactFirstNameError = contactFormSubmitted && !contactFormState.firstName.trim();
+  const contactBirthdayMissingError = contactFormSubmitted && hasAnyBirthdayData && (!birthDay || !birthMonth);
+  const contactBirthdayRangeError =
+    contactFormSubmitted &&
+    ((birthDayNumber !== undefined && (birthDayNumber < 1 || birthDayNumber > 31)) ||
+      (birthMonthNumber !== undefined && (birthMonthNumber < 1 || birthMonthNumber > 12)));
 
   const updateMemberRow = (memberId: string, updater: (member: FamilyMember) => FamilyMember) => {
     setHouseholdData((current) => ({
@@ -566,12 +580,14 @@ function SettingsPage({
 
   const openAddContact = () => {
     setEditingContactId(null);
+    setContactFormSubmitted(false);
     setContactFormState(buildContactFormState());
     setContactModalOpen(true);
   };
 
   const openEditContact = (contact: Contact) => {
     setEditingContactId(contact.id);
+    setContactFormSubmitted(false);
     setContactFormState(buildContactFormState(contact));
     setContactModalOpen(true);
   };
@@ -579,10 +595,12 @@ function SettingsPage({
   const closeContactModal = () => {
     setContactModalOpen(false);
     setEditingContactId(null);
+    setContactFormSubmitted(false);
   };
 
   const submitContact = (event: FormEvent) => {
     event.preventDefault();
+    setContactFormSubmitted(true);
     const firstName = contactFormState.firstName.trim();
     if (!firstName) {
       return;
@@ -864,92 +882,17 @@ function SettingsPage({
             </table>
           </div>
 
-          {contactModalOpen ? (
-            <div className="settings-modal-backdrop" onClick={closeContactModal}>
-              <form
-                className="edit-sheet settings-modal"
-                onSubmit={submitContact}
-                onClick={(event) => event.stopPropagation()}
-                role="dialog"
-                aria-modal="true"
-                aria-label={editingContactId ? "Edit contact" : "Add contact"}
-              >
-              <h3>{editingContactId ? "Edit contact" : "Add contact"}</h3>
-              <div className="edit-grid">
-                <label>
-                  First name
-                  <input
-                    type="text"
-                    required
-                    value={contactFormState.firstName}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, firstName: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Last name
-                  <input
-                    type="text"
-                    value={contactFormState.lastName}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, lastName: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Birthday day
-                  <input
-                    type="number"
-                    min={1}
-                    max={31}
-                    value={contactFormState.birthDay}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, birthDay: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Birthday month
-                  <input
-                    type="number"
-                    min={1}
-                    max={12}
-                    value={contactFormState.birthMonth}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, birthMonth: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Birthday year (optional)
-                  <input
-                    type="number"
-                    min={1}
-                    value={contactFormState.birthYear}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, birthYear: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Email
-                  <input
-                    type="email"
-                    value={contactFormState.email}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, email: event.target.value }))}
-                  />
-                </label>
-                <label>
-                  Mobile phone
-                  <input
-                    type="tel"
-                    value={contactFormState.mobilePhone}
-                    onChange={(event) => setContactFormState((current) => ({ ...current, mobilePhone: event.target.value }))}
-                  />
-                </label>
-              </div>
-              <div className="sheet-actions">
-                <button type="button" onClick={closeContactModal}>
-                  Cancel
-                </button>
-                <button type="submit" className="primary-pill">
-                  Save contact
-                </button>
-              </div>
-              </form>
-            </div>
-          ) : null}
+          <ContactDialog
+            open={contactModalOpen}
+            editing={Boolean(editingContactId)}
+            formState={contactFormState}
+            firstNameError={contactFirstNameError}
+            birthdayMissingError={contactBirthdayMissingError}
+            birthdayRangeError={contactBirthdayRangeError}
+            onClose={closeContactModal}
+            onSubmit={submitContact}
+            onFormStateChange={(updater) => setContactFormState((current) => updater(current))}
+          />
         </section>
       </main>
     </div>

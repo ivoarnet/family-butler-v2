@@ -13,3 +13,7 @@
 - Updated the dashboard day column to use abbreviated month labels (for example `21. Sept.`) with a smaller, non-wrapping date font.
 - Added an updated dashboard screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-day-column-month-abbrev.png`.
 - Refined the member creation dialog with reusable MUI + Emotion glassmorphism components and added an updated screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-mui-glass.png`.
+- Unified the member and contact dialogs under shared MUI + Emotion glass form styles with light/dark-aware tokens for consistent appearance.
+- Added updated settings dialog screenshots for both modes:
+  - Dark: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-contact-dialog-dark-glass.png`
+  - Light: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-contact-dialog-light-glass.png`
