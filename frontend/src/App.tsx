@@ -1,8 +1,305 @@
-export function App() {
+import { useEffect, useMemo, useState } from "react";
+
+type ThemeMode = "light" | "dark";
+
+interface FamilyMember {
+  id: string;
+  firstName: string;
+  role: string;
+  avatarColor: "blue" | "orange" | "pink" | "purple";
+  visibleInCalendar: boolean;
+}
+
+interface SpecialEvent {
+  id: string;
+  type: "birthday" | "other";
+  date: string;
+  label: string;
+  birthYear?: number;
+}
+
+const THEME_STORAGE_KEY = "family-butler-theme";
+const DEMO_LOCALE = "de-CH";
+
+const demoMembers: FamilyMember[] = [
+  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "blue", visibleInCalendar: true },
+  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "orange", visibleInCalendar: false },
+  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "pink", visibleInCalendar: true },
+  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "purple", visibleInCalendar: true },
+];
+
+const addDays = (date: Date, days: number): Date => {
+  const copy = new Date(date);
+  copy.setDate(copy.getDate() + days);
+  return copy;
+};
+
+const startOfWeekMonday = (date: Date): Date => {
+  const copy = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const dayOfWeek = (copy.getDay() + 6) % 7;
+  copy.setDate(copy.getDate() - dayOfWeek);
+  return copy;
+};
+
+const formatPeriodRange = (start: Date, locale: string): string => {
+  const end = addDays(start, 13);
+  const startDay = new Intl.DateTimeFormat(locale, { day: "numeric" }).format(start);
+  const startMonth = new Intl.DateTimeFormat(locale, { month: "long" }).format(start);
+  const endDay = new Intl.DateTimeFormat(locale, { day: "numeric" }).format(end);
+  const endMonth = new Intl.DateTimeFormat(locale, { month: "long" }).format(end);
+  const endYear = new Intl.DateTimeFormat(locale, { year: "numeric" }).format(end);
+
+  if (start.getMonth() === end.getMonth()) {
+    return `${startDay}. ${startMonth} – ${endDay}. ${startMonth} ${endYear}`;
+  }
+
+  return `${startDay}. ${startMonth} – ${endDay}. ${endMonth} ${endYear}`;
+};
+
+const toIsoDate = (date: Date): string => {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+};
+
+const getThemeFromSystem = (): ThemeMode =>
+  window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+
+const getInitialTheme = (): ThemeMode => {
+  const persistedTheme = window.localStorage.getItem(THEME_STORAGE_KEY);
+  if (persistedTheme === "light" || persistedTheme === "dark") {
+    return persistedTheme;
+  }
+  return getThemeFromSystem();
+};
+
+const getWeekdayAbbreviation = (date: Date, locale: string): string => {
+  const abbreviation = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(",", "");
+  return abbreviation.endsWith(".") ? abbreviation.toUpperCase() : `${abbreviation.toUpperCase()}.`;
+};
+
+const getDayLabel = (date: Date, locale: string): string =>
+  new Intl.DateTimeFormat(locale, { day: "numeric", month: "long" }).format(date);
+
+const formatBirthdayLabel = (specialEvent: SpecialEvent): string => {
+  if (!specialEvent.birthYear) {
+    return specialEvent.label;
+  }
+
+  const occurringYear = Number.parseInt(specialEvent.date.slice(0, 4), 10);
+  const age = occurringYear - specialEvent.birthYear;
+
+  if (!Number.isFinite(age) || age < 0) {
+    return specialEvent.label;
+  }
+
+  return `${specialEvent.label} (${age})`;
+};
+
+const buildDemoSpecialEvents = (periodStart: Date): SpecialEvent[] => [
+  { id: "evt-1", type: "birthday", date: toIsoDate(addDays(periodStart, 6)), label: "Toby", birthYear: 2014 },
+  { id: "evt-2", type: "birthday", date: toIsoDate(addDays(periodStart, 11)), label: "Amelie" },
+];
+
+function DashboardApp() {
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [now, setNow] = useState(() => new Date());
+  const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
+
+  const visibleMembers = useMemo(() => demoMembers.filter((member) => member.visibleInCalendar), []);
+  const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
+  const specialEvents = useMemo(() => buildDemoSpecialEvents(periodStart), [periodStart]);
+
+  const birthdayEventsByDate = useMemo(() => {
+    const grouped = new Map<string, SpecialEvent[]>();
+    specialEvents
+      .filter((event) => event.type === "birthday")
+      .forEach((event) => {
+        const list = grouped.get(event.date) ?? [];
+        list.push(event);
+        grouped.set(event.date, list);
+      });
+    return grouped;
+  }, [specialEvents]);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const interval = window.setInterval(() => setNow(new Date()), 30000);
+    return () => window.clearInterval(interval);
+  }, []);
+
+  const periodLabel = useMemo(() => formatPeriodRange(periodStart, DEMO_LOCALE), [periodStart]);
+  const todayIso = toIsoDate(now);
+
   return (
-    <main style={{ fontFamily: "sans-serif", maxWidth: 680, margin: "2rem auto" }}>
-      <h1>family-butler.ch</h1>
-      <p>Placeholder page — the Family Butler app is coming soon.</p>
+    <div className="dashboard-page">
+      <header className="dashboard-header" role="banner">
+        <div className="header-branding">
+          <div className="icon-badge" aria-hidden>
+            📅
+          </div>
+          <div>
+            <h1>Family Calendar</h1>
+            <p>{periodLabel}</p>
+          </div>
+        </div>
+
+        <div className="header-controls">
+          <div className="pill-group" role="group" aria-label="Period navigation">
+            <button
+              type="button"
+              className="icon-button"
+              title="Previous two-week period"
+              onClick={() => setPeriodStart((current) => addDays(current, -14))}
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              title="Jump to current period"
+              onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
+            >
+              📅
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              title="Next two-week period"
+              onClick={() => setPeriodStart((current) => addDays(current, 14))}
+            >
+              ›
+            </button>
+          </div>
+
+          <div className="pill-group view-switcher" role="group" aria-label="View switcher">
+            <button type="button" className="active" aria-pressed="true">
+              2 Weeks
+            </button>
+            <button type="button" disabled title="Month view is coming soon">
+              Month
+            </button>
+          </div>
+        </div>
+
+        <div className="header-meta">
+          <div className="live-clock" aria-live="polite">
+            <strong>
+              {now.toLocaleTimeString(DEMO_LOCALE, {
+                hour: "2-digit",
+                minute: "2-digit",
+              })}
+            </strong>
+            <span>
+              {new Intl.DateTimeFormat(DEMO_LOCALE, {
+                weekday: "long",
+                day: "numeric",
+                month: "long",
+              }).format(now)}
+            </span>
+          </div>
+
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+          >
+            {theme === "dark" ? "☀" : "☾"}
+          </button>
+
+          <a className="icon-button" href="/settings" title="Open settings" aria-label="Open settings">
+            ⚙
+          </a>
+        </div>
+      </header>
+
+      <main className="dashboard-main">
+        <section className="calendar-card" aria-label="Two week family calendar">
+          <div className="calendar-scroll">
+            <table className="calendar-grid">
+              <thead>
+                <tr>
+                  <th className="day-column-header">DAY</th>
+                  {visibleMembers.map((member) => (
+                    <th key={member.id}>
+                      <div className="member-header">
+                        <span className={`avatar avatar-${member.avatarColor}`}>{member.firstName.charAt(0)}</span>
+                        <span>{member.firstName}</span>
+                      </div>
+                    </th>
+                  ))}
+                  <th>
+                    <div className="member-header">
+                      <span className="avatar avatar-birthday">🎂</span>
+                      <span>Birthdays</span>
+                    </div>
+                  </th>
+                </tr>
+              </thead>
+              <tbody>
+                {days.map((day) => {
+                  const isoDate = toIsoDate(day);
+                  const isToday = isoDate === todayIso;
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
+
+                  return (
+                    <tr
+                      key={isoDate}
+                      className={`${isToday ? "today-row" : ""} ${!isToday && isWeekend ? "weekend-row" : ""}`.trim()}
+                    >
+                      <td className="day-cell">
+                        <div className="weekday-label-wrap">
+                          <span className="weekday-label">{getWeekdayAbbreviation(day, DEMO_LOCALE)}</span>
+                          {isToday && <span className="today-pill">Today</span>}
+                        </div>
+                        <strong>{getDayLabel(day, DEMO_LOCALE)}</strong>
+                      </td>
+
+                      {visibleMembers.map((member) => (
+                        <td key={`${isoDate}-${member.id}`} className="event-cell" />
+                      ))}
+
+                      <td className="birthday-cell">
+                        {birthdayEntries.map((entry) => (
+                          <span className="birthday-item" key={entry.id}>
+                            {formatBirthdayLabel(entry)}
+                          </span>
+                        ))}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </section>
+      </main>
+
+      <button type="button" className="fab" disabled aria-disabled="true" title="Event creation is coming soon">
+        + Event
+      </button>
+    </div>
+  );
+}
+
+function SettingsPlaceholder() {
+  return (
+    <main className="settings-placeholder">
+      <h1>Settings</h1>
+      <p>Settings page content is out of scope for this issue.</p>
+      <a href="/">Back to dashboard</a>
     </main>
   );
+}
+
+export function App() {
+  return window.location.pathname === "/settings" ? <SettingsPlaceholder /> : <DashboardApp />;
 }
