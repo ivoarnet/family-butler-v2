@@ -1,14 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
-
-interface FamilyMember {
-  id: string;
-  firstName: string;
-  role: string;
-  avatarColor: "blue" | "orange" | "pink" | "purple";
-  visibleInCalendar: boolean;
-}
 
 interface SpecialEvent {
   id: string;
@@ -18,15 +11,64 @@ interface SpecialEvent {
   birthYear?: number;
 }
 
-const THEME_STORAGE_KEY = "family-butler-theme";
-const DEMO_LOCALE = "de-CH";
+interface HouseholdData {
+  householdName: string;
+  familyMembers: FamilyMember[];
+  contacts: Contact[];
+}
 
-const demoMembers: FamilyMember[] = [
-  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "blue", visibleInCalendar: true },
-  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "orange", visibleInCalendar: false },
-  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "pink", visibleInCalendar: true },
-  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "purple", visibleInCalendar: true },
+interface MemberFormState {
+  firstName: string;
+  role: string;
+  avatarColor: MemberAvatarColor;
+  visibleInCalendar: boolean;
+}
+
+interface ContactFormState {
+  firstName: string;
+  lastName: string;
+  birthDay: string;
+  birthMonth: string;
+  birthYear: string;
+  email: string;
+  mobilePhone: string;
+}
+
+const THEME_STORAGE_KEY = "family-butler-theme";
+const DATA_STORAGE_KEY = "family-butler-household-data";
+const DEMO_LOCALE = "de-CH";
+const MEMBER_COLORS: MemberAvatarColor[] = ["blue", "orange", "pink", "purple"];
+
+const createDefaultMembers = (): FamilyMember[] => [
+  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "blue", visibleInCalendar: true, order: 0 },
+  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "orange", visibleInCalendar: false, order: 1 },
+  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "pink", visibleInCalendar: true, order: 2 },
+  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "purple", visibleInCalendar: true, order: 3 },
 ];
+
+const defaultHouseholdData: HouseholdData = {
+  householdName: "Familie Arnet",
+  familyMembers: createDefaultMembers(),
+  contacts: [
+    {
+      id: "contact-toby",
+      firstName: "Toby",
+      lastName: "Keller",
+      birthDay: 30,
+      birthMonth: 6,
+      birthYear: 2015,
+      email: "toby.keller@example.com",
+      mobilePhone: "+41 79 123 45 67",
+    },
+    {
+      id: "contact-amelie",
+      firstName: "Amelie",
+      birthDay: 18,
+      birthMonth: 3,
+      mobilePhone: "+41 79 987 65 43",
+    },
+  ],
+};
 
 const addDays = (date: Date, days: number): Date => {
   const copy = new Date(date);
@@ -74,6 +116,44 @@ const getInitialTheme = (): ThemeMode => {
   return getThemeFromSystem();
 };
 
+const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
+  [...members]
+    .sort((a, b) => a.order - b.order)
+    .map((member, index) => ({
+      ...member,
+      order: index,
+      role: member.role?.trim() || undefined,
+      avatarColor: MEMBER_COLORS.includes(member.avatarColor) ? member.avatarColor : "blue",
+    }));
+
+const getInitialHouseholdData = (): HouseholdData => {
+  const persistedData = window.localStorage.getItem(DATA_STORAGE_KEY);
+  if (!persistedData) {
+    return defaultHouseholdData;
+  }
+
+  try {
+    const parsed = JSON.parse(persistedData) as Partial<HouseholdData>;
+    if (!parsed || typeof parsed !== "object") {
+      return defaultHouseholdData;
+    }
+
+    const householdName = typeof parsed.householdName === "string" ? parsed.householdName : defaultHouseholdData.householdName;
+    const familyMembers = Array.isArray(parsed.familyMembers)
+      ? normalizeFamilyMembers(parsed.familyMembers.filter(Boolean) as FamilyMember[])
+      : defaultHouseholdData.familyMembers;
+    const contacts = Array.isArray(parsed.contacts) ? (parsed.contacts.filter(Boolean) as Contact[]) : defaultHouseholdData.contacts;
+
+    return {
+      householdName,
+      familyMembers: familyMembers.length > 0 ? familyMembers : defaultHouseholdData.familyMembers,
+      contacts,
+    };
+  } catch {
+    return defaultHouseholdData;
+  }
+};
+
 const getWeekdayAbbreviation = (date: Date, locale: string): string => {
   const abbreviation = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(",", "");
   return abbreviation.endsWith(".") ? abbreviation.toUpperCase() : `${abbreviation.toUpperCase()}.`;
@@ -97,17 +177,66 @@ const formatBirthdayLabel = (specialEvent: SpecialEvent): string => {
   return `${specialEvent.label} (${age})`;
 };
 
+const formatContactBirthday = (contact: Contact): string => {
+  if (!contact.birthDay || !contact.birthMonth) {
+    return "—";
+  }
+  if (contact.birthYear) {
+    return `${contact.birthDay}.${contact.birthMonth}.${contact.birthYear}`;
+  }
+  return `${contact.birthDay}.${contact.birthMonth}.`;
+};
+
 const buildDemoSpecialEvents = (periodStart: Date): SpecialEvent[] => [
   { id: "evt-1", type: "birthday", date: toIsoDate(addDays(periodStart, 6)), label: "Toby", birthYear: 2014 },
   { id: "evt-2", type: "birthday", date: toIsoDate(addDays(periodStart, 11)), label: "Amelie" },
 ];
 
-function DashboardApp() {
-  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+const buildMemberFormState = (member?: FamilyMember): MemberFormState => ({
+  firstName: member?.firstName ?? "",
+  role: member?.role ?? "",
+  avatarColor: member?.avatarColor ?? "blue",
+  visibleInCalendar: member?.visibleInCalendar ?? true,
+});
+
+const buildContactFormState = (contact?: Contact): ContactFormState => ({
+  firstName: contact?.firstName ?? "",
+  lastName: contact?.lastName ?? "",
+  birthDay: contact?.birthDay ? String(contact.birthDay) : "",
+  birthMonth: contact?.birthMonth ? String(contact.birthMonth) : "",
+  birthYear: contact?.birthYear ? String(contact.birthYear) : "",
+  email: contact?.email ?? "",
+  mobilePhone: contact?.mobilePhone ?? "",
+});
+
+const getBestAvailableColor = (members: FamilyMember[]): MemberAvatarColor => {
+  for (const color of MEMBER_COLORS) {
+    if (!members.some((member) => member.avatarColor === color)) {
+      return color;
+    }
+  }
+  return MEMBER_COLORS[0];
+};
+
+function DashboardApp({
+  theme,
+  setTheme,
+  householdData,
+  onOpenSettings,
+}: {
+  theme: ThemeMode;
+  setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
+  householdData: HouseholdData;
+  onOpenSettings: () => void;
+}) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
 
-  const visibleMembers = useMemo(() => demoMembers.filter((member) => member.visibleInCalendar), []);
+  const orderedMembers = useMemo(
+    () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
+    [householdData.familyMembers]
+  );
+  const visibleMembers = useMemo(() => orderedMembers.filter((member) => member.visibleInCalendar), [orderedMembers]);
   const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
   const specialEvents = useMemo(() => buildDemoSpecialEvents(periodStart), [periodStart]);
 
@@ -122,11 +251,6 @@ function DashboardApp() {
       });
     return grouped;
   }, [specialEvents]);
-
-  useEffect(() => {
-    document.documentElement.dataset.theme = theme;
-    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
-  }, [theme]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 30000);
@@ -144,7 +268,7 @@ function DashboardApp() {
             📅
           </div>
           <div>
-            <h1>Family Calendar</h1>
+            <h1>{householdData.householdName}</h1>
             <p>{periodLabel}</p>
           </div>
         </div>
@@ -214,9 +338,15 @@ function DashboardApp() {
             {theme === "dark" ? "☀" : "☾"}
           </button>
 
-          <a className="icon-button" href="/settings" title="Open settings" aria-label="Open settings">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={onOpenSettings}
+            title="Open settings"
+            aria-label="Open settings"
+          >
             ⚙
-          </a>
+          </button>
         </div>
       </header>
 
@@ -290,16 +420,632 @@ function DashboardApp() {
   );
 }
 
-function SettingsPlaceholder() {
+function SettingsPage({
+  householdData,
+  setHouseholdData,
+  onGoHome,
+}: {
+  householdData: HouseholdData;
+  setHouseholdData: React.Dispatch<React.SetStateAction<HouseholdData>>;
+  onGoHome: () => void;
+}) {
+  const [householdNameDraft, setHouseholdNameDraft] = useState(householdData.householdName);
+  const [memberFormState, setMemberFormState] = useState<MemberFormState>(buildMemberFormState);
+  const [contactFormState, setContactFormState] = useState<ContactFormState>(buildContactFormState);
+  const [memberModalOpen, setMemberModalOpen] = useState(false);
+  const [editingMemberId, setEditingMemberId] = useState<string | null>(null);
+  const [contactModalOpen, setContactModalOpen] = useState(false);
+  const [editingContactId, setEditingContactId] = useState<string | null>(null);
+  const [contactSearch, setContactSearch] = useState("");
+
+  useEffect(() => {
+    setHouseholdNameDraft(householdData.householdName);
+  }, [householdData.householdName]);
+
+  const orderedMembers = useMemo(
+    () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
+    [householdData.familyMembers]
+  );
+
+  const filteredContacts = useMemo(() => {
+    const search = contactSearch.trim().toLowerCase();
+    if (!search) {
+      return householdData.contacts;
+    }
+
+    return householdData.contacts.filter((contact) => {
+      const fullName = `${contact.firstName} ${contact.lastName ?? ""}`.trim().toLowerCase();
+      return fullName.includes(search);
+    });
+  }, [contactSearch, householdData.contacts]);
+
+  const saveHouseholdName = () => {
+    const trimmed = householdNameDraft.trim();
+    if (!trimmed) {
+      return;
+    }
+    setHouseholdData((current) => ({ ...current, householdName: trimmed }));
+    setHouseholdNameDraft(trimmed);
+  };
+
+  const openAddMember = () => {
+    setEditingMemberId(null);
+    setMemberFormState({
+      firstName: "",
+      role: "",
+      avatarColor: getBestAvailableColor(orderedMembers),
+      visibleInCalendar: true,
+    });
+    setMemberModalOpen(true);
+  };
+
+  const openEditMember = (member: FamilyMember) => {
+    setEditingMemberId(member.id);
+    setMemberFormState(buildMemberFormState(member));
+    setMemberModalOpen(true);
+  };
+
+  const closeMemberModal = () => {
+    setMemberModalOpen(false);
+    setEditingMemberId(null);
+  };
+
+  const submitMember = (event: FormEvent) => {
+    event.preventDefault();
+    const firstName = memberFormState.firstName.trim();
+    if (!firstName) {
+      return;
+    }
+
+    setHouseholdData((current) => {
+      const members = [...current.familyMembers];
+      if (editingMemberId) {
+        const updated = members.map((member) =>
+          member.id === editingMemberId
+            ? {
+                ...member,
+                firstName,
+                role: memberFormState.role.trim() || undefined,
+                avatarColor: memberFormState.avatarColor,
+                visibleInCalendar: memberFormState.visibleInCalendar,
+              }
+            : member
+        );
+        return { ...current, familyMembers: normalizeFamilyMembers(updated) };
+      }
+
+      const newMember: FamilyMember = {
+        id: `member-${Math.random().toString(36).slice(2, 10)}`,
+        firstName,
+        role: memberFormState.role.trim() || undefined,
+        avatarColor: memberFormState.avatarColor,
+        visibleInCalendar: memberFormState.visibleInCalendar,
+        order: members.length,
+      };
+
+      return { ...current, familyMembers: normalizeFamilyMembers([...members, newMember]) };
+    });
+
+    closeMemberModal();
+  };
+
+  const updateMemberRow = (memberId: string, updater: (member: FamilyMember) => FamilyMember) => {
+    setHouseholdData((current) => ({
+      ...current,
+      familyMembers: normalizeFamilyMembers(current.familyMembers.map((member) => (member.id === memberId ? updater(member) : member))),
+    }));
+  };
+
+  const moveMember = (memberId: string, direction: -1 | 1) => {
+    setHouseholdData((current) => {
+      const sorted = [...current.familyMembers].sort((a, b) => a.order - b.order);
+      const fromIndex = sorted.findIndex((member) => member.id === memberId);
+      const targetIndex = fromIndex + direction;
+
+      if (fromIndex < 0 || targetIndex < 0 || targetIndex >= sorted.length) {
+        return current;
+      }
+
+      const swapped = [...sorted];
+      [swapped[fromIndex], swapped[targetIndex]] = [swapped[targetIndex], swapped[fromIndex]];
+
+      return {
+        ...current,
+        familyMembers: swapped.map((member, index) => ({ ...member, order: index })),
+      };
+    });
+  };
+
+  const openAddContact = () => {
+    setEditingContactId(null);
+    setContactFormState(buildContactFormState());
+    setContactModalOpen(true);
+  };
+
+  const openEditContact = (contact: Contact) => {
+    setEditingContactId(contact.id);
+    setContactFormState(buildContactFormState(contact));
+    setContactModalOpen(true);
+  };
+
+  const closeContactModal = () => {
+    setContactModalOpen(false);
+    setEditingContactId(null);
+  };
+
+  const submitContact = (event: FormEvent) => {
+    event.preventDefault();
+    const firstName = contactFormState.firstName.trim();
+    if (!firstName) {
+      return;
+    }
+
+    const birthDay = contactFormState.birthDay.trim();
+    const birthMonth = contactFormState.birthMonth.trim();
+    const birthYear = contactFormState.birthYear.trim();
+    const hasAnyBirthdayData = Boolean(birthDay || birthMonth || birthYear);
+
+    if (hasAnyBirthdayData && (!birthDay || !birthMonth)) {
+      return;
+    }
+
+    const birthDayNumber = birthDay ? Number.parseInt(birthDay, 10) : undefined;
+    const birthMonthNumber = birthMonth ? Number.parseInt(birthMonth, 10) : undefined;
+    const birthYearNumber = birthYear ? Number.parseInt(birthYear, 10) : undefined;
+
+    if ((birthDayNumber && (birthDayNumber < 1 || birthDayNumber > 31)) || (birthMonthNumber && (birthMonthNumber < 1 || birthMonthNumber > 12))) {
+      return;
+    }
+
+    const preparedContact: Contact = {
+      id: editingContactId ?? `contact-${Math.random().toString(36).slice(2, 10)}`,
+      firstName,
+      lastName: contactFormState.lastName.trim() || undefined,
+      birthDay: birthDayNumber,
+      birthMonth: birthMonthNumber,
+      birthYear: birthYearNumber,
+      email: contactFormState.email.trim() || undefined,
+      mobilePhone: contactFormState.mobilePhone.trim() || undefined,
+    };
+
+    setHouseholdData((current) => {
+      if (!editingContactId) {
+        return { ...current, contacts: [...current.contacts, preparedContact] };
+      }
+
+      return {
+        ...current,
+        contacts: current.contacts.map((contact) => (contact.id === editingContactId ? preparedContact : contact)),
+      };
+    });
+
+    closeContactModal();
+  };
+
+  const deleteContact = (contactId: string) => {
+    if (!window.confirm("Delete this contact?")) {
+      return;
+    }
+    setHouseholdData((current) => ({
+      ...current,
+      contacts: current.contacts.filter((contact) => contact.id !== contactId),
+    }));
+  };
+
+  const goBack = () => {
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    onGoHome();
+  };
+
   return (
-    <main className="settings-placeholder">
-      <h1>Settings</h1>
-      <p>Settings page content is out of scope for this issue.</p>
-      <a href="/">Back to dashboard</a>
-    </main>
+    <div className="dashboard-page settings-page">
+      <header className="dashboard-header settings-header" role="banner">
+        <button type="button" className="icon-button" onClick={goBack} title="Go back" aria-label="Go back">
+          ←
+        </button>
+        <div className="header-branding">
+          <div>
+            <h1>Settings</h1>
+            <p>Household, family members, contacts</p>
+          </div>
+        </div>
+        <button
+          type="button"
+          className="icon-button"
+          onClick={onGoHome}
+          title="Go to dashboard"
+          aria-label="Go to dashboard"
+        >
+          ⌂
+        </button>
+      </header>
+
+      <main className="settings-main">
+        <section className="settings-card">
+          <h2>Household Setting</h2>
+          <div className="settings-form-row">
+            <label htmlFor="household-name">Household name</label>
+            <div className="inline-controls">
+              <input
+                id="household-name"
+                type="text"
+                value={householdNameDraft}
+                onChange={(event) => setHouseholdNameDraft(event.target.value)}
+              />
+              <button type="button" className="primary-pill" onClick={saveHouseholdName}>
+                Save
+              </button>
+            </div>
+          </div>
+          <div className="coming-soon-card">
+            <strong>More household settings are coming soon.</strong>
+          </div>
+        </section>
+
+        <section className="settings-card">
+          <div className="section-toolbar">
+            <h2>Household Members</h2>
+            <button type="button" className="primary-pill" onClick={openAddMember}>
+              + Member
+            </button>
+          </div>
+
+          <div className="table-scroll">
+            <table className="settings-table" aria-label="Household members">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Order</th>
+                  <th>Visible</th>
+                  <th>Color</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {orderedMembers.map((member, index) => (
+                  <tr key={member.id}>
+                    <td>
+                      <div className="member-header">
+                        <span className={`avatar avatar-${member.avatarColor}`}>{member.firstName.charAt(0)}</span>
+                        <span>
+                          {member.firstName}
+                          {member.role ? <small> · {member.role}</small> : null}
+                        </span>
+                      </div>
+                    </td>
+                    <td>
+                      <div className="icon-actions">
+                        <button
+                          type="button"
+                          className="icon-button compact-icon-button"
+                          onClick={() => moveMember(member.id, -1)}
+                          disabled={index === 0}
+                          title="Move up"
+                        >
+                          ↑
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button compact-icon-button"
+                          onClick={() => moveMember(member.id, 1)}
+                          disabled={index === orderedMembers.length - 1}
+                          title="Move down"
+                        >
+                          ↓
+                        </button>
+                      </div>
+                    </td>
+                    <td>
+                      <label className="switch-label">
+                        <input
+                          type="checkbox"
+                          checked={member.visibleInCalendar}
+                          onChange={(event) =>
+                            updateMemberRow(member.id, (current) => ({ ...current, visibleInCalendar: event.target.checked }))
+                          }
+                        />
+                        <span>{member.visibleInCalendar ? "On" : "Off"}</span>
+                      </label>
+                    </td>
+                    <td>
+                      <select
+                        value={member.avatarColor}
+                        onChange={(event) =>
+                          updateMemberRow(member.id, (current) => ({
+                            ...current,
+                            avatarColor: event.target.value as MemberAvatarColor,
+                          }))
+                        }
+                      >
+                        {MEMBER_COLORS.map((color) => (
+                          <option key={color} value={color}>
+                            {color}
+                          </option>
+                        ))}
+                      </select>
+                    </td>
+                    <td>
+                      <button type="button" className="icon-button compact-icon-button" onClick={() => openEditMember(member)}>
+                        ✎
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {memberModalOpen ? (
+            <div className="settings-modal-backdrop" onClick={closeMemberModal}>
+              <form
+                className="edit-sheet settings-modal"
+                onSubmit={submitMember}
+                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label={editingMemberId ? "Edit member" : "Add member"}
+              >
+              <h3>{editingMemberId ? "Edit member" : "Add member"}</h3>
+              <div className="edit-grid">
+                <label>
+                  First name
+                  <input
+                    type="text"
+                    required
+                    value={memberFormState.firstName}
+                    onChange={(event) => setMemberFormState((current) => ({ ...current, firstName: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Role / relationship
+                  <input
+                    type="text"
+                    value={memberFormState.role}
+                    onChange={(event) => setMemberFormState((current) => ({ ...current, role: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Color
+                  <select
+                    value={memberFormState.avatarColor}
+                    onChange={(event) =>
+                      setMemberFormState((current) => ({ ...current, avatarColor: event.target.value as MemberAvatarColor }))
+                    }
+                  >
+                    {MEMBER_COLORS.map((color) => (
+                      <option key={color} value={color}>
+                        {color}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+                <label>
+                  Visible in calendar
+                  <input
+                    type="checkbox"
+                    checked={memberFormState.visibleInCalendar}
+                    onChange={(event) =>
+                      setMemberFormState((current) => ({ ...current, visibleInCalendar: event.target.checked }))
+                    }
+                  />
+                </label>
+                <label>
+                  Avatar/photo upload (coming soon)
+                  <input type="file" disabled aria-disabled="true" />
+                </label>
+              </div>
+              <div className="sheet-actions">
+                <button type="button" onClick={closeMemberModal}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary-pill">
+                  Save member
+                </button>
+              </div>
+              </form>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="settings-card">
+          <div className="section-toolbar responsive-toolbar">
+            <h2>Contact List</h2>
+            <div className="toolbar-controls">
+              <input
+                type="search"
+                placeholder="Search contacts"
+                value={contactSearch}
+                onChange={(event) => setContactSearch(event.target.value)}
+              />
+              <button type="button" className="primary-pill no-wrap-button" onClick={openAddContact}>
+                + Contact
+              </button>
+            </div>
+          </div>
+
+          <div className="table-scroll">
+            <table className="settings-table" aria-label="Contacts">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Birthday</th>
+                  <th>Mobile Phone</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredContacts.map((contact) => (
+                  <tr key={contact.id}>
+                    <td>
+                      <div className="member-header">
+                        <span className="avatar avatar-birthday">🎂</span>
+                        <span>{`${contact.firstName}${contact.lastName ? ` ${contact.lastName}` : ""}`}</span>
+                      </div>
+                    </td>
+                    <td>{formatContactBirthday(contact)}</td>
+                    <td>{contact.mobilePhone ?? "—"}</td>
+                    <td>
+                      <div className="icon-actions">
+                        <button
+                          type="button"
+                          className="icon-button compact-icon-button"
+                          title="Edit contact"
+                          onClick={() => openEditContact(contact)}
+                        >
+                          ✎
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button compact-icon-button"
+                          title="Delete contact"
+                          onClick={() => deleteContact(contact.id)}
+                        >
+                          🗑
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          {contactModalOpen ? (
+            <div className="settings-modal-backdrop" onClick={closeContactModal}>
+              <form
+                className="edit-sheet settings-modal"
+                onSubmit={submitContact}
+                onClick={(event) => event.stopPropagation()}
+                role="dialog"
+                aria-modal="true"
+                aria-label={editingContactId ? "Edit contact" : "Add contact"}
+              >
+              <h3>{editingContactId ? "Edit contact" : "Add contact"}</h3>
+              <div className="edit-grid">
+                <label>
+                  First name
+                  <input
+                    type="text"
+                    required
+                    value={contactFormState.firstName}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, firstName: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Last name
+                  <input
+                    type="text"
+                    value={contactFormState.lastName}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, lastName: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Birthday day
+                  <input
+                    type="number"
+                    min={1}
+                    max={31}
+                    value={contactFormState.birthDay}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, birthDay: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Birthday month
+                  <input
+                    type="number"
+                    min={1}
+                    max={12}
+                    value={contactFormState.birthMonth}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, birthMonth: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Birthday year (optional)
+                  <input
+                    type="number"
+                    min={1}
+                    value={contactFormState.birthYear}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, birthYear: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Email
+                  <input
+                    type="email"
+                    value={contactFormState.email}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, email: event.target.value }))}
+                  />
+                </label>
+                <label>
+                  Mobile phone
+                  <input
+                    type="tel"
+                    value={contactFormState.mobilePhone}
+                    onChange={(event) => setContactFormState((current) => ({ ...current, mobilePhone: event.target.value }))}
+                  />
+                </label>
+              </div>
+              <div className="sheet-actions">
+                <button type="button" onClick={closeContactModal}>
+                  Cancel
+                </button>
+                <button type="submit" className="primary-pill">
+                  Save contact
+                </button>
+              </div>
+              </form>
+            </div>
+          ) : null}
+        </section>
+      </main>
+    </div>
   );
 }
 
 export function App() {
-  return window.location.pathname === "/settings" ? <SettingsPlaceholder /> : <DashboardApp />;
+  const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
+  const [pathname, setPathname] = useState(() => window.location.pathname);
+
+  useEffect(() => {
+    document.documentElement.dataset.theme = theme;
+    window.localStorage.setItem(THEME_STORAGE_KEY, theme);
+  }, [theme]);
+
+  useEffect(() => {
+    const toPersist: HouseholdData = {
+      householdName: householdData.householdName,
+      familyMembers: normalizeFamilyMembers(householdData.familyMembers),
+      contacts: householdData.contacts,
+    };
+    window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(toPersist));
+  }, [householdData]);
+
+  useEffect(() => {
+    const handlePopState = () => setPathname(window.location.pathname);
+    window.addEventListener("popstate", handlePopState);
+    return () => window.removeEventListener("popstate", handlePopState);
+  }, []);
+
+  const navigateTo = (nextPathname: "/" | "/settings") => {
+    if (window.location.pathname === nextPathname) {
+      return;
+    }
+    window.history.pushState({}, "", nextPathname);
+    setPathname(nextPathname);
+  };
+
+  return pathname === "/settings" ? (
+    <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
+  ) : (
+    <DashboardApp
+      theme={theme}
+      setTheme={setTheme}
+      householdData={householdData}
+      onOpenSettings={() => navigateTo("/settings")}
+    />
+  );
 }
