@@ -2,7 +2,7 @@
 
 ## Recorded decisions
 
-- Database: PostgreSQL
+- Database: Azure SQL Database (SQL Server)
 - ORM: Prisma ORM
 - Tenancy: multi-tenant; every household-owned table is scoped by `householdId`
 - Household-owned models: `HouseholdMember`, `Contact`, `EventCategory`, `Event`, `DayConfiguration`
@@ -29,10 +29,10 @@ erDiagram
 
 ### `Household`
 
-- `id` UUID PK (`String @id @default(uuid()) @db.Uuid`)
+- `id` UUID PK (`String @id @default(uuid()) @db.UniqueIdentifier`)
 - `name` required
 - `holidayRegion` required
-- `createdAt`, `updatedAt` as `@db.Timestamptz(6)`
+- `createdAt`, `updatedAt` as `@db.DateTime2`
 - Owns `HouseholdMember[]`, `Contact[]`, `EventCategory[]`, `Event[]`, `DayConfiguration[]`
 - Delete behavior: deleting a household cascades to all owned records
 
@@ -81,7 +81,7 @@ erDiagram
 - Required: `id`, `householdId`, `householdMemberId`, `categoryId`, `title`, `startAt`, `allDay`, `isRecurring`, audit timestamps
 - Optional: `contactId`, `endAt`, `rrule`, `notes`
 - Temporal types:
-  - `startAt`, `endAt`, `createdAt`, `updatedAt` use `@db.Timestamptz(6)`
+  - `startAt`, `endAt`, `createdAt`, `updatedAt` use `@db.DateTime2`
 - Constraints/indexes:
   - `@@index([householdId, startAt])`
   - `@@index([householdMemberId, startAt])`

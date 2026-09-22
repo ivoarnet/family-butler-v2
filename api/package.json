@@ -7,7 +7,8 @@
     "dev": "func start",
     "build": "node -e \"console.log('Azure Functions API: no build step required')\"",
     "prisma:generate": "prisma generate --schema ../prisma/schema.prisma",
-    "prisma:migrate": "prisma migrate dev --schema ../prisma/schema.prisma"
+    "prisma:migrate": "prisma migrate dev --schema ../prisma/schema.prisma",
+    "prisma:migrate:deploy": "prisma migrate deploy --schema ../prisma/schema.prisma"
   },
   "dependencies": {
     "@prisma/client": "^5.20.0"
