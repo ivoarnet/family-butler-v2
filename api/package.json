@@ -11,9 +11,7 @@
     "prisma:migrate:deploy": "prisma migrate deploy --schema ../prisma/schema.prisma"
   },
   "dependencies": {
-    "@prisma/client": "^5.20.0"
-  },
-  "devDependencies": {
+    "@prisma/client": "^5.20.0",
     "prisma": "^5.20.0"
   }
 }
