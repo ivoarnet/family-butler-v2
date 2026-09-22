@@ -415,19 +415,6 @@ body,
   color: #fff;
 }
 
-.avatar-blue {
-  background: #3b82f6;
-}
-
-.avatar-orange {
-  background: #f97316;
-}
-
-.avatar-pink {
-  background: #ec4899;
-}
-
-.avatar-purple,
 .avatar-birthday {
   background: #7c3aed;
 }

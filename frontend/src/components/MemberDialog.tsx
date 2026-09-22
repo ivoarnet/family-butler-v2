@@ -83,11 +83,11 @@ const ColorSwatchButton = styled("button")<{ $selected: boolean; $swatch: string
   },
 }));
 
-const COLOR_SWATCH_MAP: Record<MemberAvatarColor, string> = {
-  blue: "#3b82f6",
-  orange: "#f97316",
-  pink: "#ec4899",
-  purple: "#7c3aed",
+const COLOR_LABELS: Record<string, string> = {
+  "#3b82f6": "Blue",
+  "#f97316": "Orange",
+  "#ec4899": "Pink",
+  "#7c3aed": "Purple",
 };
 
 export interface MemberDialogFormState {
@@ -181,11 +181,11 @@ export function MemberDialog({
                         key={color}
                         type="button"
                         role="radio"
-                        aria-label={`${color} avatar color`}
+                        aria-label={`${COLOR_LABELS[color] ?? color} avatar color`}
                         aria-checked={selected}
-                        title={color.charAt(0).toUpperCase() + color.slice(1)}
+                        title={COLOR_LABELS[color] ?? color}
                         $selected={selected}
-                        $swatch={COLOR_SWATCH_MAP[color]}
+                        $swatch={color}
                         onClick={() => onAvatarColorChange(color)}
                       />
                     );

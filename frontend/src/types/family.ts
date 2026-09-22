@@ -1,4 +1,4 @@
-export type MemberAvatarColor = "blue" | "orange" | "pink" | "purple";
+export type MemberAvatarColor = string;
 
 export interface FamilyMember {
   id: string;

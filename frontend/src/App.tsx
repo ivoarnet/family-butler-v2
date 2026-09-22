@@ -39,13 +39,40 @@ interface ContactFormState {
 const THEME_STORAGE_KEY = "family-butler-theme";
 const DATA_STORAGE_KEY = "family-butler-household-data";
 const DEMO_LOCALE = "de-CH";
-const MEMBER_COLORS: MemberAvatarColor[] = ["blue", "orange", "pink", "purple"];
+const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
+  blue: "#3b82f6",
+  orange: "#f97316",
+  pink: "#ec4899",
+  purple: "#7c3aed",
+};
+const MEMBER_COLORS: MemberAvatarColor[] = ["#3b82f6", "#f97316", "#ec4899", "#7c3aed"];
+const MEMBER_COLOR_LABELS: Record<string, string> = {
+  "#3b82f6": "Blue",
+  "#f97316": "Orange",
+  "#ec4899": "Pink",
+  "#7c3aed": "Purple",
+};
+const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
+
+const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
+  if (typeof color !== "string") {
+    return DEFAULT_MEMBER_COLOR;
+  }
+  const trimmed = color.trim();
+  if (!trimmed) {
+    return DEFAULT_MEMBER_COLOR;
+  }
+  const legacy = LEGACY_MEMBER_COLOR_MAP[trimmed.toLowerCase()];
+  return legacy ?? trimmed;
+};
+
+const getMemberColorLabel = (color: MemberAvatarColor): string => MEMBER_COLOR_LABELS[color] ?? color;
 
 const createDefaultMembers = (): FamilyMember[] => [
-  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "blue", visibleInCalendar: true, order: 0 },
-  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "orange", visibleInCalendar: false, order: 1 },
-  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "pink", visibleInCalendar: true, order: 2 },
-  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "purple", visibleInCalendar: true, order: 3 },
+  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "#3b82f6", visibleInCalendar: true, order: 0 },
+  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "#f97316", visibleInCalendar: false, order: 1 },
+  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "#ec4899", visibleInCalendar: true, order: 2 },
+  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "#7c3aed", visibleInCalendar: true, order: 3 },
 ];
 
 const defaultHouseholdData: HouseholdData = {
@@ -125,7 +152,7 @@ const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
       ...member,
       order: index,
       role: member.role?.trim() || undefined,
-      avatarColor: MEMBER_COLORS.includes(member.avatarColor) ? member.avatarColor : "blue",
+      avatarColor: normalizeMemberColor(member.avatarColor),
     }));
 
 const getInitialHouseholdData = (): HouseholdData => {
@@ -197,7 +224,7 @@ const buildDemoSpecialEvents = (periodStart: Date): SpecialEvent[] => [
 const buildMemberFormState = (member?: FamilyMember): MemberFormState => ({
   firstName: member?.firstName ?? "",
   role: member?.role ?? "",
-  avatarColor: member?.avatarColor ?? "blue",
+  avatarColor: member?.avatarColor ? normalizeMemberColor(member.avatarColor) : DEFAULT_MEMBER_COLOR,
   visibleInCalendar: member?.visibleInCalendar ?? true,
 });
 
@@ -217,7 +244,7 @@ const getBestAvailableColor = (members: FamilyMember[]): MemberAvatarColor => {
       return color;
     }
   }
-  return MEMBER_COLORS[0];
+  return DEFAULT_MEMBER_COLOR;
 };
 
 function DashboardApp({
@@ -362,7 +389,9 @@ function DashboardApp({
                   {visibleMembers.map((member) => (
                     <th key={member.id}>
                       <div className="member-header">
-                        <span className={`avatar avatar-${member.avatarColor}`}>{member.firstName.charAt(0)}</span>
+                        <span className="avatar" style={{ backgroundColor: member.avatarColor }}>
+                          {member.firstName.charAt(0)}
+                        </span>
                         <span>{member.firstName}</span>
                       </div>
                     </th>
@@ -735,7 +764,9 @@ function SettingsPage({
                   <tr key={member.id}>
                     <td>
                       <div className="member-header">
-                        <span className={`avatar avatar-${member.avatarColor}`}>{member.firstName.charAt(0)}</span>
+                        <span className="avatar" style={{ backgroundColor: member.avatarColor }}>
+                          {member.firstName.charAt(0)}
+                        </span>
                         <span>
                           {member.firstName}
                           {member.role ? <small> · {member.role}</small> : null}
@@ -788,7 +819,7 @@ function SettingsPage({
                       >
                         {MEMBER_COLORS.map((color) => (
                           <option key={color} value={color}>
-                            {color}
+                            {getMemberColorLabel(color)}
                           </option>
                         ))}
                       </select>
