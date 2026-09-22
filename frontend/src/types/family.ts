@@ -1,6 +1,6 @@
 export type MemberAvatarColor = string;
 
-export interface FamilyMember {
+export interface HouseholdMember {
   id: string;
   firstName: string;
   role?: string;
@@ -9,6 +9,8 @@ export interface FamilyMember {
   order: number;
   avatarPhotoUrl?: string;
 }
+
+export type FamilyMember = HouseholdMember;
 
 export interface Contact {
   id: string;

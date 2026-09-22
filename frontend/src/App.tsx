@@ -14,6 +14,7 @@ interface SpecialEvent {
 }
 
 interface HouseholdData {
+  householdId: string;
   householdName: string;
   familyMembers: FamilyMember[];
   contacts: Contact[];
@@ -37,8 +38,9 @@ interface ContactFormState {
 }
 
 const THEME_STORAGE_KEY = "family-butler-theme";
-const DATA_STORAGE_KEY = "family-butler-household-data";
 const DEMO_LOCALE = "de-CH";
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
+const DEFAULT_HOUSEHOLD_ID = import.meta.env.VITE_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
 const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
   blue: "#3b82f6",
   orange: "#f97316",
@@ -68,35 +70,11 @@ const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
 
 const getMemberColorLabel = (color: MemberAvatarColor): string => MEMBER_COLOR_LABELS[color] ?? color;
 
-const createDefaultMembers = (): FamilyMember[] => [
-  { id: "iwan", firstName: "Iwan", role: "Father", avatarColor: "#3b82f6", visibleInCalendar: true, order: 0 },
-  { id: "christine", firstName: "Christine", role: "Mother", avatarColor: "#f97316", visibleInCalendar: false, order: 1 },
-  { id: "silvie", firstName: "Silvie", role: "Daughter", avatarColor: "#ec4899", visibleInCalendar: true, order: 2 },
-  { id: "fabio", firstName: "Fabio", role: "Son", avatarColor: "#7c3aed", visibleInCalendar: true, order: 3 },
-];
-
 const defaultHouseholdData: HouseholdData = {
-  householdName: "Familie Arnet",
-  familyMembers: createDefaultMembers(),
-  contacts: [
-    {
-      id: "contact-toby",
-      firstName: "Toby",
-      lastName: "Keller",
-      birthDay: 30,
-      birthMonth: 6,
-      birthYear: 2015,
-      email: "toby.keller@example.com",
-      mobilePhone: "+41 79 123 45 67",
-    },
-    {
-      id: "contact-amelie",
-      firstName: "Amelie",
-      birthDay: 18,
-      birthMonth: 3,
-      mobilePhone: "+41 79 987 65 43",
-    },
-  ],
+  householdId: DEFAULT_HOUSEHOLD_ID,
+  householdName: "Family Butler",
+  familyMembers: [],
+  contacts: [],
 };
 
 const addDays = (date: Date, days: number): Date => {
@@ -155,32 +133,44 @@ const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
       avatarColor: normalizeMemberColor(member.avatarColor),
     }));
 
-const getInitialHouseholdData = (): HouseholdData => {
-  const persistedData = window.localStorage.getItem(DATA_STORAGE_KEY);
-  if (!persistedData) {
-    return defaultHouseholdData;
+const getInitialHouseholdData = (): HouseholdData => ({ ...defaultHouseholdData });
+
+const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): HouseholdData => {
+  const fallback = getInitialHouseholdData();
+  return {
+    householdId,
+    householdName: typeof payload.householdName === "string" && payload.householdName.trim() ? payload.householdName : fallback.householdName,
+    familyMembers: Array.isArray(payload.familyMembers)
+      ? normalizeFamilyMembers(payload.familyMembers.filter(Boolean) as FamilyMember[])
+      : fallback.familyMembers,
+    contacts: Array.isArray(payload.contacts) ? (payload.contacts.filter(Boolean) as Contact[]) : fallback.contacts,
+  };
+};
+
+const readHousehold = async (householdId: string): Promise<HouseholdData> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`);
+  if (!response.ok) {
+    throw new Error("Failed to load household data");
+  }
+  return toHouseholdData((await response.json()) as Partial<HouseholdData>, householdId);
+};
+
+const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${household.householdId}`, {
+    method: "PUT",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      householdName: household.householdName,
+      familyMembers: normalizeFamilyMembers(household.familyMembers),
+      contacts: household.contacts,
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error("Failed to save household data");
   }
 
-  try {
-    const parsed = JSON.parse(persistedData) as Partial<HouseholdData>;
-    if (!parsed || typeof parsed !== "object") {
-      return defaultHouseholdData;
-    }
-
-    const householdName = typeof parsed.householdName === "string" ? parsed.householdName : defaultHouseholdData.householdName;
-    const familyMembers = Array.isArray(parsed.familyMembers)
-      ? normalizeFamilyMembers(parsed.familyMembers.filter(Boolean) as FamilyMember[])
-      : defaultHouseholdData.familyMembers;
-    const contacts = Array.isArray(parsed.contacts) ? (parsed.contacts.filter(Boolean) as Contact[]) : defaultHouseholdData.contacts;
-
-    return {
-      householdName,
-      familyMembers: familyMembers.length > 0 ? familyMembers : defaultHouseholdData.familyMembers,
-      contacts,
-    };
-  } catch {
-    return defaultHouseholdData;
-  }
+  return toHouseholdData((await response.json()) as Partial<HouseholdData>, household.householdId);
 };
 
 const getWeekdayAbbreviation = (date: Date, locale: string): string => {
@@ -216,10 +206,32 @@ const formatContactBirthday = (contact: Contact): string => {
   return `${contact.birthDay}.${contact.birthMonth}.`;
 };
 
-const buildDemoSpecialEvents = (periodStart: Date): SpecialEvent[] => [
-  { id: "evt-1", type: "birthday", date: toIsoDate(addDays(periodStart, 6)), label: "Toby", birthYear: 2014 },
-  { id: "evt-2", type: "birthday", date: toIsoDate(addDays(periodStart, 11)), label: "Amelie" },
-];
+const buildBirthdayEvents = (contacts: Contact[], periodStart: Date): SpecialEvent[] => {
+  const days = Array.from({ length: 14 }, (_, index) => addDays(periodStart, index));
+  const birthdayEvents: SpecialEvent[] = [];
+
+  for (const day of days) {
+    for (const contact of contacts) {
+      if (!contact.birthDay || !contact.birthMonth) {
+        continue;
+      }
+
+      if (day.getDate() !== contact.birthDay || day.getMonth() + 1 !== contact.birthMonth) {
+        continue;
+      }
+
+      birthdayEvents.push({
+        id: `${contact.id}-${toIsoDate(day)}`,
+        type: "birthday",
+        date: toIsoDate(day),
+        label: `${contact.firstName}${contact.lastName ? ` ${contact.lastName}` : ""}`,
+        birthYear: contact.birthYear,
+      });
+    }
+  }
+
+  return birthdayEvents;
+};
 
 const buildMemberFormState = (member?: FamilyMember): MemberFormState => ({
   firstName: member?.firstName ?? "",
@@ -267,7 +279,7 @@ function DashboardApp({
   );
   const visibleMembers = useMemo(() => orderedMembers.filter((member) => member.visibleInCalendar), [orderedMembers]);
   const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
-  const specialEvents = useMemo(() => buildDemoSpecialEvents(periodStart), [periodStart]);
+  const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, periodStart), [householdData.contacts, periodStart]);
 
   const birthdayEventsByDate = useMemo(() => {
     const grouped = new Map<string, SpecialEvent[]>();
@@ -552,7 +564,7 @@ function SettingsPage({
       }
 
       const newMember: FamilyMember = {
-        id: `member-${Math.random().toString(36).slice(2, 10)}`,
+        id: crypto.randomUUID(),
         firstName,
         role: memberFormState.role.trim() || undefined,
         avatarColor: memberFormState.avatarColor,
@@ -653,7 +665,7 @@ function SettingsPage({
     }
 
     const preparedContact: Contact = {
-      id: editingContactId ?? `contact-${Math.random().toString(36).slice(2, 10)}`,
+      id: editingContactId ?? crypto.randomUUID(),
       firstName,
       lastName: contactFormState.lastName.trim() || undefined,
       birthDay: birthDayNumber,
@@ -934,6 +946,9 @@ export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
   const [pathname, setPathname] = useState(() => window.location.pathname);
+  const [initialLoadComplete, setInitialLoadComplete] = useState(false);
+  const [dataError, setDataError] = useState<string | null>(null);
+  const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -941,13 +956,74 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
-    const toPersist: HouseholdData = {
-      householdName: householdData.householdName,
-      familyMembers: normalizeFamilyMembers(householdData.familyMembers),
-      contacts: householdData.contacts,
+    let cancelled = false;
+
+    const loadHouseholdData = async () => {
+      try {
+        const loaded = await readHousehold(DEFAULT_HOUSEHOLD_ID);
+        if (cancelled) {
+          return;
+        }
+        setHouseholdData(loaded);
+        setDataError(null);
+      } catch {
+        if (cancelled) {
+          return;
+        }
+        setDataError("Could not load household data from the server.");
+      } finally {
+        if (!cancelled) {
+          setInitialLoadComplete(true);
+        }
+      }
     };
-    window.localStorage.setItem(DATA_STORAGE_KEY, JSON.stringify(toPersist));
-  }, [householdData]);
+
+    loadHouseholdData();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!initialLoadComplete) {
+      return;
+    }
+
+    let cancelled = false;
+
+    const persistHouseholdData = async () => {
+      try {
+        setIsSaving(true);
+        const persisted = await writeHousehold(householdData);
+        if (cancelled) {
+          return;
+        }
+        setHouseholdData((current) =>
+          JSON.stringify(current) === JSON.stringify(persisted)
+            ? current
+            : {
+                ...persisted,
+                familyMembers: normalizeFamilyMembers(persisted.familyMembers),
+              }
+        );
+        setDataError(null);
+      } catch {
+        if (!cancelled) {
+          setDataError("Could not save household data to the server.");
+        }
+      } finally {
+        if (!cancelled) {
+          setIsSaving(false);
+        }
+      }
+    };
+
+    persistHouseholdData();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [householdData, initialLoadComplete]);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
@@ -963,14 +1039,32 @@ export function App() {
     setPathname(nextPathname);
   };
 
+  if (!initialLoadComplete) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">Loading household data…</section>
+        </main>
+      </div>
+    );
+  }
+
   return pathname === "/settings" ? (
-    <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
+    <>
+      {dataError ? <div role="alert">{dataError}</div> : null}
+      {isSaving ? <div aria-live="polite">Saving…</div> : null}
+      <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
+    </>
   ) : (
-    <DashboardApp
-      theme={theme}
-      setTheme={setTheme}
-      householdData={householdData}
-      onOpenSettings={() => navigateTo("/settings")}
-    />
+    <>
+      {dataError ? <div role="alert">{dataError}</div> : null}
+      {isSaving ? <div aria-live="polite">Saving…</div> : null}
+      <DashboardApp
+        theme={theme}
+        setTheme={setTheme}
+        householdData={householdData}
+        onOpenSettings={() => navigateTo("/settings")}
+      />
+    </>
   );
 }

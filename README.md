@@ -1,12 +1,12 @@
 # family-butler-v2
 
-Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
+Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL Database.
 
 ## Stack
 
 - Frontend: React + Vite + TypeScript (`/frontend`)
 - Backend: Azure Functions (Node.js) (`/api`)
-- Database: PostgreSQL via Prisma (`/prisma/schema.prisma`)
+- Database: Azure SQL Database (SQL Server) via Prisma (`/prisma/schema.prisma`)
 - Deployment target: Azure Static Web Apps with API backend (Azure resources created manually)
 
 ## Repository Structure
@@ -23,7 +23,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
 
 - Node.js 20+
 - npm 10+
-- PostgreSQL database
+- Azure SQL Database
 - Azure Functions Core Tools (for local API runtime)
 
 ## Local Setup
@@ -46,7 +46,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and PostgreSQL.
    - `/home/runner/work/family-butler-v2/family-butler-v2/api/.env`
    - `/home/runner/work/family-butler-v2/family-butler-v2/prisma/.env`
 
-4. Generate Prisma client and run migrations:
+4. Generate Prisma client and apply schema changes:
 
    ```bash
    npm run prisma:generate
@@ -79,12 +79,13 @@ The API is implemented as Azure Functions handlers for Static Web Apps compatibi
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
 
 ## Azure Deployment Notes (Manual Resource Creation)
 
 This repository includes an Azure Static Web Apps workflow under:
 
-- `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps.yml`
+- `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml`
 
 You should manually create Azure resources, then configure GitHub secrets:
 
