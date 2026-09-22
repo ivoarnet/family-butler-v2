@@ -5,9 +5,9 @@
 - Database: PostgreSQL
 - ORM: Prisma ORM
 - Tenancy: multi-tenant; every household-owned table is scoped by `householdId`
-- Household-owned models: `HouseholdMember`, `Contact`, `EventCategory`, `Event`, `SpecialDay`
+- Household-owned models: `HouseholdMember`, `Contact`, `EventCategory`, `Event`, `DayConfiguration`
 - Recurrence format: RFC 5545 `RRULE` strings
-- Calendar annotations (public holidays, bridge days, school holidays, custom days): unified `SpecialDay` model
+- Calendar annotations (public holidays, bridge days, school holidays, custom days): unified `DayConfiguration` model
 - Terminology: use `HouseholdMember` (not `FamilyMember`)
 
 ## Mermaid ERD
@@ -18,11 +18,11 @@ erDiagram
     HOUSEHOLD ||--o{ CONTACT : has
     HOUSEHOLD ||--o{ EVENT_CATEGORY : has
     HOUSEHOLD ||--o{ EVENT : has
-    HOUSEHOLD ||--o{ SPECIAL_DAY : configures
+    HOUSEHOLD ||--o{ DAY_CONFIGURATION : configures
     HOUSEHOLD_MEMBER ||--o{ EVENT : "shown under"
     CONTACT o|--o{ EVENT : "optionally linked"
     EVENT_CATEGORY ||--o{ EVENT : categorizes
-    SPECIAL_DAY o|--o{ SPECIAL_DAY : "may be derived from"
+    DAY_CONFIGURATION o|--o{ DAY_CONFIGURATION : "may be derived from"
 ```
 
 ## Entities, fields, and constraints
@@ -33,7 +33,7 @@ erDiagram
 - `name` required
 - `holidayRegion` required
 - `createdAt`, `updatedAt` as `@db.Timestamptz(6)`
-- Owns `HouseholdMember[]`, `Contact[]`, `EventCategory[]`, `Event[]`, `SpecialDay[]`
+- Owns `HouseholdMember[]`, `Contact[]`, `EventCategory[]`, `Event[]`, `DayConfiguration[]`
 - Delete behavior: deleting a household cascades to all owned records
 
 ### `HouseholdMember`
@@ -97,23 +97,23 @@ erDiagram
   - no pre-generated occurrence rows
   - range expansion happens at query time in future service logic
 
-### `SpecialDay`
+### `DayConfiguration`
 
 - Enums:
-  - `SpecialDayType`: `PUBLIC_HOLIDAY`, `BRIDGE_DAY`, `SCHOOL_HOLIDAY`, `CUSTOM`
-  - `SpecialDaySource`: `AUTO`, `CUSTOM`
+  - `DayConfigurationType`: `PUBLIC_HOLIDAY`, `BRIDGE_DAY`, `SCHOOL_HOLIDAY`, `CUSTOM`
+  - `DayConfigurationSource`: `AUTO`, `CUSTOM`
 - Required: `id`, `householdId`, `name`, `type`, `startDate`, `source`, audit timestamps
-- Optional: `endDate`, `displayColor`, `relatedSpecialDayId`
+- Optional: `endDate`, `displayColor`, `relatedDayConfigurationId`
 - Date types:
   - `startDate`, `endDate` use `@db.Date` (local calendar dates, not instants)
 - Relations:
   - belongs to `Household` (`onDelete: Cascade`)
-  - optional self-reference via `relatedSpecialDayId` (`onDelete: SetNull`)
-  - named self-relation `SpecialDayDerivation`
+  - optional self-reference via `relatedDayConfigurationId` (`onDelete: SetNull`)
+  - named self-relation `DayConfigurationDerivation`
 - Indexes:
   - `@@index([householdId, startDate])`
   - `@@index([householdId, endDate])`
-  - `@@index([relatedSpecialDayId])`
+  - `@@index([relatedDayConfigurationId])`
 - Calendar range query requirement for a displayed local date:
   - `startDate <= calendarDate AND (endDate IS NULL OR endDate >= calendarDate)`
 
@@ -125,13 +125,13 @@ Prisma FK constraints do not enforce same-household consistency across all refer
 2. `Event.endAt >= Event.startAt` when `endAt` is present.
 3. `Event.rrule` is non-null and valid when `isRecurring = true`.
 4. `Event.rrule` is null when `isRecurring = false`.
-5. `SpecialDay.endDate >= SpecialDay.startDate` when `endDate` is present.
-6. `SpecialDay.relatedSpecialDayId`, when present, points to a record in the same household.
+5. `DayConfiguration.endDate >= DayConfiguration.startDate` when `endDate` is present.
+6. `DayConfiguration.relatedDayConfigurationId`, when present, points to a record in the same household.
 
 ## Bridge-day and holiday-source behavior
 
-- Bridge day is stored as `SpecialDay(type = BRIDGE_DAY, source = CUSTOM)`.
-- Bridge day may optionally reference the causing public holiday through `relatedSpecialDayId`.
+- Bridge day is stored as `DayConfiguration(type = BRIDGE_DAY, source = CUSTOM)`.
+- Bridge day may optionally reference the causing public holiday through `relatedDayConfigurationId`.
 - Future auto-imported regional holidays use `type = PUBLIC_HOLIDAY` and `source = AUTO`.
 - If imported entries are manually edited later, they should be marked `source = CUSTOM`.
 

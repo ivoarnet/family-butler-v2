@@ -7,14 +7,14 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-enum SpecialDayType {
+enum DayConfigurationType {
   PUBLIC_HOLIDAY
   BRIDGE_DAY
   SCHOOL_HOLIDAY
   CUSTOM
 }
 
-enum SpecialDaySource {
+enum DayConfigurationSource {
   AUTO
   CUSTOM
 }
@@ -27,7 +27,7 @@ model Household {
   contacts       Contact[]
   eventCategories EventCategory[]
   events         Event[]
-  specialDays    SpecialDay[]
+  dayConfigurations DayConfiguration[]
   createdAt      DateTime          @default(now()) @db.Timestamptz(6)
   updatedAt      DateTime          @updatedAt @db.Timestamptz(6)
 }
@@ -107,23 +107,23 @@ model Event {
   @@index([categoryId])
 }
 
-model SpecialDay {
-  id                  String            @id @default(uuid()) @db.Uuid
-  householdId         String            @db.Uuid
-  name                String
-  type                SpecialDayType
-  startDate           DateTime          @db.Date
-  endDate             DateTime?         @db.Date
-  source              SpecialDaySource  @default(CUSTOM)
-  displayColor        String?
-  relatedSpecialDayId String?           @db.Uuid
-  household           Household         @relation(fields: [householdId], references: [id], onDelete: Cascade)
-  relatedSpecialDay   SpecialDay?       @relation("SpecialDayDerivation", fields: [relatedSpecialDayId], references: [id], onDelete: SetNull)
-  derivedSpecialDays  SpecialDay[]      @relation("SpecialDayDerivation")
-  createdAt           DateTime          @default(now()) @db.Timestamptz(6)
-  updatedAt           DateTime          @updatedAt @db.Timestamptz(6)
+model DayConfiguration {
+  id                        String                 @id @default(uuid()) @db.Uuid
+  householdId               String                 @db.Uuid
+  name                      String
+  type                      DayConfigurationType
+  startDate                 DateTime               @db.Date
+  endDate                   DateTime?              @db.Date
+  source                    DayConfigurationSource @default(CUSTOM)
+  displayColor              String?
+  relatedDayConfigurationId String?                @db.Uuid
+  household                 Household              @relation(fields: [householdId], references: [id], onDelete: Cascade)
+  relatedDayConfiguration   DayConfiguration?      @relation("DayConfigurationDerivation", fields: [relatedDayConfigurationId], references: [id], onDelete: SetNull)
+  derivedDayConfigurations  DayConfiguration[]     @relation("DayConfigurationDerivation")
+  createdAt                 DateTime               @default(now()) @db.Timestamptz(6)
+  updatedAt                 DateTime               @updatedAt @db.Timestamptz(6)
 
   @@index([householdId, startDate])
   @@index([householdId, endDate])
-  @@index([relatedSpecialDayId])
+  @@index([relatedDayConfigurationId])
 }
