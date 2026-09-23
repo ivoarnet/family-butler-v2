@@ -40,7 +40,6 @@ interface ContactFormState {
 const THEME_STORAGE_KEY = "family-butler-theme";
 const DEMO_LOCALE = "de-CH";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const DATA_API_ENTITY = import.meta.env.VITE_DATA_API_ENTITY ?? "Household";
 const DEFAULT_HOUSEHOLD_ID = import.meta.env.VITE_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
 const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
   blue: "#3b82f6",
@@ -154,23 +153,6 @@ const readHousehold = async (householdId: string): Promise<HouseholdData> => {
     throw new Error("Failed to load household data");
   }
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, householdId);
-};
-
-const probeDataApi = async (): Promise<string> => {
-  const response = await fetch(`${API_BASE_URL}/data-api/rest/${DATA_API_ENTITY}`);
-  if (!response.ok) {
-    throw new Error(`Data API request failed: ${response.status}`);
-  }
-
-  let rowCount: number | null = null;
-  const payload = (await response.json()) as { value?: unknown };
-  if (payload && Array.isArray(payload.value)) {
-    rowCount = payload.value.length;
-  }
-
-  return rowCount === null
-    ? `Data API connected: GET /data-api/rest/${DATA_API_ENTITY} returned 200 OK.`
-    : `Data API connected: GET /data-api/rest/${DATA_API_ENTITY} returned ${rowCount} row(s).`;
 };
 
 const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> => {
@@ -966,8 +948,6 @@ export function App() {
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
-  const [dataApiError, setDataApiError] = useState<string | null>(null);
-  const [dataApiStatus, setDataApiStatus] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
@@ -979,21 +959,6 @@ export function App() {
     let cancelled = false;
 
     const loadHouseholdData = async () => {
-      try {
-        const status = await probeDataApi();
-        if (cancelled) {
-          return;
-        }
-        setDataApiStatus(status);
-        setDataApiError(null);
-      } catch (error) {
-        if (cancelled) {
-          return;
-        }
-        setDataApiStatus(null);
-        setDataApiError(error instanceof Error ? error.message : "Data API request failed");
-      }
-
       try {
         const loaded = await readHousehold(DEFAULT_HOUSEHOLD_ID);
         if (cancelled) {
@@ -1087,16 +1052,12 @@ export function App() {
   return pathname === "/settings" ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
-      {dataApiError ? <div role="alert">{dataApiError}</div> : null}
-      {dataApiStatus ? <div aria-live="polite">{dataApiStatus}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
     </>
   ) : (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
-      {dataApiError ? <div role="alert">{dataApiError}</div> : null}
-      {dataApiStatus ? <div aria-live="polite">{dataApiStatus}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       <DashboardApp
         theme={theme}

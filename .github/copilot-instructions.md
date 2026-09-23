@@ -10,17 +10,17 @@
 
 - Frontend: React + Vite in `/home/runner/work/family-butler-v2/family-butler-v2/frontend`
 - API: Azure Functions (Node.js) in `/home/runner/work/family-butler-v2/family-butler-v2/api`
-- Data: Prisma + PostgreSQL schema in `/home/runner/work/family-butler-v2/family-butler-v2/prisma/schema.prisma`
-- Deployment workflow: `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps.yml`
+- Data: Supabase PostgreSQL accessed via provider modules in `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/db`
+- Deployment workflow: `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml`
 
 ## Development rules
 
 1. Preserve Azure Static Web Apps compatibility:
    - Keep API endpoints implemented as Azure Functions handlers (`function.json` + `index.js`).
    - Avoid introducing long-running HTTP server patterns (`app.listen`) in API runtime code.
-2. Keep Prisma as the only ORM:
-   - Reuse `/prisma/schema.prisma`.
-   - Run `npm run prisma:generate` after schema changes.
+2. Keep API data access provider-based:
+   - Reuse `/api/shared/db` and keep providers swappable.
+   - Keep Supabase service-role usage server-side only.
 3. Maintain workspace conventions:
    - Use root scripts from `/home/runner/work/family-butler-v2/family-butler-v2/package.json`.
 4. Keep dependencies minimal and secure:
@@ -34,9 +34,7 @@
 
 - Install/update deps: `npm install`
 - Build verification: `npm run build`
-- For API/data changes: verify Prisma commands still work
-  - `npm run prisma:generate`
-  - `npm run prisma:migrate` (local/dev only)
+- For API/data changes: verify `GET /api/health?checks=1` and Supabase-backed endpoints still work.
 - Run secret scan before committing changed files.
 
 ## Change hygiene

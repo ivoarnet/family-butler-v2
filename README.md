@@ -1,13 +1,13 @@
 # family-butler-v2
 
-Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL Database.
+Monorepo scaffold for a React frontend + Azure Functions backend using Supabase (PostgreSQL) as the database.
 
 ## Stack
 
 - Frontend: React + Vite + TypeScript (`/frontend`)
 - Backend: Azure Functions (Node.js) (`/api`)
-- Database: Azure SQL Database (SQL Server) via Prisma (`/prisma/schema.prisma`)
-- Deployment target: Azure Static Web Apps with API backend (Azure resources created manually)
+- Database: Supabase PostgreSQL (server-side access from API)
+- Deployment target: Azure Static Web Apps with API backend
 
 ## Repository Structure
 
@@ -15,7 +15,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL D
 .
 ├── api
 ├── frontend
-├── prisma
+├── docs
 └── .github/workflows
 ```
 
@@ -23,7 +23,7 @@ Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL D
 
 - Node.js 20+
 - npm 10+
-- Azure SQL Database
+- Supabase project
 - Azure Functions Core Tools (for local API runtime)
 
 ## Local Setup
@@ -39,27 +39,14 @@ Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL D
    ```bash
    cp /home/runner/work/family-butler-v2/family-butler-v2/api/.env.example /home/runner/work/family-butler-v2/family-butler-v2/api/.env
    cp /home/runner/work/family-butler-v2/family-butler-v2/frontend/.env.example /home/runner/work/family-butler-v2/family-butler-v2/frontend/.env
-   cp /home/runner/work/family-butler-v2/family-butler-v2/prisma/.env.example /home/runner/work/family-butler-v2/family-butler-v2/prisma/.env
    ```
 
-3. Update `DATABASE_URL` in:
-   - `/home/runner/work/family-butler-v2/family-butler-v2/api/.env`
-   - `/home/runner/work/family-butler-v2/family-butler-v2/prisma/.env`
+3. Fill API env values in `/home/runner/work/family-butler-v2/family-butler-v2/api/.env`:
 
-4. Generate Prisma client and apply schema changes:
+   - `SUPABASE_URL`
+   - `SUPABASE_SECRET_KEY`
 
-   ```bash
-   npm run prisma:generate
-   npm run prisma:migrate
-   ```
-
-   For Azure-hosted environments, apply committed migrations with:
-
-   ```bash
-   npm run prisma:migrate:deploy
-   ```
-
-5. Start frontend + backend:
+4. Start frontend + backend:
 
    ```bash
    npm run dev
@@ -69,27 +56,8 @@ Monorepo scaffold for a React frontend + API backend with Prisma and Azure SQL D
 
 - `npm run dev` - Run frontend and backend in parallel
 - `npm run build` - Build backend and frontend
-- `npm run prisma:generate` - Generate Prisma client
-- `npm run prisma:migrate` - Run Prisma migrations (dev)
-- `npm run prisma:migrate:deploy` - Apply committed Prisma migrations (staging/production)
-
-
-## Frontend Build Output
-
-For Azure Static Web Apps deployment, the frontend build output folder is:
-
-- `frontend/dist` (configured in workflow as `app_location: frontend` + `output_location: dist`)
-
-## Azure Static Web Apps Data API Builder Configuration
-
-- Data API config is stored at `/home/runner/work/family-butler-v2/family-butler-v2/swa-db-connections/staticwebapp.database.config.json`.
-- The SWA workflow deploys this directory with `data_api_location: "swa-db-connections"`.
-- The frontend performs a read-only probe against `GET /data-api/rest/Household` at app startup and surfaces the HTTP result message.
-- Keep database credentials out of frontend code. `SQL_CONNECTION_STRING` is resolved server-side by Static Web Apps Database Connections.
 
 ## API Runtime (Azure Functions)
-
-The API is implemented as Azure Functions handlers for Static Web Apps compatibility:
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
@@ -98,18 +66,25 @@ The API is implemented as Azure Functions handlers for Static Web Apps compatibi
 Health diagnostics:
 
 - `GET /api/health` returns a lightweight liveness response.
-- `GET /api/health?checks=1` runs deeper diagnostics (environment presence checks and a database connectivity probe) and returns `503` when checks fail.
+- `GET /api/health?checks=1` validates Supabase env setup and database connectivity.
 
-## Azure Deployment Notes (Manual Resource Creation)
+## Supabase migration guide
+
+Use `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md` for the full cutover guide, including schema creation and seed SQL.
+
+## Azure Deployment Notes
 
 This repository includes an Azure Static Web Apps workflow under:
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml`
-- `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/deploy-prisma-schema.yml` (manual Prisma schema deployment)
 
-You should manually create Azure resources, then configure GitHub secrets:
+Set these app settings in Azure Static Web Apps:
 
-- `AZURE_STATIC_WEB_APPS_API_TOKEN`
-- `DATABASE_URL` (recommended as an Environment secret for migration workflow)
+- `SUPABASE_URL`
+- `SUPABASE_SECRET_KEY`
+
+Optional (frontend-only use cases):
+
+- `SUPABASE_PUBLISHABLE_KEY`
 
 No Infrastructure-as-Code is included by design.
