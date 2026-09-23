@@ -236,6 +236,10 @@ body,
   gap: 0.6rem;
 }
 
+.household-create-controls {
+  margin-bottom: 0.75rem;
+}
+
 .inline-controls input,
 .toolbar-controls input,
 .settings-card input,
@@ -318,6 +322,20 @@ body,
 
 .settings-table tbody tr {
   background: var(--row);
+}
+
+.settings-table tbody tr.selected-household-row {
+  background: rgba(127, 139, 255, 0.18);
+}
+
+.selected-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  background: rgba(127, 139, 255, 0.32);
+  border: 1px solid rgba(127, 139, 255, 0.45);
+  font-weight: 700;
+  font-size: 0.82rem;
 }
 
 .settings-table small {

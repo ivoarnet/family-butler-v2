@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Replaced Household Setting with a first-class Households workspace section, including household creation, selected-state badge, and one-click household switching.
+- Added active household context loading/retry behavior so household members and contact lists reload when switching households.
+- Added household API workspace endpoints for listing and creating households: `GET /api/households` and `POST /api/households`.
+- Hardened household-scoped writes by rejecting member/contact IDs that are not already part of the active household.
+- Added updated Households settings screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/households-workspace-selector.png`.
 - Built the Settings screen with three sections: Household Setting, Household Members, and Contact List.
 - Added shared family/contact models in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/types/family.ts`, including ordered members and optional contact birth year support.
 - Settings household name now saves via an explicit **Save** button and is reflected in the Dashboard header title.

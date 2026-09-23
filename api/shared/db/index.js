@@ -18,6 +18,8 @@ const getProvider = () => {
 };
 
 module.exports = {
+  listHouseholds: (...args) => getProvider().listHouseholds(...args),
+  createHousehold: (...args) => getProvider().createHousehold(...args),
   ensureHousehold: (...args) => getProvider().ensureHousehold(...args),
   getHouseholdWithRelations: (...args) => getProvider().getHouseholdWithRelations(...args),
   replaceMembers: (...args) => getProvider().replaceMembers(...args),

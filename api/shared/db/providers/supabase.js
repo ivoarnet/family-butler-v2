@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 const TABLES = {
   households: "households",
   members: "household_members",
@@ -13,6 +15,11 @@ const mapHousehold = (row) => ({
   id: row.id,
   name: row.name,
   holidayRegion: row.holiday_region,
+});
+
+const mapHouseholdSummary = (row) => ({
+  id: row.id,
+  name: row.name,
 });
 
 const mapMember = (row) => ({
@@ -123,6 +130,41 @@ module.exports = function createSupabaseProvider() {
   };
 
   return {
+    async listHouseholds() {
+      const households = await request(TABLES.households, {
+        params: {
+          select: "id,name",
+          order: "created_at.asc",
+        },
+      });
+      return Array.isArray(households) ? households.map(mapHouseholdSummary) : [];
+    },
+
+    async createHousehold(householdName, holidayRegion) {
+      const householdId = randomUUID();
+      const data = await request(TABLES.households, {
+        method: "POST",
+        params: {
+          select: "id,name,holiday_region",
+        },
+        headers: {
+          Prefer: "return=representation",
+        },
+        body: {
+          id: householdId,
+          name: householdName,
+          holiday_region: holidayRegion,
+        },
+      });
+
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) {
+        throw new Error("Failed to create household");
+      }
+
+      return mapHousehold(row);
+    },
+
     async ensureHousehold(householdId, householdName, holidayRegion) {
       await request(TABLES.households, {
         method: "POST",

@@ -20,6 +20,11 @@ interface HouseholdData {
   contacts: Contact[];
 }
 
+interface HouseholdSummary {
+  id: string;
+  name: string;
+}
+
 interface MemberFormState {
   firstName: string;
   role: string;
@@ -38,9 +43,9 @@ interface ContactFormState {
 }
 
 const THEME_STORAGE_KEY = "family-butler-theme";
+const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
 const DEMO_LOCALE = "de-CH";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const DEFAULT_HOUSEHOLD_ID = import.meta.env.VITE_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
 const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
   blue: "#3b82f6",
   orange: "#f97316",
@@ -71,8 +76,8 @@ const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
 const getMemberColorLabel = (color: MemberAvatarColor): string => MEMBER_COLOR_LABELS[color] ?? color;
 
 const defaultHouseholdData: HouseholdData = {
-  householdId: DEFAULT_HOUSEHOLD_ID,
-  householdName: "Family Butler",
+  householdId: "",
+  householdName: "",
   familyMembers: [],
   contacts: [],
 };
@@ -139,7 +144,7 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
   const fallback = getInitialHouseholdData();
   return {
     householdId,
-    householdName: typeof payload.householdName === "string" && payload.householdName.trim() ? payload.householdName : fallback.householdName,
+    householdName: typeof payload.householdName === "string" && payload.householdName.trim() ? payload.householdName : fallback.householdName || "Unnamed household",
     familyMembers: Array.isArray(payload.familyMembers)
       ? normalizeFamilyMembers(payload.familyMembers.filter(Boolean) as FamilyMember[])
       : fallback.familyMembers,
@@ -147,12 +152,56 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
   };
 };
 
+const parseResponseError = async (response: Response, fallback: string): Promise<string> => {
+  try {
+    const payload = (await response.json()) as { error?: unknown; message?: unknown };
+    if (typeof payload?.error === "string" && payload.error.trim()) {
+      return payload.error;
+    }
+    if (typeof payload?.message === "string" && payload.message.trim()) {
+      return payload.message;
+    }
+  } catch {
+    // ignore parsing errors
+  }
+  return fallback;
+};
+
+const readHouseholds = async (): Promise<HouseholdSummary[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/households`);
+  if (!response.ok) {
+    throw new Error(await parseResponseError(response, "Failed to load households"));
+  }
+
+  const payload = (await response.json()) as { households?: HouseholdSummary[] };
+  return Array.isArray(payload.households) ? payload.households.filter(Boolean) : [];
+};
+
 const readHousehold = async (householdId: string): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`);
   if (!response.ok) {
-    throw new Error("Failed to load household data");
+    throw new Error(await parseResponseError(response, "Failed to load household data"));
   }
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, householdId);
+};
+
+const createHousehold = async (householdName: string): Promise<HouseholdData> => {
+  const response = await fetch(`${API_BASE_URL}/api/households`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ householdName }),
+  });
+
+  if (!response.ok) {
+    throw new Error(await parseResponseError(response, "Failed to create household"));
+  }
+
+  const payload = (await response.json()) as Partial<HouseholdData>;
+  if (typeof payload.householdId !== "string" || !payload.householdId) {
+    throw new Error("Created household response was incomplete");
+  }
+
+  return toHouseholdData(payload, payload.householdId);
 };
 
 const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> => {
@@ -167,7 +216,7 @@ const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> 
   });
 
   if (!response.ok) {
-    throw new Error("Failed to save household data");
+    throw new Error(await parseResponseError(response, "Failed to save household data"));
   }
 
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, household.householdId);
@@ -464,15 +513,33 @@ function DashboardApp({
 }
 
 function SettingsPage({
+  households,
+  activeHouseholdId,
+  onSwitchHousehold,
+  onCreateHousehold,
+  isContextLoading,
+  isCreatingHousehold,
   householdData,
   setHouseholdData,
+  contextError,
+  onRetryContextAction,
   onGoHome,
 }: {
+  households: HouseholdSummary[];
+  activeHouseholdId: string | null;
+  onSwitchHousehold: (householdId: string) => void;
+  onCreateHousehold: (householdName: string) => Promise<{ ok: boolean; error?: string }>;
+  isContextLoading: boolean;
+  isCreatingHousehold: boolean;
   householdData: HouseholdData;
   setHouseholdData: React.Dispatch<React.SetStateAction<HouseholdData>>;
+  contextError: string | null;
+  onRetryContextAction: () => void;
   onGoHome: () => void;
 }) {
-  const [householdNameDraft, setHouseholdNameDraft] = useState(householdData.householdName);
+  const [newHouseholdName, setNewHouseholdName] = useState("");
+  const [createHouseholdSubmitted, setCreateHouseholdSubmitted] = useState(false);
+  const [createHouseholdError, setCreateHouseholdError] = useState<string | null>(null);
   const [memberFormState, setMemberFormState] = useState<MemberFormState>(buildMemberFormState);
   const [contactFormState, setContactFormState] = useState<ContactFormState>(buildContactFormState);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
@@ -482,10 +549,6 @@ function SettingsPage({
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
-
-  useEffect(() => {
-    setHouseholdNameDraft(householdData.householdName);
-  }, [householdData.householdName]);
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -503,14 +566,27 @@ function SettingsPage({
       return fullName.includes(search);
     });
   }, [contactSearch, householdData.contacts]);
+  const canEditActiveHousehold = Boolean(activeHouseholdId) && !isContextLoading;
 
-  const saveHouseholdName = () => {
-    const trimmed = householdNameDraft.trim();
-    if (!trimmed) {
+  const createHouseholdNameError = createHouseholdSubmitted && !newHouseholdName.trim();
+
+  const submitCreateHousehold = async (event: FormEvent) => {
+    event.preventDefault();
+    setCreateHouseholdSubmitted(true);
+    const trimmedName = newHouseholdName.trim();
+    if (!trimmedName) {
       return;
     }
-    setHouseholdData((current) => ({ ...current, householdName: trimmed }));
-    setHouseholdNameDraft(trimmed);
+
+    const result = await onCreateHousehold(trimmedName);
+    if (!result.ok) {
+      setCreateHouseholdError(result.error ?? "Could not create household.");
+      return;
+    }
+
+    setCreateHouseholdError(null);
+    setCreateHouseholdSubmitted(false);
+    setNewHouseholdName("");
   };
 
   const openAddMember = () => {
@@ -716,7 +792,7 @@ function SettingsPage({
         <div className="header-branding">
           <div>
             <h1>Settings</h1>
-            <p>Household, family members, contacts</p>
+            <p>{activeHouseholdId ? `Active household: ${householdData.householdName}` : "Create your first household to get started"}</p>
           </div>
         </div>
         <button
@@ -732,33 +808,102 @@ function SettingsPage({
 
       <main className="settings-main">
         <section className="settings-card">
-          <h2>Household Setting</h2>
-          <div className="settings-form-row">
-            <label htmlFor="household-name">Household name</label>
-            <div className="inline-controls">
-              <input
-                id="household-name"
-                type="text"
-                value={householdNameDraft}
-                onChange={(event) => setHouseholdNameDraft(event.target.value)}
-              />
-              <button type="button" className="primary-pill" onClick={saveHouseholdName}>
-                Save
-              </button>
-            </div>
+          <div className="section-toolbar">
+            <h2>Households</h2>
           </div>
+
+          <form className="inline-controls household-create-controls" onSubmit={submitCreateHousehold}>
+            <input
+              aria-label="Household name"
+              type="text"
+              value={newHouseholdName}
+              onChange={(event) => {
+                setNewHouseholdName(event.target.value);
+                setCreateHouseholdError(null);
+              }}
+              placeholder="Enter household name"
+              disabled={isCreatingHousehold || isContextLoading}
+            />
+            <button type="submit" className="primary-pill no-wrap-button" disabled={isCreatingHousehold || isContextLoading}>
+              {isCreatingHousehold ? "Creating…" : "Create household"}
+            </button>
+          </form>
+          {createHouseholdNameError ? <p role="alert">Household name is required.</p> : null}
+          {createHouseholdError ? <p role="alert">{createHouseholdError}</p> : null}
+
+          {households.length === 0 ? (
+            <div className="coming-soon-card">
+              <strong>No households yet.</strong>
+              <div>Create your first household to begin adding members and contacts.</div>
+            </div>
+          ) : (
+            <div className="table-scroll">
+              <table className="settings-table" aria-label="Households">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {households.map((household) => {
+                    const isSelected = household.id === activeHouseholdId;
+                    return (
+                      <tr key={household.id} className={isSelected ? "selected-household-row" : ""}>
+                        <td>{household.name}</td>
+                        <td>{isSelected ? <span className="selected-pill">Selected</span> : "—"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="primary-pill"
+                            onClick={() => onSwitchHousehold(household.id)}
+                            disabled={isSelected || isContextLoading}
+                          >
+                            {isSelected ? "Active" : "Switch"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {contextError ? (
+            <div className="coming-soon-card">
+              <strong>{contextError}</strong>
+              <div>
+                <button type="button" className="primary-pill" onClick={onRetryContextAction}>
+                  Try again
+                </button>
+              </div>
+            </div>
+          ) : null}
+
+          {isContextLoading ? (
+            <div className="coming-soon-card">
+              <strong>Loading selected household…</strong>
+            </div>
+          ) : null}
+        </section>
+
+        <section className="settings-card">
           <div className="coming-soon-card">
-            <strong>More household settings are coming soon.</strong>
+            <strong>Household context applies to all sections below.</strong>
           </div>
         </section>
 
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
-            <button type="button" className="primary-pill" onClick={openAddMember}>
+            <button type="button" className="primary-pill" onClick={openAddMember} disabled={!canEditActiveHousehold}>
               + Member
             </button>
           </div>
+
+          {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to manage members.</div> : null}
 
           <div className="table-scroll">
             <table className="settings-table" aria-label="Household members">
@@ -772,7 +917,7 @@ function SettingsPage({
                 </tr>
               </thead>
               <tbody>
-                {orderedMembers.map((member, index) => (
+                {(canEditActiveHousehold ? orderedMembers : []).map((member, index) => (
                   <tr key={member.id}>
                     <td>
                       <div className="member-header">
@@ -871,12 +1016,20 @@ function SettingsPage({
                 placeholder="Search contacts"
                 value={contactSearch}
                 onChange={(event) => setContactSearch(event.target.value)}
+                disabled={!canEditActiveHousehold}
               />
-              <button type="button" className="primary-pill no-wrap-button" onClick={openAddContact}>
+              <button
+                type="button"
+                className="primary-pill no-wrap-button"
+                onClick={openAddContact}
+                disabled={!canEditActiveHousehold}
+              >
                 + Contact
               </button>
             </div>
           </div>
+
+          {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to manage contacts.</div> : null}
 
           <div className="table-scroll">
             <table className="settings-table" aria-label="Contacts">
@@ -889,7 +1042,7 @@ function SettingsPage({
                 </tr>
               </thead>
               <tbody>
-                {filteredContacts.map((contact) => (
+                {(canEditActiveHousehold ? filteredContacts : []).map((contact) => (
                   <tr key={contact.id}>
                     <td>
                       <div className="member-header">
@@ -942,13 +1095,20 @@ function SettingsPage({
   );
 }
 
+type FailedAction = { type: "initialLoad" } | { type: "switch"; householdId: string } | { type: "create"; householdName: string } | null;
+
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [households, setHouseholds] = useState<HouseholdSummary[]>([]);
+  const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
   const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [isContextLoading, setIsContextLoading] = useState(false);
+  const [isCreatingHousehold, setIsCreatingHousehold] = useState(false);
+  const [failedAction, setFailedAction] = useState<FailedAction>(null);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -958,34 +1118,61 @@ export function App() {
   useEffect(() => {
     let cancelled = false;
 
-    const loadHouseholdData = async () => {
+    const loadInitialHouseholdContext = async () => {
       try {
-        const loaded = await readHousehold(DEFAULT_HOUSEHOLD_ID);
+        setIsContextLoading(true);
+        const loadedHouseholds = await readHouseholds();
         if (cancelled) {
           return;
         }
-        setHouseholdData(loaded);
+
+        setHouseholds(loadedHouseholds);
+
+        if (loadedHouseholds.length === 0) {
+          setActiveHouseholdId(null);
+          setHouseholdData(getInitialHouseholdData());
+          setDataError(null);
+          setFailedAction(null);
+          return;
+        }
+
+        const storedActiveHousehold = window.localStorage.getItem(ACTIVE_HOUSEHOLD_STORAGE_KEY);
+        const preferredHouseholdId =
+          storedActiveHousehold && loadedHouseholds.some((household) => household.id === storedActiveHousehold)
+            ? storedActiveHousehold
+            : loadedHouseholds[0].id;
+        const loadedHousehold = await readHousehold(preferredHouseholdId);
+        if (cancelled) {
+          return;
+        }
+
+        setHouseholdData(loadedHousehold);
+        setActiveHouseholdId(preferredHouseholdId);
+        window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, preferredHouseholdId);
         setDataError(null);
-      } catch {
+        setFailedAction(null);
+      } catch (error) {
         if (cancelled) {
           return;
         }
-        setDataError("Could not load household data from the server.");
+        setDataError(error instanceof Error ? error.message : "Could not load households from the server.");
+        setFailedAction({ type: "initialLoad" });
       } finally {
         if (!cancelled) {
+          setIsContextLoading(false);
           setInitialLoadComplete(true);
         }
       }
     };
 
-    loadHouseholdData();
+    loadInitialHouseholdContext();
     return () => {
       cancelled = true;
     };
   }, []);
 
   useEffect(() => {
-    if (!initialLoadComplete) {
+    if (!initialLoadComplete || !activeHouseholdId || isContextLoading) {
       return;
     }
 
@@ -1007,9 +1194,9 @@ export function App() {
               }
         );
         setDataError(null);
-      } catch {
+      } catch (error) {
         if (!cancelled) {
-          setDataError("Could not save household data to the server.");
+          setDataError(error instanceof Error ? error.message : "Could not save household data to the server.");
         }
       } finally {
         if (!cancelled) {
@@ -1023,13 +1210,73 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [householdData, initialLoadComplete]);
+  }, [activeHouseholdId, householdData, initialLoadComplete, isContextLoading]);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  const switchActiveHousehold = async (householdId: string) => {
+    if (!householdId || householdId === activeHouseholdId) {
+      return;
+    }
+
+    try {
+      setIsContextLoading(true);
+      const loaded = await readHousehold(householdId);
+      setHouseholdData(loaded);
+      setActiveHouseholdId(householdId);
+      window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, householdId);
+      setDataError(null);
+      setFailedAction(null);
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : "Could not switch household.");
+      setFailedAction({ type: "switch", householdId });
+    } finally {
+      setIsContextLoading(false);
+    }
+  };
+
+  const createAndSelectHousehold = async (householdName: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      setIsCreatingHousehold(true);
+      const created = await createHousehold(householdName);
+      setHouseholds((current) => [...current, { id: created.householdId, name: created.householdName }]);
+      setHouseholdData(created);
+      setActiveHouseholdId(created.householdId);
+      window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, created.householdId);
+      setDataError(null);
+      setFailedAction(null);
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not create household.";
+      setDataError(message);
+      setFailedAction({ type: "create", householdName });
+      return { ok: false, error: message };
+    } finally {
+      setIsCreatingHousehold(false);
+    }
+  };
+
+  const retryLastContextAction = () => {
+    if (!failedAction) {
+      return;
+    }
+
+    if (failedAction.type === "switch") {
+      void switchActiveHousehold(failedAction.householdId);
+      return;
+    }
+
+    if (failedAction.type === "create") {
+      void createAndSelectHousehold(failedAction.householdName);
+      return;
+    }
+
+    window.location.reload();
+  };
 
   const navigateTo = (nextPathname: "/" | "/settings") => {
     if (window.location.pathname === nextPathname) {
@@ -1039,7 +1286,7 @@ export function App() {
     setPathname(nextPathname);
   };
 
-  if (!initialLoadComplete) {
+  if (!initialLoadComplete || (isContextLoading && !activeHouseholdId && households.length > 0)) {
     return (
       <div className="dashboard-page">
         <main className="dashboard-main">
@@ -1049,16 +1296,48 @@ export function App() {
     );
   }
 
+  if (!activeHouseholdId && pathname !== "/settings") {
+    return (
+      <>
+        {dataError ? <div role="alert">{dataError}</div> : null}
+        <div className="dashboard-page">
+          <main className="dashboard-main">
+            <section className="calendar-card">
+              <p>No household selected.</p>
+              <button type="button" className="primary-pill" onClick={() => navigateTo("/settings")}>
+                Go to Households
+              </button>
+            </section>
+          </main>
+        </div>
+      </>
+    );
+  }
+
   return pathname === "/settings" ? (
     <>
-      {dataError ? <div role="alert">{dataError}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
-      <SettingsPage householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
+      <SettingsPage
+        households={households}
+        activeHouseholdId={activeHouseholdId}
+        onSwitchHousehold={(householdId) => {
+          void switchActiveHousehold(householdId);
+        }}
+        onCreateHousehold={createAndSelectHousehold}
+        isContextLoading={isContextLoading}
+        isCreatingHousehold={isCreatingHousehold}
+        householdData={householdData}
+        setHouseholdData={setHouseholdData}
+        contextError={dataError}
+        onRetryContextAction={retryLastContextAction}
+        onGoHome={() => navigateTo("/")}
+      />
     </>
   ) : (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
+      {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <DashboardApp
         theme={theme}
         setTheme={setTheme}

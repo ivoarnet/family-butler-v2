@@ -34,6 +34,11 @@ const normalizeHouseholdData = ({ household, members, contacts }) => ({
   contacts: contacts.map(normalizeContact),
 });
 
+const normalizeHouseholdSummary = (household) => ({
+  id: household.id,
+  name: household.name,
+});
+
 const getHouseholdOrThrow = async (householdId) => {
   const household = await db.getHouseholdWithRelations(householdId);
   if (!household) {
@@ -59,7 +64,7 @@ const cleanOptionalInt = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
-const parseIncomingMembers = (members) => {
+const parseIncomingMembers = (members, allowedMemberIds) => {
   if (!Array.isArray(members)) {
     return [];
   }
@@ -72,8 +77,13 @@ const parseIncomingMembers = (members) => {
         throw new Error("member firstName is required");
       }
 
+      const requestedId = typeof member.id === "string" && member.id ? member.id : null;
+      if (requestedId && !allowedMemberIds.has(requestedId)) {
+        throw new Error("member id is not authorized for this household");
+      }
+
       return {
-        id: typeof member.id === "string" && member.id ? member.id : randomUUID(),
+        id: requestedId || randomUUID(),
         firstName,
         role: cleanOptionalText(member.role),
         avatarColor: cleanOptionalText(member.avatarColor) || "#3b82f6",
@@ -83,7 +93,7 @@ const parseIncomingMembers = (members) => {
     });
 };
 
-const parseIncomingContacts = (contacts) => {
+const parseIncomingContacts = (contacts, allowedContactIds) => {
   if (!Array.isArray(contacts)) {
     return [];
   }
@@ -96,8 +106,13 @@ const parseIncomingContacts = (contacts) => {
         throw new Error("contact firstName is required");
       }
 
+      const requestedId = typeof contact.id === "string" && contact.id ? contact.id : null;
+      if (requestedId && !allowedContactIds.has(requestedId)) {
+        throw new Error("contact id is not authorized for this household");
+      }
+
       return {
-        id: typeof contact.id === "string" && contact.id ? contact.id : randomUUID(),
+        id: requestedId || randomUUID(),
         firstName,
         lastName: cleanOptionalText(contact.lastName),
         birthDay: cleanOptionalInt(contact.birthDay),
@@ -112,13 +127,6 @@ const parseIncomingContacts = (contacts) => {
 module.exports = async function households(context, req) {
   const httpRequest = req ?? context.req;
   const householdId = httpRequest?.params?.householdId ?? context.bindingData?.householdId;
-  if (!householdId) {
-    context.res = {
-      status: 400,
-      body: { error: "householdId is required" },
-    };
-    return;
-  }
 
   try {
     if (!httpRequest) {
@@ -128,7 +136,17 @@ module.exports = async function households(context, req) {
     const method = typeof httpRequest.method === "string" ? httpRequest.method.toUpperCase() : "";
 
     if (method === "GET") {
-      await db.ensureHousehold(householdId, DEFAULT_HOUSEHOLD_NAME, DEFAULT_HOLIDAY_REGION);
+      if (!householdId) {
+        const households = await db.listHouseholds();
+        context.res = {
+          status: 200,
+          body: {
+            households: households.map(normalizeHouseholdSummary),
+          },
+        };
+        return;
+      }
+
       const household = await getHouseholdOrThrow(householdId);
 
       context.res = {
@@ -138,11 +156,60 @@ module.exports = async function households(context, req) {
       return;
     }
 
+    if (method === "POST") {
+      if (householdId) {
+        context.res = {
+          status: 400,
+          body: { error: "householdId must not be provided when creating a household" },
+        };
+        return;
+      }
+
+      const householdName = cleanOptionalText(httpRequest.body?.householdName);
+      if (!householdName) {
+        context.res = {
+          status: 400,
+          body: { error: "household name is required" },
+        };
+        return;
+      }
+
+      const existingHouseholds = await db.listHouseholds();
+      const duplicate = existingHouseholds.some((household) => household.name.trim().toLowerCase() === householdName.toLowerCase());
+      if (duplicate) {
+        context.res = {
+          status: 409,
+          body: { error: "A household with this name already exists." },
+        };
+        return;
+      }
+
+      const createdHousehold = await db.createHousehold(householdName, DEFAULT_HOLIDAY_REGION);
+      const created = await getHouseholdOrThrow(createdHousehold.id);
+
+      context.res = {
+        status: 201,
+        body: normalizeHouseholdData(created),
+      };
+      return;
+    }
+
     if (method === "PUT") {
+      if (!householdId) {
+        context.res = {
+          status: 400,
+          body: { error: "householdId is required" },
+        };
+        return;
+      }
+
+      const existingHousehold = await getHouseholdOrThrow(householdId);
       const requestedName = cleanOptionalText(httpRequest.body?.householdName);
-      const householdName = requestedName || DEFAULT_HOUSEHOLD_NAME;
-      const members = parseIncomingMembers(httpRequest.body?.familyMembers);
-      const contacts = parseIncomingContacts(httpRequest.body?.contacts);
+      const householdName = requestedName || existingHousehold.household.name || DEFAULT_HOUSEHOLD_NAME;
+      const existingMemberIds = new Set(existingHousehold.members.map((member) => member.id));
+      const existingContactIds = new Set(existingHousehold.contacts.map((contact) => contact.id));
+      const members = parseIncomingMembers(httpRequest.body?.familyMembers, existingMemberIds);
+      const contacts = parseIncomingContacts(httpRequest.body?.contacts, existingContactIds);
 
       await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
       await db.replaceMembers(householdId, members);
@@ -164,7 +231,15 @@ module.exports = async function households(context, req) {
   } catch (error) {
     context.log.error("households handler failed", error);
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("required") ? 400 : 500;
+    const status = message.includes("required")
+      ? 400
+      : message.includes("already exists")
+      ? 409
+      : message.includes("not authorized")
+      ? 403
+      : message.includes("not found")
+      ? 404
+      : 500;
     context.res = {
       status,
       body: { error: message },
