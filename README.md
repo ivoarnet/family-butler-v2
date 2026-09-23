@@ -95,6 +95,11 @@ The API is implemented as Azure Functions handlers for Static Web Apps compatibi
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
 
+Health diagnostics:
+
+- `GET /api/health` returns a lightweight liveness response.
+- `GET /api/health?checks=1` runs deeper diagnostics (environment presence checks and a database connectivity probe) and returns `503` when checks fail.
+
 ## Azure Deployment Notes (Manual Resource Creation)
 
 This repository includes an Azure Static Web Apps workflow under:
