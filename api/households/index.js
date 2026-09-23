@@ -158,7 +158,11 @@ module.exports = async function households(context, req) {
         await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
       } else {
         await db.createHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
-        await db.assignHouseholdOwner(householdId, currentUser.id);
+        await db.createHouseholdOwnerMember({
+          householdId,
+          userId: currentUser.id,
+          firstName: "Owner",
+        });
       }
       await db.replaceMembers(householdId, members);
       await db.replaceContacts(householdId, contacts);

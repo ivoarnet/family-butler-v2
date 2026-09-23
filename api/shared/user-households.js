@@ -21,6 +21,14 @@ const getDefaultHouseholdName = (email) => {
   return `${prefix} Household`;
 };
 
+const getDefaultOwnerMemberName = (email) => {
+  if (typeof email !== "string" || !email.includes("@")) {
+    return "Owner";
+  }
+  const prefix = cleanNamePrefix(email.split("@")[0] || "");
+  return prefix || "Owner";
+};
+
 const mergeAccessibleHouseholds = (owned, linked) => {
   const map = new Map();
 
@@ -64,7 +72,11 @@ const ensureAdminHouseholdContext = async (user) => {
     const householdId = randomUUID();
     const householdName = getDefaultHouseholdName(user.email);
     await db.createHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
-    await db.assignHouseholdOwner(householdId, user.id);
+    await db.createHouseholdOwnerMember({
+      householdId,
+      userId: user.id,
+      firstName: getDefaultOwnerMemberName(user.email),
+    });
     ownedHouseholds = await db.listOwnedHouseholds(user.id);
     linkedHouseholds = await db.listLinkedHouseholds(user.id);
   }

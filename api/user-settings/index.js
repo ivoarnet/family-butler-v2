@@ -64,7 +64,11 @@ module.exports = async function userSettings(context, req) {
 
       const householdId = randomUUID();
       await db.createHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
-      await db.assignHouseholdOwner(householdId, currentUser.id);
+      await db.createHouseholdOwnerMember({
+        householdId,
+        userId: currentUser.id,
+        firstName: currentUser.email?.split("@")[0] || "Owner",
+      });
       await db.setUserDefaultHousehold(currentUser.id, householdId);
 
       const refreshed = await getUserHouseholdContext(currentUser);

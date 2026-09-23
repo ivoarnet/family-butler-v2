@@ -1,8 +1,8 @@
+const { randomUUID } = require("crypto");
+
 const TABLES = {
   households: "households",
-  householdOwners: "household_owners",
   userProfiles: "user_profiles",
-  userHouseholdMembers: "user_household_members",
   members: "household_members",
   contacts: "contacts",
   tasks: "tasks",
@@ -18,9 +18,16 @@ const mapHousehold = (row) => ({
   holidayRegion: row.holiday_region,
 });
 
+const mapHouseholdSummary = (row) => ({
+  id: row.id,
+  name: row.name,
+});
+
 const mapMember = (row) => ({
   id: row.id,
   householdId: row.household_id,
+  userId: row.user_id ?? null,
+  isOwner: Boolean(row.is_owner),
   firstName: row.first_name,
   role: row.role,
   avatarColor: row.avatar_color,
@@ -46,11 +53,6 @@ const mapTask = (row) => ({
   createdAt: row.created_at,
 });
 
-const mapHouseholdSummary = (row) => ({
-  id: row.id,
-  name: row.name,
-});
-
 const parseErrorMessage = async (response) => {
   try {
     const payload = await response.json();
@@ -63,7 +65,7 @@ const parseErrorMessage = async (response) => {
       }
     }
   } catch (_error) {
-    // ignore json parse failures
+    // ignore
   }
 
   try {
@@ -72,7 +74,7 @@ const parseErrorMessage = async (response) => {
       return text;
     }
   } catch (_error) {
-    // ignore text parse failures
+    // ignore
   }
 
   return `Supabase request failed with status ${response.status}`;
@@ -201,137 +203,102 @@ module.exports = function createSupabaseProvider() {
       });
     },
 
-    async getHouseholdOwner(householdId) {
-      const owners = await request(TABLES.householdOwners, {
+    async createHouseholdOwnerMember({ householdId, userId, firstName }) {
+      await request(TABLES.members, {
+        method: "POST",
+        headers: {
+          Prefer: "return=minimal",
+        },
+        body: {
+          id: randomUUID(),
+          household_id: householdId,
+          user_id: userId,
+          is_owner: true,
+          first_name: firstName,
+          role: "Owner",
+          avatar_color: "#3b82f6",
+          visible_in_calendar: true,
+          sort_order: 0,
+        },
+      });
+    },
+
+    async listOwnedHouseholds(userId) {
+      const rows = await request(TABLES.members, {
         params: {
-          select: "household_id,user_id",
-          household_id: `eq.${householdId}`,
-          limit: 1,
-        },
-
-        async listOwnedHouseholds(userId) {
-          const ownerRows = await request(TABLES.householdOwners, {
-            params: {
-              select: "household_id",
-              user_id: `eq.${userId}`,
-            },
-          });
-
-          const householdIds = Array.isArray(ownerRows) ? ownerRows.map((row) => row.household_id).filter(Boolean) : [];
-          return listHouseholdsByIds(householdIds);
-        },
-
-        async listLinkedHouseholds(userId) {
-          const linkedRows = await request(TABLES.userHouseholdMembers, {
-            params: {
-              select: "household_member_id",
-              user_id: `eq.${userId}`,
-            },
-          });
-
-          const memberIds = Array.isArray(linkedRows) ? linkedRows.map((row) => row.household_member_id).filter(Boolean) : [];
-          if (memberIds.length === 0) {
-            return [];
-          }
-
-          const members = await request(TABLES.members, {
-            params: {
-              select: "id,household_id",
-              id: `in.${formatInList(memberIds)}`,
-            },
-          });
-
-          const householdIds = Array.isArray(members)
-            ? [...new Set(members.map((member) => member.household_id).filter(Boolean))]
-            : [];
-
-          return listHouseholdsByIds(householdIds);
-        },
-
-        async listLinkedHouseholdMembers(userId) {
-          const linkedRows = await request(TABLES.userHouseholdMembers, {
-            params: {
-              select: "household_member_id",
-              user_id: `eq.${userId}`,
-            },
-          });
-
-          const memberIds = Array.isArray(linkedRows) ? linkedRows.map((row) => row.household_member_id).filter(Boolean) : [];
-          if (memberIds.length === 0) {
-            return [];
-          }
-
-          const members = await request(TABLES.members, {
-            params: {
-              select: "id,household_id",
-              id: `in.${formatInList(memberIds)}`,
-            },
-          });
-
-          return Array.isArray(members)
-            ? members.map((member) => ({
-                memberId: member.id,
-                householdId: member.household_id,
-              }))
-            : [];
-        },
-
-        async getUserProfile(userId) {
-          const profiles = await request(TABLES.userProfiles, {
-            params: {
-              select: "user_id,default_household_id",
-              user_id: `eq.${userId}`,
-              limit: 1,
-            },
-          });
-
-          const profile = Array.isArray(profiles) ? profiles[0] : null;
-          if (!profile) {
-            return null;
-          }
-
-          return {
-            userId: profile.user_id,
-            defaultHouseholdId: profile.default_household_id ?? null,
-          };
-        },
-
-        async setUserDefaultHousehold(userId, defaultHouseholdId) {
-          await request(TABLES.userProfiles, {
-            method: "POST",
-            params: { on_conflict: "user_id" },
-            headers: {
-              Prefer: "resolution=merge-duplicates,return=minimal",
-            },
-            body: {
-              user_id: userId,
-              default_household_id: defaultHouseholdId,
-            },
-          });
+          select: "household_id",
+          user_id: `eq.${userId}`,
+          is_owner: "eq.true",
         },
       });
 
-      const row = Array.isArray(owners) ? owners[0] : null;
-      if (!row) {
+      const householdIds = Array.isArray(rows)
+        ? [...new Set(rows.map((row) => row.household_id).filter(Boolean))]
+        : [];
+      return listHouseholdsByIds(householdIds);
+    },
+
+    async listLinkedHouseholds(userId) {
+      const rows = await request(TABLES.members, {
+        params: {
+          select: "household_id",
+          user_id: `eq.${userId}`,
+          is_owner: "eq.false",
+        },
+      });
+
+      const householdIds = Array.isArray(rows)
+        ? [...new Set(rows.map((row) => row.household_id).filter(Boolean))]
+        : [];
+      return listHouseholdsByIds(householdIds);
+    },
+
+    async listLinkedHouseholdMembers(userId) {
+      const rows = await request(TABLES.members, {
+        params: {
+          select: "id,household_id",
+          user_id: `eq.${userId}`,
+        },
+      });
+
+      return Array.isArray(rows)
+        ? rows.map((row) => ({
+            memberId: row.id,
+            householdId: row.household_id,
+          }))
+        : [];
+    },
+
+    async getUserProfile(userId) {
+      const profiles = await request(TABLES.userProfiles, {
+        params: {
+          select: "user_id,default_household_id",
+          user_id: `eq.${userId}`,
+          limit: 1,
+        },
+      });
+
+      const profile = Array.isArray(profiles) ? profiles[0] : null;
+      if (!profile) {
         return null;
       }
 
       return {
-        householdId: row.household_id,
-        userId: row.user_id,
+        userId: profile.user_id,
+        defaultHouseholdId: profile.default_household_id ?? null,
       };
     },
 
-    async assignHouseholdOwner(householdId, userId) {
-      await request(TABLES.householdOwners, {
+    async setUserDefaultHousehold(userId, defaultHouseholdId) {
+      await request(TABLES.userProfiles, {
         method: "POST",
-        params: { on_conflict: "household_id" },
+        params: { on_conflict: "user_id" },
         headers: {
           Prefer: "resolution=merge-duplicates,return=minimal",
         },
         body: {
-          household_id: householdId,
           user_id: userId,
+          default_household_id: defaultHouseholdId,
         },
       });
     },
@@ -354,7 +321,7 @@ module.exports = function createSupabaseProvider() {
         }),
         request(TABLES.members, {
           params: {
-            select: "id,household_id,first_name,role,avatar_color,visible_in_calendar,sort_order",
+            select: "id,household_id,user_id,is_owner,first_name,role,avatar_color,visible_in_calendar,sort_order",
             household_id: `eq.${householdId}`,
             order: "sort_order.asc",
           },
@@ -406,6 +373,8 @@ module.exports = function createSupabaseProvider() {
       const payload = members.map((member) => ({
         id: member.id,
         household_id: householdId,
+        user_id: member.userId ?? null,
+        is_owner: Boolean(member.isOwner),
         first_name: member.firstName,
         role: member.role,
         avatar_color: member.avatarColor,
