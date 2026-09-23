@@ -980,27 +980,27 @@ export function App() {
 
     const loadHouseholdData = async () => {
       try {
+        const status = await probeDataApi();
+        if (cancelled) {
+          return;
+        }
+        setDataApiStatus(status);
+        setDataApiError(null);
+      } catch (error) {
+        if (cancelled) {
+          return;
+        }
+        setDataApiStatus(null);
+        setDataApiError(error instanceof Error ? error.message : "Data API request failed");
+      }
+
+      try {
         const loaded = await readHousehold(DEFAULT_HOUSEHOLD_ID);
         if (cancelled) {
           return;
         }
         setHouseholdData(loaded);
         setDataError(null);
-
-        try {
-          const status = await probeDataApi();
-          if (cancelled) {
-            return;
-          }
-          setDataApiStatus(status);
-          setDataApiError(null);
-        } catch (error) {
-          if (cancelled) {
-            return;
-          }
-          setDataApiStatus(null);
-          setDataApiError(error instanceof Error ? error.message : "Data API request failed");
-        }
       } catch {
         if (cancelled) {
           return;
