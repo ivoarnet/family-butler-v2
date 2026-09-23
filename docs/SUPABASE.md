@@ -25,8 +25,7 @@ Recommended architecture:
 Set app settings:
 
 - `SUPABASE_URL`
-- `SUPABASE_SECRET_KEY` (preferred)
-- `SUPABASE_SERVICE_ROLE_KEY` (legacy fallback)
+- `SUPABASE_SECRET_KEY`
 - `DEFAULT_HOLIDAY_REGION` (optional, defaults to `CH`)
 
 ### Frontend (optional direct read-only use)
