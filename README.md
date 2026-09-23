@@ -45,8 +45,17 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 
    - `SUPABASE_URL`
    - `SUPABASE_SECRET_KEY`
+   - `DEMO_HOUSEHOLD_ID` (optional, defaults to `00000000-0000-0000-0000-000000000001`)
 
-4. Start frontend + backend:
+4. Fill frontend env values in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/.env`:
+
+   - `VITE_API_BASE_URL`
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+   - `VITE_HOUSEHOLD_ID` (admin default household for local development)
+   - `VITE_DEMO_HOUSEHOLD_ID` (demo household read-only scope)
+
+5. Start frontend + backend:
 
    ```bash
    npm run dev
@@ -61,7 +70,9 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
-- `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`, `DELETE /api/households/{householdId}`
+
+All non-health API calls require a Supabase access token in the `Authorization` header.
 
 Health diagnostics:
 

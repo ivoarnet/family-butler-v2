@@ -1,8 +1,10 @@
 const { randomUUID } = require("crypto");
 const db = require("../shared/db");
+const { APP_ROLES, authenticateRequest, createHttpError } = require("../shared/auth");
 
 const DEFAULT_HOUSEHOLD_NAME = "Family Butler";
 const DEFAULT_HOLIDAY_REGION = process.env.DEFAULT_HOLIDAY_REGION || "CH";
+const DEMO_HOUSEHOLD_ID = process.env.DEMO_HOUSEHOLD_ID || "00000000-0000-0000-0000-000000000001";
 
 const normalizeMember = (member) => ({
   id: member.id,
@@ -37,9 +39,23 @@ const normalizeHouseholdData = ({ household, members, contacts }) => ({
 const getHouseholdOrThrow = async (householdId) => {
   const household = await db.getHouseholdWithRelations(householdId);
   if (!household) {
-    throw new Error("household not found");
+    throw createHttpError(404, "household not found");
   }
   return household;
+};
+
+const assertHouseholdReadAccess = async (user, householdId) => {
+  if (user.role === APP_ROLES.demouser) {
+    if (householdId !== DEMO_HOUSEHOLD_ID) {
+      throw createHttpError(403, "Forbidden");
+    }
+    return;
+  }
+
+  const owner = await db.getHouseholdOwner(householdId);
+  if (!owner || owner.userId !== user.id) {
+    throw createHttpError(403, "Forbidden");
+  }
 };
 
 const cleanOptionalText = (value) => {
@@ -125,10 +141,11 @@ module.exports = async function households(context, req) {
       throw new Error("request context is missing");
     }
 
+    const currentUser = await authenticateRequest(httpRequest);
     const method = typeof httpRequest.method === "string" ? httpRequest.method.toUpperCase() : "";
 
     if (method === "GET") {
-      await db.ensureHousehold(householdId, DEFAULT_HOUSEHOLD_NAME, DEFAULT_HOLIDAY_REGION);
+      await assertHouseholdReadAccess(currentUser, householdId);
       const household = await getHouseholdOrThrow(householdId);
 
       context.res = {
@@ -139,12 +156,25 @@ module.exports = async function households(context, req) {
     }
 
     if (method === "PUT") {
+      if (currentUser.role === APP_ROLES.demouser) {
+        throw createHttpError(403, "Forbidden");
+      }
+
       const requestedName = cleanOptionalText(httpRequest.body?.householdName);
       const householdName = requestedName || DEFAULT_HOUSEHOLD_NAME;
       const members = parseIncomingMembers(httpRequest.body?.familyMembers);
       const contacts = parseIncomingContacts(httpRequest.body?.contacts);
-
-      await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
+      const owner = await db.getHouseholdOwner(householdId);
+      const existingHousehold = await db.getHouseholdWithRelations(householdId);
+      if (existingHousehold) {
+        if (!owner || owner.userId !== currentUser.id) {
+          throw createHttpError(403, "Forbidden");
+        }
+        await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
+      } else {
+        await db.createHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
+        await db.assignHouseholdOwner(householdId, currentUser.id);
+      }
       await db.replaceMembers(householdId, members);
       await db.replaceContacts(householdId, contacts);
 
@@ -157,6 +187,24 @@ module.exports = async function households(context, req) {
       return;
     }
 
+    if (method === "DELETE") {
+      if (currentUser.role === APP_ROLES.demouser) {
+        throw createHttpError(403, "Forbidden");
+      }
+
+      const owner = await db.getHouseholdOwner(householdId);
+      if (!owner || owner.userId !== currentUser.id) {
+        throw createHttpError(403, "Forbidden");
+      }
+
+      await db.deleteHousehold(householdId);
+      context.res = {
+        status: 204,
+        body: null,
+      };
+      return;
+    }
+
     context.res = {
       status: 405,
       body: { error: "method not allowed" },
@@ -164,7 +212,12 @@ module.exports = async function households(context, req) {
   } catch (error) {
     context.log.error("households handler failed", error);
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("required") ? 400 : 500;
+    const status =
+      typeof error?.status === "number"
+        ? error.status
+        : message.includes("required")
+          ? 400
+          : 500;
     context.res = {
       status,
       body: { error: message },

@@ -1,45 +1,48 @@
-# Supabase Setup & Cutover Guide
+# Supabase Setup & Auth Guide
 
-This guide replaces the previous Azure SQL + Prisma setup.
+This project uses Supabase for:
+
+- Auth (email/password)
+- Postgres tables (`households`, `household_members`, `contacts`, `tasks`)
+- Authorization data (`household_owners`)
 
 ## 1) Create a Supabase project
 
-1. Create a new Supabase project.
-2. From **Project Settings → API**, copy:
-   - `Project URL` (use as `SUPABASE_URL`)
-   - `publishable` key (optional frontend read-only usage)
-   - `secret` key (API server-side usage only)
+From **Project Settings → API**, copy:
 
-## 2) Configure runtime architecture
+- `Project URL` → `SUPABASE_URL` / `VITE_SUPABASE_URL`
+- `publishable` key → `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `secret` key → `SUPABASE_SECRET_KEY` (server-side only)
 
-Recommended architecture:
+## 2) Enable email/password authentication
 
-- Browser calls only `/api/*` endpoints.
-- Azure Functions use Supabase server-side with `SUPABASE_SECRET_KEY`.
-- Do **not** expose `SUPABASE_SECRET_KEY` to the browser.
+1. Go to **Authentication → Providers → Email**.
+2. Enable Email provider.
+3. Disable email confirmations for non-production test projects if you need fast Playwright/demo sign-ins.
+4. Keep production confirmation + reset flows enabled.
 
 ## 3) Configure environment variables
 
-### Azure Static Web Apps (API runtime)
-
-Set app settings:
+### API (`/home/runner/work/family-butler-v2/family-butler-v2/api/.env`)
 
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
-- `DEFAULT_HOLIDAY_REGION` (optional, defaults to `CH`)
+- `DEFAULT_HOLIDAY_REGION` (optional, default `CH`)
+- `DEMO_HOUSEHOLD_ID` (optional, default `00000000-0000-0000-0000-000000000001`)
 
-### Frontend (optional direct read-only use)
+### Frontend (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/.env`)
 
-Only if needed later:
-
+- `VITE_API_BASE_URL` (example: `http://localhost:7071`)
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_HOUSEHOLD_ID` (admin local default)
+- `VITE_DEMO_HOUSEHOLD_ID` (demo household id)
 
-## 4) Create tables in Supabase (SQL Editor)
-
-Run:
+## 4) Create/upgrade schema in Supabase SQL Editor
 
 ```sql
+create extension if not exists pgcrypto;
+
 create table if not exists public.households (
   id uuid primary key,
   name text not null,
@@ -47,6 +50,14 @@ create table if not exists public.households (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
+
+create table if not exists public.household_owners (
+  household_id uuid primary key references public.households(id) on delete cascade,
+  user_id uuid not null references auth.users(id) on delete cascade
+);
+
+create unique index if not exists idx_household_owners_user_household
+  on public.household_owners (user_id, household_id);
 
 create table if not exists public.household_members (
   id uuid primary key,
@@ -86,38 +97,174 @@ create index if not exists idx_household_members_household_sort_order
 
 create index if not exists idx_contacts_household_name
   on public.contacts (household_id, first_name, last_name);
-```
 
-## 5) Seed an initial household
-
-Run:
-
-```sql
 insert into public.households (id, name, holiday_region)
 values ('00000000-0000-0000-0000-000000000001', 'Family Butler', 'CH')
 on conflict (id) do nothing;
 ```
 
-## 6) Verify locally
+## 5) Add Row Level Security policies (recommended)
 
-1. Copy env templates:
+The API already enforces access server-side, and these policies provide defense-in-depth for direct DB use.
 
-   ```bash
-   cp /home/runner/work/family-butler-v2/family-butler-v2/api/.env.example /home/runner/work/family-butler-v2/family-butler-v2/api/.env
-   cp /home/runner/work/family-butler-v2/family-butler-v2/frontend/.env.example /home/runner/work/family-butler-v2/family-butler-v2/frontend/.env
-   ```
+```sql
+alter table public.households enable row level security;
+alter table public.household_owners enable row level security;
+alter table public.household_members enable row level security;
+alter table public.contacts enable row level security;
 
-2. Fill real keys in `api/.env`.
-3. Start app: `npm run dev`
-4. Verify endpoints:
-   - `GET /api/health?checks=1`
-   - `GET /api/households/{householdId}`
-   - `PUT /api/households/{householdId}`
+drop policy if exists household_owner_read on public.households;
+create policy household_owner_read on public.households
+for select using (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = households.id
+      and ho.user_id = auth.uid()
+  )
+  or (
+    coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'admin') = 'demouser'
+    and households.id = '00000000-0000-0000-0000-000000000001'
+  )
+);
 
-## 7) Production cutover checklist
+drop policy if exists household_owner_write on public.households;
+create policy household_owner_write on public.households
+for all using (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = households.id
+      and ho.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = households.id
+      and ho.user_id = auth.uid()
+  )
+);
 
-1. Configure SWA app settings with Supabase vars.
-2. Deploy latest branch.
-3. Verify `GET /api/health?checks=1` returns `200`.
-4. Verify household read/write from UI Settings page.
-5. Remove any remaining Azure SQL secrets (`DATABASE_URL`, `SQL_CONNECTION_STRING`, `DATABASE_CONNECTION_STRING`) from environments.
+drop policy if exists household_owners_self_read on public.household_owners;
+create policy household_owners_self_read on public.household_owners
+for select using (user_id = auth.uid());
+
+drop policy if exists household_members_access on public.household_members;
+create policy household_members_access on public.household_members
+for select using (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = household_members.household_id
+      and ho.user_id = auth.uid()
+  )
+  or (
+    coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'admin') = 'demouser'
+    and household_members.household_id = '00000000-0000-0000-0000-000000000001'
+  )
+);
+
+drop policy if exists household_members_owner_write on public.household_members;
+create policy household_members_owner_write on public.household_members
+for all using (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = household_members.household_id
+      and ho.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = household_members.household_id
+      and ho.user_id = auth.uid()
+  )
+);
+
+drop policy if exists contacts_access on public.contacts;
+create policy contacts_access on public.contacts
+for select using (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = contacts.household_id
+      and ho.user_id = auth.uid()
+  )
+  or (
+    coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'admin') = 'demouser'
+    and contacts.household_id = '00000000-0000-0000-0000-000000000001'
+  )
+);
+
+drop policy if exists contacts_owner_write on public.contacts;
+create policy contacts_owner_write on public.contacts
+for all using (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = contacts.household_id
+      and ho.user_id = auth.uid()
+  )
+)
+with check (
+  exists (
+    select 1
+    from public.household_owners ho
+    where ho.household_id = contacts.household_id
+      and ho.user_id = auth.uid()
+  )
+);
+```
+
+## 6) Create users and roles
+
+Use Supabase Auth users. Set role in `app_metadata.role`:
+
+- missing or any other value => treated as `admin` (default)
+- `demouser` => read-only demo experience
+
+Example in SQL editor (non-production only; adapt as needed):
+
+```sql
+update auth.users
+set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_object('role', 'demouser')
+where email = 'demo@example.com';
+```
+
+For each admin household, create ownership:
+
+```sql
+insert into public.household_owners (household_id, user_id)
+values ('00000000-0000-0000-0000-000000000001', '<admin-auth-user-id>')
+on conflict (household_id) do update set user_id = excluded.user_id;
+```
+
+## 7) Demo testing best practice (non-production)
+
+Do **not** bypass auth in app code for tests.  
+Best practice: create a dedicated non-production demo account and sign in through the normal UI.
+
+- Give demo account `app_metadata.role = demouser`
+- Keep credentials in secret stores only (GitHub/Azure secrets), never in repo
+- Use Playwright MCP to log in with that account and verify read-only behavior
+
+## 8) Verify locally
+
+1. `npm install`
+2. `npm run dev`
+3. Sign in through the UI
+4. Verify:
+   - Admin can load/update owned households and create a new household via `PUT /api/households/{new-id}`
+   - Demo user can only read `Family Butler` household and cannot update/delete
+   - `GET /api/health?checks=1` returns healthy when env is configured
+
+## 9) Production checklist
+
+1. Configure all API and frontend env vars in Azure Static Web Apps.
+2. Keep `SUPABASE_SECRET_KEY` server-side only.
+3. Ensure demo account is non-production only.
+4. Verify sign-in, admin permissions, and demo read-only behavior after deploy.

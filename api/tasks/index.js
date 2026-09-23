@@ -1,7 +1,10 @@
 const db = require("../shared/db");
+const { APP_ROLES, authenticateRequest, createHttpError } = require("../shared/auth");
 
 module.exports = async function tasks(context, req) {
   try {
+    const currentUser = await authenticateRequest(req);
+
     if (req.method === "GET") {
       const allTasks = await db.listTasks();
       context.res = {
@@ -12,6 +15,10 @@ module.exports = async function tasks(context, req) {
     }
 
     if (req.method === "POST") {
+      if (currentUser.role === APP_ROLES.demouser) {
+        throw createHttpError(403, "Forbidden");
+      }
+
       const title = typeof req.body?.title === "string" ? req.body.title.trim() : "";
 
       if (!title) {
@@ -38,7 +45,7 @@ module.exports = async function tasks(context, req) {
   } catch (error) {
     context.log.error("tasks handler failed", error);
     context.res = {
-      status: 500,
+      status: typeof error?.status === "number" ? error.status : 500,
       body: { error: error instanceof Error ? error.message : "Internal server error" },
     };
   }

@@ -1,9 +1,12 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import { Session } from "@supabase/supabase-js";
 import { ContactDialog } from "./components/ContactDialog";
 import { MemberDialog } from "./components/MemberDialog";
+import { isSupabaseAuthConfigured, supabase } from "./supabaseClient";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
+type AppRole = "admin" | "demouser";
 
 interface SpecialEvent {
   id: string;
@@ -41,6 +44,7 @@ const THEME_STORAGE_KEY = "family-butler-theme";
 const DEMO_LOCALE = "de-CH";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const DEFAULT_HOUSEHOLD_ID = import.meta.env.VITE_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
+const DEMO_HOUSEHOLD_ID = import.meta.env.VITE_DEMO_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
 const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
   blue: "#3b82f6",
   orange: "#f97316",
@@ -147,18 +151,28 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
   };
 };
 
-const readHousehold = async (householdId: string): Promise<HouseholdData> => {
-  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`);
+const getRoleFromSession = (session: Session | null): AppRole =>
+  session?.user?.app_metadata?.role === "demouser" ? "demouser" : "admin";
+
+const readHousehold = async (householdId: string, accessToken: string): Promise<HouseholdData> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`, {
+    headers: {
+      Authorization: ["Bearer", accessToken].join(" "),
+    },
+  });
   if (!response.ok) {
     throw new Error("Failed to load household data");
   }
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, householdId);
 };
 
-const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> => {
+const writeHousehold = async (household: HouseholdData, accessToken: string): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households/${household.householdId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: ["Bearer", accessToken].join(" "),
+    },
     body: JSON.stringify({
       householdName: household.householdName,
       familyMembers: normalizeFamilyMembers(household.familyMembers),
@@ -264,11 +278,15 @@ function DashboardApp({
   setTheme,
   householdData,
   onOpenSettings,
+  canOpenSettings,
+  onSignOut,
 }: {
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
   onOpenSettings: () => void;
+  canOpenSettings: boolean;
+  onSignOut: () => void;
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
@@ -379,14 +397,19 @@ function DashboardApp({
             {theme === "dark" ? "☀" : "☾"}
           </button>
 
-          <button
-            type="button"
-            className="icon-button"
-            onClick={onOpenSettings}
-            title="Open settings"
-            aria-label="Open settings"
-          >
-            ⚙
+          {canOpenSettings ? (
+            <button
+              type="button"
+              className="icon-button"
+              onClick={onOpenSettings}
+              title="Open settings"
+              aria-label="Open settings"
+            >
+              ⚙
+            </button>
+          ) : null}
+          <button type="button" className="icon-button" onClick={onSignOut} title="Sign out" aria-label="Sign out">
+            ⇥
           </button>
         </div>
       </header>
@@ -946,9 +969,18 @@ export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
   const [pathname, setPathname] = useState(() => window.location.pathname);
+  const [session, setSession] = useState<Session | null>(null);
+  const [authLoading, setAuthLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [isSigningIn, setIsSigningIn] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const role = getRoleFromSession(session);
+  const isReadOnly = role === "demouser";
+  const householdId = isReadOnly ? DEMO_HOUSEHOLD_ID : DEFAULT_HOUSEHOLD_ID;
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -956,11 +988,48 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
+    if (!isSupabaseAuthConfigured) {
+      setAuthLoading(false);
+      setAuthError("Supabase auth is not configured in this environment.");
+      return;
+    }
+
     let cancelled = false;
+    supabase.auth.getSession().then(({ data, error }) => {
+      if (cancelled) {
+        return;
+      }
+      if (error) {
+        setAuthError("Could not restore your session.");
+      }
+      setSession(data.session ?? null);
+      setAuthLoading(false);
+    });
+
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+    });
+
+    return () => {
+      cancelled = true;
+      data.subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!session?.access_token) {
+      setHouseholdData(getInitialHouseholdData());
+      setInitialLoadComplete(false);
+      setDataError(null);
+      return;
+    }
+
+    let cancelled = false;
+    setInitialLoadComplete(false);
 
     const loadHouseholdData = async () => {
       try {
-        const loaded = await readHousehold(DEFAULT_HOUSEHOLD_ID);
+        const loaded = await readHousehold(householdId, session.access_token);
         if (cancelled) {
           return;
         }
@@ -982,10 +1051,10 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [householdId, session?.access_token]);
 
   useEffect(() => {
-    if (!initialLoadComplete) {
+    if (!initialLoadComplete || !session?.access_token || isReadOnly) {
       return;
     }
 
@@ -994,7 +1063,7 @@ export function App() {
     const persistHouseholdData = async () => {
       try {
         setIsSaving(true);
-        const persisted = await writeHousehold(householdData);
+        const persisted = await writeHousehold(householdData, session.access_token);
         if (cancelled) {
           return;
         }
@@ -1023,13 +1092,19 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [householdData, initialLoadComplete]);
+  }, [householdData, initialLoadComplete, isReadOnly, session?.access_token]);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
     window.addEventListener("popstate", handlePopState);
     return () => window.removeEventListener("popstate", handlePopState);
   }, []);
+
+  useEffect(() => {
+    if (isReadOnly && pathname === "/settings") {
+      navigateTo("/");
+    }
+  }, [isReadOnly, pathname]);
 
   const navigateTo = (nextPathname: "/" | "/settings") => {
     if (window.location.pathname === nextPathname) {
@@ -1038,6 +1113,84 @@ export function App() {
     window.history.pushState({}, "", nextPathname);
     setPathname(nextPathname);
   };
+
+  const signIn = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!isSupabaseAuthConfigured) {
+      return;
+    }
+
+    setIsSigningIn(true);
+    setAuthError(null);
+    const { error } = await supabase.auth.signInWithPassword({
+      email: email.trim(),
+      password,
+    });
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setPassword("");
+    }
+    setIsSigningIn(false);
+  };
+
+  const signOut = async () => {
+    await supabase.auth.signOut();
+    setPathname("/");
+  };
+
+  if (authLoading) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">Loading authentication…</section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">
+            <h1>Sign in</h1>
+            <p>Use your Family Butler email/password account.</p>
+            <form onSubmit={signIn}>
+              <p>
+                <label htmlFor="login-email">Email</label>
+                <br />
+                <input
+                  id="login-email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="email"
+                  required
+                />
+              </p>
+              <p>
+                <label htmlFor="login-password">Password</label>
+                <br />
+                <input
+                  id="login-password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  required
+                />
+              </p>
+              <button type="submit" className="primary-pill" disabled={isSigningIn}>
+                {isSigningIn ? "Signing in…" : "Sign in"}
+              </button>
+            </form>
+            {authError ? <p role="alert">{authError}</p> : null}
+          </section>
+        </main>
+      </div>
+    );
+  }
 
   if (!initialLoadComplete) {
     return (
@@ -1049,7 +1202,7 @@ export function App() {
     );
   }
 
-  return pathname === "/settings" ? (
+  return pathname === "/settings" && !isReadOnly ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
@@ -1064,6 +1217,8 @@ export function App() {
         setTheme={setTheme}
         householdData={householdData}
         onOpenSettings={() => navigateTo("/settings")}
+        canOpenSettings={!isReadOnly}
+        onSignOut={signOut}
       />
     </>
   );

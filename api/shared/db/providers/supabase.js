@@ -1,5 +1,6 @@
 const TABLES = {
   households: "households",
+  householdOwners: "household_owners",
   members: "household_members",
   contacts: "contacts",
   tasks: "tasks",
@@ -79,6 +80,7 @@ module.exports = function createSupabaseProvider() {
   }
 
   const restBaseUrl = `${supabaseUrl.replace(/\/$/, "")}/rest/v1`;
+  const authBaseUrl = `${supabaseUrl.replace(/\/$/, "")}/auth/v1`;
   const authorizationHeader = ["Bearer", supabaseSecretKey].join(" ");
 
   const request = async (table, { method = "GET", params, body, headers } = {}) => {
@@ -122,6 +124,22 @@ module.exports = function createSupabaseProvider() {
     }
   };
 
+  const requestAuth = async (path, accessToken) => {
+    const response = await fetch(`${authBaseUrl}/${path}`, {
+      method: "GET",
+      headers: {
+        apikey: supabaseSecretKey,
+        Authorization: ["Bearer", accessToken].join(" "),
+      },
+    });
+
+    if (!response.ok) {
+      throw new Error(await parseErrorMessage(response));
+    }
+
+    return response.json();
+  };
+
   return {
     async ensureHousehold(householdId, householdName, holidayRegion) {
       await request(TABLES.households, {
@@ -136,6 +154,71 @@ module.exports = function createSupabaseProvider() {
           holiday_region: holidayRegion,
         },
       });
+    },
+
+    async createHousehold(householdId, householdName, holidayRegion) {
+      await request(TABLES.households, {
+        method: "POST",
+        headers: {
+          Prefer: "return=minimal",
+        },
+        body: {
+          id: householdId,
+          name: householdName,
+          holiday_region: holidayRegion,
+        },
+      });
+    },
+
+    async deleteHousehold(householdId) {
+      await request(TABLES.households, {
+        method: "DELETE",
+        params: {
+          id: `eq.${householdId}`,
+        },
+      });
+    },
+
+    async getHouseholdOwner(householdId) {
+      const owners = await request(TABLES.householdOwners, {
+        params: {
+          select: "household_id,user_id",
+          household_id: `eq.${householdId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(owners) ? owners[0] : null;
+      if (!row) {
+        return null;
+      }
+
+      return {
+        householdId: row.household_id,
+        userId: row.user_id,
+      };
+    },
+
+    async assignHouseholdOwner(householdId, userId) {
+      await request(TABLES.householdOwners, {
+        method: "POST",
+        params: { on_conflict: "household_id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: {
+          household_id: householdId,
+          user_id: userId,
+        },
+      });
+    },
+
+    async getAuthUser(accessToken) {
+      if (!accessToken) {
+        throw new Error("access token is required");
+      }
+
+      return requestAuth("user", accessToken);
     },
 
     async getHouseholdWithRelations(householdId) {

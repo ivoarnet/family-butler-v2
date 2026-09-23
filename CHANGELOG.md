@@ -24,3 +24,5 @@
 - Updated `/api/households`, `/api/tasks`, and `/api/health?checks=1` to use Supabase-backed persistence and connectivity checks.
 - Removed Azure SQL Data API Builder and Prisma artifacts (`/home/runner/work/family-butler-v2/family-butler-v2/swa-db-connections`, `/home/runner/work/family-butler-v2/family-butler-v2/prisma`, and old Prisma deployment workflow).
 - Added Supabase migration/cutover guide at `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`.
+- Added Supabase email/password authentication with role-aware access (`admin` default, `demouser` read-only) across frontend and API.
+- Added updated authentication UI screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-signin-screen.png`.

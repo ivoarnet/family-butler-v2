@@ -19,9 +19,14 @@ const getProvider = () => {
 
 module.exports = {
   ensureHousehold: (...args) => getProvider().ensureHousehold(...args),
+  createHousehold: (...args) => getProvider().createHousehold(...args),
+  deleteHousehold: (...args) => getProvider().deleteHousehold(...args),
+  getHouseholdOwner: (...args) => getProvider().getHouseholdOwner(...args),
+  assignHouseholdOwner: (...args) => getProvider().assignHouseholdOwner(...args),
   getHouseholdWithRelations: (...args) => getProvider().getHouseholdWithRelations(...args),
   replaceMembers: (...args) => getProvider().replaceMembers(...args),
   replaceContacts: (...args) => getProvider().replaceContacts(...args),
+  getAuthUser: (...args) => getProvider().getAuthUser(...args),
   listTasks: (...args) => getProvider().listTasks(...args),
   createTask: (...args) => getProvider().createTask(...args),
   checkConnection: (...args) => getProvider().checkConnection(...args),
