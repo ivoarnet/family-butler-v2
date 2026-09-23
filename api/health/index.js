@@ -27,6 +27,7 @@ module.exports = async function health(context, req) {
 
   const env = {
     supabaseUrlConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_URL.trim()),
+    supabaseSecretKeyConfigured: Boolean(process.env.SUPABASE_SECRET_KEY && process.env.SUPABASE_SECRET_KEY.trim()),
     supabaseServiceRoleKeyConfigured: Boolean(
       process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
     ),
@@ -41,7 +42,8 @@ module.exports = async function health(context, req) {
       error: "Supabase connectivity check failed",
     };
   }
-  const ok = database.connected && env.supabaseUrlConfigured && env.supabaseServiceRoleKeyConfigured;
+  const hasServerKey = env.supabaseSecretKeyConfigured || env.supabaseServiceRoleKeyConfigured;
+  const ok = database.connected && env.supabaseUrlConfigured && hasServerKey;
 
   context.res = {
     status: ok ? 200 : 503,

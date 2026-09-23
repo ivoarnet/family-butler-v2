@@ -7,16 +7,16 @@ This guide replaces the previous Azure SQL + Prisma setup.
 1. Create a new Supabase project.
 2. From **Project Settings → API**, copy:
    - `Project URL` (use as `SUPABASE_URL`)
-   - `anon public` key (optional frontend read-only usage)
-   - `service_role` key (API server-side usage only)
+   - `publishable` key (optional frontend read-only usage)
+   - `secret` key (API server-side usage only)
 
 ## 2) Configure runtime architecture
 
 Recommended architecture:
 
 - Browser calls only `/api/*` endpoints.
-- Azure Functions use Supabase server-side with `SUPABASE_SERVICE_ROLE_KEY`.
-- Do **not** expose `SUPABASE_SERVICE_ROLE_KEY` to the browser.
+- Azure Functions use Supabase server-side with `SUPABASE_SECRET_KEY`.
+- Do **not** expose `SUPABASE_SECRET_KEY` to the browser.
 
 ## 3) Configure environment variables
 
@@ -25,7 +25,8 @@ Recommended architecture:
 Set app settings:
 
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SECRET_KEY` (preferred)
+- `SUPABASE_SERVICE_ROLE_KEY` (legacy fallback)
 - `DEFAULT_HOLIDAY_REGION` (optional, defaults to `CH`)
 
 ### Frontend (optional direct read-only use)
@@ -33,7 +34,7 @@ Set app settings:
 Only if needed later:
 
 - `VITE_SUPABASE_URL`
-- `VITE_SUPABASE_ANON_KEY`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 ## 4) Create tables in Supabase (SQL Editor)
 

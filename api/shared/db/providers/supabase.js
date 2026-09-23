@@ -47,13 +47,15 @@ const mapTask = (row) => ({
 
 module.exports = function createSupabaseProvider() {
   const supabaseUrl = cleanString(process.env.SUPABASE_URL);
+  const supabaseSecretKey = cleanString(process.env.SUPABASE_SECRET_KEY);
   const supabaseServiceRoleKey = cleanString(process.env.SUPABASE_SERVICE_ROLE_KEY);
+  const supabaseServerKey = supabaseSecretKey || supabaseServiceRoleKey;
 
-  if (!supabaseUrl || !supabaseServiceRoleKey) {
-    throw new Error("SUPABASE_URL and SUPABASE_SERVICE_ROLE_KEY must be configured");
+  if (!supabaseUrl || !supabaseServerKey) {
+    throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY (or legacy SUPABASE_SERVICE_ROLE_KEY) must be configured");
   }
 
-  const client = createClient(supabaseUrl, supabaseServiceRoleKey, {
+  const client = createClient(supabaseUrl, supabaseServerKey, {
     auth: {
       autoRefreshToken: false,
       persistSession: false,

@@ -44,7 +44,8 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 3. Fill API env values in `/home/runner/work/family-butler-v2/family-butler-v2/api/.env`:
 
    - `SUPABASE_URL`
-   - `SUPABASE_SERVICE_ROLE_KEY`
+   - `SUPABASE_SECRET_KEY` (preferred)
+   - `SUPABASE_SERVICE_ROLE_KEY` (legacy fallback)
 
 4. Start frontend + backend:
 
@@ -81,10 +82,11 @@ This repository includes an Azure Static Web Apps workflow under:
 Set these app settings in Azure Static Web Apps:
 
 - `SUPABASE_URL`
-- `SUPABASE_SERVICE_ROLE_KEY`
+- `SUPABASE_SECRET_KEY` (preferred)
+- `SUPABASE_SERVICE_ROLE_KEY` (legacy fallback)
 
 Optional (frontend-only use cases):
 
-- `SUPABASE_ANON_KEY`
+- `SUPABASE_PUBLISHABLE_KEY`
 
 No Infrastructure-as-Code is included by design.
