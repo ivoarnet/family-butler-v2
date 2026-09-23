@@ -26,3 +26,5 @@
 - Added Supabase migration/cutover guide at `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`.
 - Added Supabase email/password authentication with role-aware access (`admin` default, `demouser` read-only) across frontend and API.
 - Added updated authentication UI screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-signin-screen.png`.
+- Redesigned authentication into a polished responsive two-column login/registration experience with first-class light/dark modes, notched outlined fields, password visibility toggles, and forgot-password/reset affordances.
+- Added updated premium authentication screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-screen-premium-layout.png`.
