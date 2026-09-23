@@ -4,7 +4,7 @@ This project uses Supabase for:
 
 - Auth (email/password)
 - Postgres tables (`households`, `household_members`, `contacts`, `tasks`)
-- Authorization/profile data (`household_owners`, `user_profiles`, `user_household_members`)
+- Authorization/profile data (`user_profiles`, ownership/linking on `household_members`)
 
 ## 1) Create a Supabase project
 
@@ -51,14 +51,6 @@ create table if not exists public.households (
   updated_at timestamptz not null default now()
 );
 
-create table if not exists public.household_owners (
-  household_id uuid primary key references public.households(id) on delete cascade,
-  user_id uuid not null references auth.users(id) on delete cascade
-);
-
-create unique index if not exists idx_household_owners_user_household
-  on public.household_owners (user_id, household_id);
-
 create table if not exists public.user_profiles (
   user_id uuid primary key references auth.users(id) on delete cascade,
   default_household_id uuid references public.households(id) on delete set null,
@@ -69,6 +61,8 @@ create table if not exists public.user_profiles (
 create table if not exists public.household_members (
   id uuid primary key,
   household_id uuid not null references public.households(id) on delete cascade,
+  user_id uuid references auth.users(id) on delete set null,
+  is_owner boolean not null default false,
   first_name text not null,
   role text,
   avatar_color text not null,
@@ -77,13 +71,6 @@ create table if not exists public.household_members (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (household_id, sort_order)
-);
-
-create table if not exists public.user_household_members (
-  user_id uuid not null references auth.users(id) on delete cascade,
-  household_member_id uuid not null references public.household_members(id) on delete cascade,
-  created_at timestamptz not null default now(),
-  primary key (user_id, household_member_id)
 );
 
 create table if not exists public.contacts (
@@ -109,6 +96,10 @@ create table if not exists public.tasks (
 create index if not exists idx_household_members_household_sort_order
   on public.household_members (household_id, sort_order);
 
+create unique index if not exists idx_household_members_user_id_unique
+  on public.household_members (user_id)
+  where user_id is not null;
+
 create index if not exists idx_contacts_household_name
   on public.contacts (household_id, first_name, last_name);
 
@@ -123,9 +114,7 @@ The API already enforces access server-side, and these policies provide defense-
 
 ```sql
 alter table public.households enable row level security;
-alter table public.household_owners enable row level security;
 alter table public.user_profiles enable row level security;
-alter table public.user_household_members enable row level security;
 alter table public.household_members enable row level security;
 alter table public.contacts enable row level security;
 
@@ -134,9 +123,9 @@ create policy household_owner_read on public.households
 for select using (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = households.id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = households.id
+      and hm.user_id = auth.uid()
   )
   or (
     coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'admin') = 'demouser'
@@ -149,41 +138,35 @@ create policy household_owner_write on public.households
 for all using (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = households.id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = households.id
+      and hm.user_id = auth.uid()
+      and hm.is_owner = true
   )
 )
 with check (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = households.id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = households.id
+      and hm.user_id = auth.uid()
+      and hm.is_owner = true
   )
 );
-
-drop policy if exists household_owners_self_read on public.household_owners;
-create policy household_owners_self_read on public.household_owners
-for select using (user_id = auth.uid());
 
 drop policy if exists user_profiles_self_access on public.user_profiles;
 create policy user_profiles_self_access on public.user_profiles
 for all using (user_id = auth.uid())
 with check (user_id = auth.uid());
 
-drop policy if exists user_household_members_self_read on public.user_household_members;
-create policy user_household_members_self_read on public.user_household_members
-for select using (user_id = auth.uid());
-
 drop policy if exists household_members_access on public.household_members;
 create policy household_members_access on public.household_members
 for select using (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = household_members.household_id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = household_members.household_id
+      and hm.user_id = auth.uid()
   )
   or (
     coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'admin') = 'demouser'
@@ -196,17 +179,19 @@ create policy household_members_owner_write on public.household_members
 for all using (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = household_members.household_id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = household_members.household_id
+      and hm.user_id = auth.uid()
+      and hm.is_owner = true
   )
 )
 with check (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = household_members.household_id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = household_members.household_id
+      and hm.user_id = auth.uid()
+      and hm.is_owner = true
   )
 );
 
@@ -215,9 +200,9 @@ create policy contacts_access on public.contacts
 for select using (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = contacts.household_id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = contacts.household_id
+      and hm.user_id = auth.uid()
   )
   or (
     coalesce(auth.jwt() -> 'app_metadata' ->> 'role', 'admin') = 'demouser'
@@ -230,17 +215,19 @@ create policy contacts_owner_write on public.contacts
 for all using (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = contacts.household_id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = contacts.household_id
+      and hm.user_id = auth.uid()
+      and hm.is_owner = true
   )
 )
 with check (
   exists (
     select 1
-    from public.household_owners ho
-    where ho.household_id = contacts.household_id
-      and ho.user_id = auth.uid()
+    from public.household_members hm
+    where hm.household_id = contacts.household_id
+      and hm.user_id = auth.uid()
+      and hm.is_owner = true
   )
 );
 ```
@@ -260,20 +247,34 @@ set raw_app_meta_data = coalesce(raw_app_meta_data, '{}'::jsonb) || jsonb_build_
 where email = 'demo@example.com';
 ```
 
-For each admin household, create ownership:
+For each admin household, create owner membership:
 
 ```sql
-insert into public.household_owners (household_id, user_id)
-values ('00000000-0000-0000-0000-000000000001', '<admin-auth-user-id>')
-on conflict (household_id) do update set user_id = excluded.user_id;
-```
-
-Optionally link a user to one or more `household_members` entries (used to offer additional default household choices in settings):
-
-```sql
-insert into public.user_household_members (user_id, household_member_id)
-values ('<auth-user-id>', '<household-member-id>')
-on conflict (user_id, household_member_id) do nothing;
+insert into public.household_members (
+  id,
+  household_id,
+  user_id,
+  is_owner,
+  first_name,
+  role,
+  avatar_color,
+  visible_in_calendar,
+  sort_order
+)
+values (
+  gen_random_uuid(),
+  '00000000-0000-0000-0000-000000000001',
+  '<admin-auth-user-id>',
+  true,
+  'Owner',
+  'Owner',
+  '#3b82f6',
+  true,
+  0
+)
+on conflict (user_id) do update set
+  household_id = excluded.household_id,
+  is_owner = excluded.is_owner;
 ```
 
 ## 7) Demo testing best practice (non-production)
