@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ContactDialog } from "../ContactDialog";
+import { HouseholdDialog } from "../HouseholdDialog";
 import { MemberDialog } from "../MemberDialog";
 import { HouseholdData, UserHouseholdMemberLink, UserHouseholdOption } from "../../types/app";
 import { FamilyMember, MemberAvatarColor } from "../../types/family";
@@ -46,6 +47,8 @@ export function SettingsScreen({
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [householdModalOpen, setHouseholdModalOpen] = useState(false);
+  const [householdFormSubmitted, setHouseholdFormSubmitted] = useState(false);
   const [newHouseholdName, setNewHouseholdName] = useState("");
   const [creatingHousehold, setCreatingHousehold] = useState(false);
 
@@ -79,7 +82,9 @@ export function SettingsScreen({
     setHouseholdNameDraft(trimmed);
   };
 
-  const createHousehold = async () => {
+  const createHousehold = async (event: FormEvent) => {
+    event.preventDefault();
+    setHouseholdFormSubmitted(true);
     const trimmed = newHouseholdName.trim();
     if (!trimmed || creatingHousehold) {
       return;
@@ -88,11 +93,15 @@ export function SettingsScreen({
     setCreatingHousehold(true);
     try {
       await onCreateHousehold(trimmed);
+      setHouseholdModalOpen(false);
+      setHouseholdFormSubmitted(false);
       setNewHouseholdName("");
     } finally {
       setCreatingHousehold(false);
     }
   };
+
+  const householdNameError = householdFormSubmitted && !newHouseholdName.trim();
 
   const openAddMember = () => {
     setEditingMemberId(null);
@@ -345,19 +354,16 @@ export function SettingsScreen({
             </div>
           </div>
           <div className="settings-form-row">
-            <label htmlFor="new-household-name">Create household</label>
-            <div className="inline-controls">
-              <input
-                id="new-household-name"
-                type="text"
-                value={newHouseholdName}
-                onChange={(event) => setNewHouseholdName(event.target.value)}
-                placeholder="New household name"
-              />
-              <button type="button" className="primary-pill" onClick={createHousehold} disabled={!newHouseholdName.trim() || creatingHousehold}>
-                {creatingHousehold ? "Creating..." : "Create"}
-              </button>
-            </div>
+            <button
+              type="button"
+              className="primary-pill"
+              onClick={() => {
+                setHouseholdModalOpen(true);
+                setHouseholdFormSubmitted(false);
+              }}
+            >
+              + Household
+            </button>
           </div>
           <div className="coming-soon-card">
             <strong>
@@ -555,6 +561,19 @@ export function SettingsScreen({
             onClose={closeContactModal}
             onSubmit={submitContact}
             onFormStateChange={(updater) => setContactFormState((current) => updater(current))}
+          />
+
+          <HouseholdDialog
+            open={householdModalOpen}
+            creating={creatingHousehold}
+            householdName={newHouseholdName}
+            householdNameError={householdNameError}
+            onHouseholdNameChange={setNewHouseholdName}
+            onClose={() => {
+              setHouseholdModalOpen(false);
+              setHouseholdFormSubmitted(false);
+            }}
+            onSubmit={createHousehold}
           />
         </section>
       </main>

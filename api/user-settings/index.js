@@ -1,6 +1,7 @@
+const { randomUUID } = require("crypto");
 const db = require("../shared/db");
 const { APP_ROLES, authenticateRequest, createHttpError } = require("../shared/auth");
-const { getUserHouseholdContext } = require("../shared/user-households");
+const { DEFAULT_HOLIDAY_REGION, getUserHouseholdContext } = require("../shared/user-households");
 
 const asResponse = (contextData) => ({
   defaultHouseholdId: contextData.defaultHouseholdId,
@@ -44,6 +45,35 @@ module.exports = async function userSettings(context, req) {
       context.res = {
         status: 200,
         body: asResponse(refreshed),
+      };
+      return;
+    }
+
+    if (method === "POST") {
+      if (currentUser.role === APP_ROLES.demouser) {
+        throw createHttpError(403, "Forbidden");
+      }
+
+      const householdName =
+        typeof req.body?.householdName === "string" && req.body.householdName.trim()
+          ? req.body.householdName.trim()
+          : "";
+      if (!householdName) {
+        throw createHttpError(400, "householdName is required");
+      }
+
+      const householdId = randomUUID();
+      await db.createHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
+      await db.assignHouseholdOwner(householdId, currentUser.id);
+      await db.setUserDefaultHousehold(currentUser.id, householdId);
+
+      const refreshed = await getUserHouseholdContext(currentUser);
+      context.res = {
+        status: 201,
+        body: {
+          householdId,
+          ...asResponse(refreshed),
+        },
       };
       return;
     }

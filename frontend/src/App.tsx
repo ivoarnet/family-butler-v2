@@ -133,6 +133,35 @@ const writeUserSettings = async (
   return toUserSettings((await response.json()) as Partial<UserSettingsPayload>, fallbackHouseholdId);
 };
 
+const createUserHousehold = async (
+  accessToken: string,
+  householdName: string,
+  fallbackHouseholdId: string
+): Promise<UserSettingsPayload & { householdId: string }> => {
+  const response = await fetch(`${API_BASE_URL}/api/user-settings`, {
+    method: "POST",
+    headers: {
+      Authorization: ["Bearer", accessToken].join(" "),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ householdName }),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to create household");
+  }
+
+  const payload = (await response.json()) as Partial<UserSettingsPayload> & { householdId?: string };
+  const settings = toUserSettings(payload, fallbackHouseholdId);
+  if (!payload.householdId) {
+    throw new Error("Failed to create household");
+  }
+
+  return {
+    householdId: payload.householdId,
+    ...settings,
+  };
+};
+
 const writeHousehold = async (household: HouseholdData, accessToken: string): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households/${household.householdId}`, {
     method: "PUT",
@@ -424,21 +453,8 @@ export function App() {
 
     try {
       setIsSaving(true);
-      const householdId = crypto.randomUUID();
-      const createdHousehold = await writeHousehold(
-        {
-          householdId,
-          householdName,
-          familyMembers: [],
-          contacts: [],
-        },
-        session.access_token
-      );
-      const settings = await writeUserSettings(
-        session.access_token,
-        { defaultHouseholdId: householdId },
-        fallbackHouseholdId
-      );
+      const settings = await createUserHousehold(session.access_token, householdName, fallbackHouseholdId);
+      const createdHousehold = await readHousehold(settings.householdId, session.access_token);
 
       setUserHouseholds(settings.households);
       setDefaultHouseholdId(settings.defaultHouseholdId);
