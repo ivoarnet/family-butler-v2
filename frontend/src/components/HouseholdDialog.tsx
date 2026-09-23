@@ -42,7 +42,7 @@ export function HouseholdDialog({
       <Box component="form" onSubmit={onSubmit} noValidate>
         <DialogHeader>
           <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-            Create household
+            Create workspace
           </Typography>
           <Button
             type="button"
@@ -56,19 +56,19 @@ export function HouseholdDialog({
 
         <DialogContentPanel>
           <DialogDescription id={descriptionId} variant="body2">
-            Create a new household and set it as your default household.
+            Create a new workspace and set it as your selected workspace.
           </DialogDescription>
 
           <GlassPanel>
-            <FieldTitle variant="subtitle1">Household details</FieldTitle>
+            <FieldTitle variant="subtitle1">Workspace details</FieldTitle>
             <FormField
               required
               autoFocus
-              label="Household name"
+              label="Workspace name"
               slotProps={{ inputLabel: { shrink: true } }}
               value={householdName}
               error={householdNameError}
-              helperText={householdNameError ? "Household name is required." : " "}
+              helperText={householdNameError ? "Workspace name is required." : " "}
               onChange={(event) => onHouseholdNameChange(event.target.value)}
             />
           </GlassPanel>
@@ -94,7 +94,7 @@ export function HouseholdDialog({
             Cancel
           </Button>
           <GradientButton type="submit" variant="contained" disableElevation disabled={creating}>
-            {creating ? "Creating..." : "Create household"}
+            {creating ? "Creating..." : "Create workspace"}
           </GradientButton>
         </DialogActionsBar>
       </Box>

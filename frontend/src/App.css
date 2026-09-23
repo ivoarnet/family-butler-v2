@@ -360,8 +360,23 @@ body,
   background: var(--row);
 }
 
+.settings-table tbody tr.selected-row {
+  outline: 2px solid color-mix(in srgb, var(--accent-strong) 45%, transparent);
+  outline-offset: -2px;
+}
+
 .settings-table small {
   color: var(--text-secondary);
+}
+
+.table-link-button {
+  border: none;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 0;
+  cursor: pointer;
+  text-decoration: underline;
 }
 
 .icon-actions {

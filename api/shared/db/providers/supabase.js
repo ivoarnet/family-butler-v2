@@ -256,7 +256,7 @@ module.exports = function createSupabaseProvider() {
     async listLinkedHouseholdMembers(userId) {
       const rows = await request(TABLES.members, {
         params: {
-          select: "id,household_id",
+          select: "id,household_id,is_owner,role",
           user_id: `eq.${userId}`,
         },
       });
@@ -265,6 +265,8 @@ module.exports = function createSupabaseProvider() {
         ? rows.map((row) => ({
             memberId: row.id,
             householdId: row.household_id,
+            isOwner: Boolean(row.is_owner),
+            role: row.role ?? null,
           }))
         : [];
     },

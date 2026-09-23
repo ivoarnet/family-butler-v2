@@ -59,6 +59,8 @@ const toUserSettings = (payload: Partial<UserSettingsPayload>, fallbackHousehold
           id: household.id,
           name: household.name,
           canManage: Boolean(household.canManage),
+          isOwner: household.isOwner ?? Boolean(household.canManage),
+          membershipRole: typeof household.membershipRole === "string" ? household.membershipRole : null,
           source: household.source ?? "owned",
         }))
     : [];
@@ -66,7 +68,16 @@ const toUserSettings = (payload: Partial<UserSettingsPayload>, fallbackHousehold
   const effectiveHouseholds =
     uniqueHouseholds.length > 0
       ? uniqueHouseholds
-      : [{ id: fallbackHouseholdId, name: DEFAULT_HOUSEHOLD_NAME, canManage: true, source: "owned" as const }];
+      : [
+          {
+            id: fallbackHouseholdId,
+            name: DEFAULT_HOUSEHOLD_NAME,
+            canManage: true,
+            isOwner: true,
+            membershipRole: "Owner",
+            source: "owned" as const,
+          },
+        ];
   const householdIds = new Set(effectiveHouseholds.map((household) => household.id));
   const defaultHouseholdId =
     typeof payload.defaultHouseholdId === "string" && householdIds.has(payload.defaultHouseholdId)
@@ -78,6 +89,8 @@ const toUserSettings = (payload: Partial<UserSettingsPayload>, fallbackHousehold
         .map((link) => ({
           memberId: link.memberId,
           householdId: link.householdId,
+          isOwner: Boolean(link.isOwner),
+          role: typeof link.role === "string" ? link.role : null,
         }))
     : [];
 
@@ -162,6 +175,18 @@ const createUserHousehold = async (
   };
 };
 
+const deleteUserHousehold = async (accessToken: string, householdId: string): Promise<void> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`, {
+    method: "DELETE",
+    headers: {
+      Authorization: ["Bearer", accessToken].join(" "),
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to delete household");
+  }
+};
+
 const writeHousehold = async (household: HouseholdData, accessToken: string): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households/${household.householdId}`, {
     method: "PUT",
@@ -197,7 +222,6 @@ export function App() {
   const [isSaving, setIsSaving] = useState(false);
   const [userHouseholds, setUserHouseholds] = useState<UserHouseholdOption[]>([]);
   const [defaultHouseholdId, setDefaultHouseholdId] = useState(DEFAULT_HOUSEHOLD_ID);
-  const [linkedMembers, setLinkedMembers] = useState<UserHouseholdMemberLink[]>([]);
   const role = getRoleFromSession(session);
   const isReadOnly = role === "demouser";
   const fallbackHouseholdId = isReadOnly ? DEMO_HOUSEHOLD_ID : DEFAULT_HOUSEHOLD_ID;
@@ -265,7 +289,6 @@ export function App() {
       setHouseholdData(getInitialHouseholdData());
       setDefaultHouseholdId(DEFAULT_HOUSEHOLD_ID);
       setUserHouseholds([]);
-      setLinkedMembers([]);
       setInitialLoadComplete(false);
       setDataError(null);
       return;
@@ -283,7 +306,6 @@ export function App() {
         }
         setUserHouseholds(settings.households);
         setDefaultHouseholdId(settings.defaultHouseholdId);
-        setLinkedMembers(settings.linkedMembers);
         setHouseholdData(loaded);
         setDataError(null);
       } catch {
@@ -426,7 +448,6 @@ export function App() {
     await supabase.auth.signOut();
     setDefaultHouseholdId(DEFAULT_HOUSEHOLD_ID);
     setUserHouseholds([]);
-    setLinkedMembers([]);
     setPathname("/");
   };
 
@@ -446,11 +467,10 @@ export function App() {
       const loadedHousehold = await readHousehold(settings.defaultHouseholdId, accessToken);
       setUserHouseholds(settings.households);
       setDefaultHouseholdId(settings.defaultHouseholdId);
-      setLinkedMembers(settings.linkedMembers);
       setHouseholdData(loadedHousehold);
       setDataError(null);
     } catch {
-      setDataError("Could not switch default household.");
+      setDataError("Could not switch workspace.");
     } finally {
       setIsSaving(false);
     }
@@ -474,11 +494,32 @@ export function App() {
 
       setUserHouseholds(settings.households);
       setDefaultHouseholdId(settings.defaultHouseholdId);
-      setLinkedMembers(settings.linkedMembers);
       setHouseholdData(createdHousehold);
       setDataError(null);
     } catch {
-      setDataError("Could not create household.");
+      setDataError("Could not create workspace.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const deleteHousehold = async (householdId: string) => {
+    if (isReadOnly || !householdId) {
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const accessToken = await getAccessToken();
+      await deleteUserHousehold(accessToken, householdId);
+      const settings = await readUserSettings(accessToken, fallbackHouseholdId);
+      const loadedHousehold = await readHousehold(settings.defaultHouseholdId, accessToken);
+      setUserHouseholds(settings.households);
+      setDefaultHouseholdId(settings.defaultHouseholdId);
+      setHouseholdData(loadedHousehold);
+      setDataError(null);
+    } catch {
+      setDataError("Could not delete workspace.");
     } finally {
       setIsSaving(false);
     }
@@ -531,7 +572,7 @@ export function App() {
         defaultHouseholdId={selectedHouseholdId}
         onDefaultHouseholdChange={changeDefaultHousehold}
         onCreateHousehold={createHousehold}
-        linkedMembers={linkedMembers}
+        onDeleteHousehold={deleteHousehold}
         canManageCurrentHousehold={canManageCurrentHousehold}
       />
     </>

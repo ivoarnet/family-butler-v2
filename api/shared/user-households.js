@@ -29,17 +29,25 @@ const getDefaultOwnerMemberName = (email) => {
   return prefix || "Owner";
 };
 
-const mergeAccessibleHouseholds = (owned, linked) => {
+const mergeAccessibleHouseholds = (owned, linked, linkedMembers) => {
   const map = new Map();
+  const membershipByHouseholdId = new Map(
+    (Array.isArray(linkedMembers) ? linkedMembers : [])
+      .filter((member) => member?.householdId)
+      .map((member) => [member.householdId, member])
+  );
 
   for (const household of owned) {
     if (!household?.id) {
       continue;
     }
+    const membership = membershipByHouseholdId.get(household.id);
     map.set(household.id, {
       id: household.id,
       name: household.name,
       canManage: true,
+      isOwner: true,
+      membershipRole: membership?.role || "Owner",
       source: "owned",
     });
   }
@@ -55,6 +63,8 @@ const mergeAccessibleHouseholds = (owned, linked) => {
       id: household.id,
       name: household.name,
       canManage: false,
+      isOwner: false,
+      membershipRole: membershipByHouseholdId.get(household.id)?.role || null,
       source: "member-link",
     });
   }
@@ -85,7 +95,7 @@ const ensureAdminHouseholdContext = async (user) => {
     db.getUserProfile(user.id),
     db.listLinkedHouseholdMembers(user.id),
   ]);
-  const households = mergeAccessibleHouseholds(ownedHouseholds, linkedHouseholds);
+  const households = mergeAccessibleHouseholds(ownedHouseholds, linkedHouseholds, linkedMembers);
   const householdIds = new Set(households.map((household) => household.id));
 
   let defaultHouseholdId = profile?.defaultHouseholdId ?? null;
@@ -113,6 +123,8 @@ const getUserHouseholdContext = async (user) => {
           id: DEMO_HOUSEHOLD_ID,
           name: DEFAULT_HOUSEHOLD_NAME,
           canManage: false,
+          isOwner: false,
+          membershipRole: null,
           source: "demo",
         },
       ],

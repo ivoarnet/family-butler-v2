@@ -2,7 +2,7 @@ import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ContactDialog } from "../ContactDialog";
 import { HouseholdDialog } from "../HouseholdDialog";
 import { MemberDialog } from "../MemberDialog";
-import { HouseholdData, UserHouseholdMemberLink, UserHouseholdOption } from "../../types/app";
+import { HouseholdData, UserHouseholdOption } from "../../types/app";
 import { FamilyMember, MemberAvatarColor } from "../../types/family";
 import {
   ContactFormState,
@@ -24,7 +24,7 @@ export function SettingsScreen({
   defaultHouseholdId,
   onDefaultHouseholdChange,
   onCreateHousehold,
-  linkedMembers,
+  onDeleteHousehold,
   canManageCurrentHousehold,
 }: {
   householdData: HouseholdData;
@@ -34,7 +34,7 @@ export function SettingsScreen({
   defaultHouseholdId: string;
   onDefaultHouseholdChange: (householdId: string) => void;
   onCreateHousehold: (name: string) => Promise<void>;
-  linkedMembers: UserHouseholdMemberLink[];
+  onDeleteHousehold: (householdId: string) => Promise<void>;
   canManageCurrentHousehold: boolean;
 }) {
   const [householdNameDraft, setHouseholdNameDraft] = useState(householdData.householdName);
@@ -60,15 +60,6 @@ export function SettingsScreen({
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
     [householdData.familyMembers]
   );
-  const ownedHouseholds = useMemo(
-    () => householdOptions.filter((household) => household.canManage),
-    [householdOptions]
-  );
-  const linkedHouseholds = useMemo(
-    () => householdOptions.filter((household) => !household.canManage),
-    [householdOptions]
-  );
-
   const filteredContacts = useMemo(() => {
     const search = contactSearch.trim().toLowerCase();
     if (!search) {
@@ -314,7 +305,7 @@ export function SettingsScreen({
         <div className="header-branding">
           <div>
             <h1>Settings</h1>
-            <p>Household, family members, contacts</p>
+            <p>Workspace, family members, contacts</p>
           </div>
         </div>
         <button
@@ -330,43 +321,69 @@ export function SettingsScreen({
 
       <main className="settings-main">
         <section className="settings-card">
-          <h2>Household Setting</h2>
-          <div className="settings-form-row">
-            <label>Default household</label>
-            <div className="household-list" role="radiogroup" aria-label="Default household">
-              {ownedHouseholds.map((household) => (
-                <label key={household.id} className="household-list-item">
-                  <input
-                    type="radio"
-                    name="default-household"
-                    checked={defaultHouseholdId === household.id}
-                    onChange={() => onDefaultHouseholdChange(household.id)}
-                  />
-                  <span>{household.name}</span>
-                </label>
-              ))}
-            </div>
-            {linkedHouseholds.length > 0 ? (
-              <>
-                <label>Linked households</label>
-                <div className="household-list household-list-linked" role="radiogroup" aria-label="Linked households">
-                  {linkedHouseholds.map((household) => (
-                    <label key={household.id} className="household-list-item">
-                      <input
-                        type="radio"
-                        name="default-household"
-                        checked={defaultHouseholdId === household.id}
-                        onChange={() => onDefaultHouseholdChange(household.id)}
-                      />
-                      <span>{household.name}</span>
-                    </label>
-                  ))}
-                </div>
-              </>
-            ) : null}
+          <h2>Workspaces</h2>
+          <div className="table-scroll">
+            <table className="settings-table" aria-label="Connected workspaces">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Owner</th>
+                  <th>Membership Role</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {householdOptions.map((household) => {
+                  const isSelected = defaultHouseholdId === household.id;
+                  const isOwner = household.isOwner || household.canManage;
+                  return (
+                    <tr key={household.id} className={isSelected ? "selected-row" : undefined}>
+                      <td>
+                        <button type="button" className="table-link-button" onClick={() => onDefaultHouseholdChange(household.id)}>
+                          {household.name}
+                        </button>
+                        {isSelected ? <small> · Selected</small> : null}
+                      </td>
+                      <td>{isOwner ? "true" : "false"}</td>
+                      <td>{household.membershipRole || "—"}</td>
+                      <td>
+                        {isOwner ? (
+                          <div className="icon-actions">
+                            <button
+                              type="button"
+                              className="icon-button compact-icon-button"
+                              title="Edit workspace"
+                              onClick={() => onDefaultHouseholdChange(household.id)}
+                            >
+                              ✎
+                            </button>
+                            <button
+                              type="button"
+                              className="icon-button compact-icon-button"
+                              title="Delete workspace"
+                              onClick={async () => {
+                                if (!window.confirm("Delete this workspace?")) {
+                                  return;
+                                }
+                                await onDeleteHousehold(household.id);
+                              }}
+                              disabled={householdOptions.length <= 1}
+                            >
+                              🗑
+                            </button>
+                          </div>
+                        ) : (
+                          "—"
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
           </div>
           <div className="settings-form-row">
-            <label htmlFor="household-name">Household name</label>
+            <label htmlFor="household-name">Workspace name</label>
             <div className="inline-controls">
               <input
                 id="household-name"
@@ -389,15 +406,8 @@ export function SettingsScreen({
                 setHouseholdFormSubmitted(false);
               }}
             >
-              + Household
+              + Workspace
             </button>
-          </div>
-          <div className="coming-soon-card">
-            <strong>
-              {linkedMembers.length > 0
-                ? `Linked to ${linkedMembers.length} household member${linkedMembers.length === 1 ? "" : "s"}.`
-                : "More household settings are coming soon."}
-            </strong>
           </div>
         </section>
 
