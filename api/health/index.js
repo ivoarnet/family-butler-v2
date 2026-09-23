@@ -1,5 +1,3 @@
-const prisma = require("../shared/prisma");
-
 const isTruthyFlag = (value) => {
   if (typeof value === "boolean") {
     return value;
@@ -40,9 +38,10 @@ module.exports = async function health(context, req) {
   };
 
   try {
+    const prisma = require("../shared/prisma");
     await prisma.$queryRaw`SELECT 1`;
     database = { connected: true };
-  } catch (error) {
+  } catch (_error) {
     database = {
       connected: false,
       error: "Database connectivity check failed",
