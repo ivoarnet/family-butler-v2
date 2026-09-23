@@ -5,8 +5,5 @@
   "scripts": {
     "dev": "func start",
     "build": "node -e \"console.log('Azure Functions API: no build step required')\""
-  },
-  "dependencies": {
-    "@supabase/supabase-js": "^2.57.4"
   }
 }

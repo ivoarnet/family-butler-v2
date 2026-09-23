@@ -1,5 +1,3 @@
-const { createClient } = require("@supabase/supabase-js");
-
 const TABLES = {
   households: "households",
   members: "household_members",
@@ -9,7 +7,7 @@ const TABLES = {
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 
-const formatInList = (values) => `(${values.map((value) => JSON.stringify(value)).join(",")})`;
+const formatInList = (values) => `(${values.join(",")})`;
 
 const mapHousehold = (row) => ({
   id: row.id,
@@ -45,6 +43,33 @@ const mapTask = (row) => ({
   createdAt: row.created_at,
 });
 
+const parseErrorMessage = async (response) => {
+  try {
+    const payload = await response.json();
+    if (payload && typeof payload === "object") {
+      if (typeof payload.message === "string" && payload.message) {
+        return payload.message;
+      }
+      if (typeof payload.error === "string" && payload.error) {
+        return payload.error;
+      }
+    }
+  } catch (_error) {
+    // ignore json parse failures
+  }
+
+  try {
+    const text = await response.text();
+    if (text) {
+      return text;
+    }
+  } catch (_error) {
+    // ignore text parse failures
+  }
+
+  return `Supabase request failed with status ${response.status}`;
+};
+
 module.exports = function createSupabaseProvider() {
   const supabaseUrl = cleanString(process.env.SUPABASE_URL);
   const supabaseSecretKey = cleanString(process.env.SUPABASE_SECRET_KEY);
@@ -53,62 +78,98 @@ module.exports = function createSupabaseProvider() {
     throw new Error("SUPABASE_URL and SUPABASE_SECRET_KEY must be configured");
   }
 
-  const client = createClient(supabaseUrl, supabaseSecretKey, {
-    auth: {
-      autoRefreshToken: false,
-      persistSession: false,
-    },
-  });
+  const restBaseUrl = `${supabaseUrl.replace(/\/$/, "")}/rest/v1`;
+  const authorizationHeader = ["Bearer", supabaseSecretKey].join(" ");
 
-  const throwIfError = (error) => {
-    if (error) {
-      throw new Error(error.message || "Supabase request failed");
+  const request = async (table, { method = "GET", params, body, headers } = {}) => {
+    const url = new URL(`${restBaseUrl}/${table}`);
+    if (params) {
+      Object.entries(params).forEach(([key, value]) => {
+        if (value !== undefined && value !== null) {
+          url.searchParams.set(key, String(value));
+        }
+      });
+    }
+
+    const response = await fetch(url, {
+      method,
+      headers: {
+        apikey: supabaseSecretKey,
+        Authorization: authorizationHeader,
+        "Content-Type": "application/json",
+        ...(headers || {}),
+      },
+      body: body === undefined ? undefined : JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      throw new Error(await parseErrorMessage(response));
+    }
+
+    if (response.status === 204) {
+      return null;
+    }
+
+    const text = await response.text();
+    if (!text) {
+      return null;
+    }
+
+    try {
+      return JSON.parse(text);
+    } catch (_error) {
+      return null;
     }
   };
 
   return {
     async ensureHousehold(householdId, householdName, holidayRegion) {
-      const { error } = await client.from(TABLES.households).upsert(
-        {
+      await request(TABLES.households, {
+        method: "POST",
+        params: { on_conflict: "id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: {
           id: householdId,
           name: householdName,
           holiday_region: holidayRegion,
         },
-        { onConflict: "id" }
-      );
-      throwIfError(error);
+      });
     },
 
     async getHouseholdWithRelations(householdId) {
-      const [householdResult, membersResult, contactsResult] = await Promise.all([
-        client
-          .from(TABLES.households)
-          .select("id,name,holiday_region")
-          .eq("id", householdId)
-          .maybeSingle(),
-        client
-          .from(TABLES.members)
-          .select("id,household_id,first_name,role,avatar_color,visible_in_calendar,sort_order")
-          .eq("household_id", householdId)
-          .order("sort_order", { ascending: true }),
-        client
-          .from(TABLES.contacts)
-          .select("id,household_id,first_name,last_name,birth_day,birth_month,birth_year,email,mobile_phone")
-          .eq("household_id", householdId),
+      const [households, members, contacts] = await Promise.all([
+        request(TABLES.households, {
+          params: {
+            select: "id,name,holiday_region",
+            id: `eq.${householdId}`,
+          },
+        }),
+        request(TABLES.members, {
+          params: {
+            select: "id,household_id,first_name,role,avatar_color,visible_in_calendar,sort_order",
+            household_id: `eq.${householdId}`,
+            order: "sort_order.asc",
+          },
+        }),
+        request(TABLES.contacts, {
+          params: {
+            select: "id,household_id,first_name,last_name,birth_day,birth_month,birth_year,email,mobile_phone",
+            household_id: `eq.${householdId}`,
+          },
+        }),
       ]);
 
-      throwIfError(householdResult.error);
-      throwIfError(membersResult.error);
-      throwIfError(contactsResult.error);
-
-      if (!householdResult.data) {
+      const household = Array.isArray(households) ? households[0] : null;
+      if (!household) {
         return null;
       }
 
       return {
-        household: mapHousehold(householdResult.data),
-        members: Array.isArray(membersResult.data) ? membersResult.data.map(mapMember) : [],
-        contacts: Array.isArray(contactsResult.data) ? contactsResult.data.map(mapContact) : [],
+        household: mapHousehold(household),
+        members: Array.isArray(members) ? members.map(mapMember) : [],
+        contacts: Array.isArray(contacts) ? contacts.map(mapContact) : [],
       };
     },
 
@@ -116,15 +177,20 @@ module.exports = function createSupabaseProvider() {
       const memberIds = members.map((member) => member.id);
 
       if (memberIds.length > 0) {
-        const { error } = await client
-          .from(TABLES.members)
-          .delete()
-          .eq("household_id", householdId)
-          .not("id", "in", formatInList(memberIds));
-        throwIfError(error);
+        await request(TABLES.members, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+            id: `not.in.${formatInList(memberIds)}`,
+          },
+        });
       } else {
-        const { error } = await client.from(TABLES.members).delete().eq("household_id", householdId);
-        throwIfError(error);
+        await request(TABLES.members, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+          },
+        });
       }
 
       if (memberIds.length === 0) {
@@ -141,23 +207,34 @@ module.exports = function createSupabaseProvider() {
         sort_order: member.sortOrder,
       }));
 
-      const { error } = await client.from(TABLES.members).upsert(payload, { onConflict: "id" });
-      throwIfError(error);
+      await request(TABLES.members, {
+        method: "POST",
+        params: { on_conflict: "id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: payload,
+      });
     },
 
     async replaceContacts(householdId, contacts) {
       const contactIds = contacts.map((contact) => contact.id);
 
       if (contactIds.length > 0) {
-        const { error } = await client
-          .from(TABLES.contacts)
-          .delete()
-          .eq("household_id", householdId)
-          .not("id", "in", formatInList(contactIds));
-        throwIfError(error);
+        await request(TABLES.contacts, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+            id: `not.in.${formatInList(contactIds)}`,
+          },
+        });
       } else {
-        const { error } = await client.from(TABLES.contacts).delete().eq("household_id", householdId);
-        throwIfError(error);
+        await request(TABLES.contacts, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+          },
+        });
       }
 
       if (contactIds.length === 0) {
@@ -176,39 +253,62 @@ module.exports = function createSupabaseProvider() {
         mobile_phone: contact.mobilePhone,
       }));
 
-      const { error } = await client.from(TABLES.contacts).upsert(payload, { onConflict: "id" });
-      throwIfError(error);
+      await request(TABLES.contacts, {
+        method: "POST",
+        params: { on_conflict: "id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: payload,
+      });
     },
 
     async listTasks() {
-      const { data, error } = await client
-        .from(TABLES.tasks)
-        .select("id,title,created_at")
-        .order("created_at", { ascending: false });
-      throwIfError(error);
+      const data = await request(TABLES.tasks, {
+        params: {
+          select: "id,title,created_at",
+          order: "created_at.desc",
+        },
+      });
       return Array.isArray(data) ? data.map(mapTask) : [];
     },
 
     async createTask(title) {
-      const { data, error } = await client
-        .from(TABLES.tasks)
-        .insert({ title })
-        .select("id,title,created_at")
-        .single();
-      throwIfError(error);
-      return mapTask(data);
+      const data = await request(TABLES.tasks, {
+        method: "POST",
+        params: {
+          select: "id,title,created_at",
+        },
+        headers: {
+          Prefer: "return=representation",
+        },
+        body: { title },
+      });
+
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) {
+        throw new Error("Failed to create task");
+      }
+
+      return mapTask(row);
     },
 
     async checkConnection() {
-      const { error } = await client.from(TABLES.households).select("id", { head: true, count: "exact" }).limit(1);
-      if (error) {
+      try {
+        await request(TABLES.households, {
+          params: {
+            select: "id",
+            limit: 1,
+          },
+        });
+
+        return { connected: true };
+      } catch (_error) {
         return {
           connected: false,
           error: "Supabase connectivity check failed",
         };
       }
-
-      return { connected: true };
     },
   };
 };
