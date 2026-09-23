@@ -20,3 +20,6 @@
 - Refined dialog visual hierarchy by removing extra inner frames and aligning floating labels with outlined field borders; added screenshot `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-clean-border-labels.png`.
 - Replaced the member avatar color dropdown with an accessible color swatch picker and added screenshot `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-color-picker.png`.
 - Migrated member avatar color persistence from semantic names to real color values (hex/rgb-friendly strings) with legacy value normalization, and added screenshot `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-hex-color-storage.png`.
+- Added Azure Static Web Apps Data API Builder deployment config at `/home/runner/work/family-butler-v2/family-butler-v2/swa-db-connections/staticwebapp.database.config.json` (read-only `Household` entity) and wired `data_api_location` in the SWA workflow.
+- Added a frontend startup probe for `GET /data-api/rest/Household` with non-sensitive status/error messaging to verify SWA → Azure SQL Data API connectivity.
+- Extended `GET /api/health` with optional deep checks via `?checks=1` to report environment-variable presence and database connectivity for Azure SQL troubleshooting.
