@@ -95,6 +95,13 @@ Set these app settings in Azure Static Web Apps:
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
 
+For frontend auth to work in production, also add these as **GitHub repository secrets** (used at build time by Vite in the deployment workflow):
+
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
+- `VITE_HOUSEHOLD_ID` (optional)
+- `VITE_DEMO_HOUSEHOLD_ID` (optional)
+
 Optional (frontend-only use cases):
 
 - `SUPABASE_PUBLISHABLE_KEY`
