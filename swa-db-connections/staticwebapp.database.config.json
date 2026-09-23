@@ -5,7 +5,7 @@
     "options": {
       "set-session-context": false
     },
-    "connection-string": "@env('DATABASE_CONNECTION_STRING')"
+    "connection-string": "@env('SQL_CONNECTION_STRING')"
   },
   "runtime": {
     "rest": {

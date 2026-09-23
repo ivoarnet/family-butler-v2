@@ -85,7 +85,7 @@ For Azure Static Web Apps deployment, the frontend build output folder is:
 - Data API config is stored at `/home/runner/work/family-butler-v2/family-butler-v2/swa-db-connections/staticwebapp.database.config.json`.
 - The SWA workflow deploys this directory with `data_api_location: "swa-db-connections"`.
 - The frontend performs a read-only probe against `GET /data-api/rest/Household` at app startup and surfaces the HTTP result message.
-- Keep database credentials out of frontend code. `DATABASE_CONNECTION_STRING` is resolved server-side by Static Web Apps Database Connections.
+- Keep database credentials out of frontend code. `SQL_CONNECTION_STRING` is resolved server-side by Static Web Apps Database Connections.
 
 ## API Runtime (Azure Functions)
 
