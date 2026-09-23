@@ -1,3 +1,5 @@
+const db = require("../shared/db");
+
 const isTruthyFlag = (value) => {
   if (typeof value === "boolean") {
     return value;
@@ -17,38 +19,29 @@ module.exports = async function health(context, req) {
     context.res = {
       status: 200,
       body: {
-        status: "ok"
-      }
+        status: "ok",
+      },
     };
     return;
   }
 
   const env = {
-    databaseUrlConfigured: Boolean(process.env.DATABASE_URL && process.env.DATABASE_URL.trim()),
-    sqlConnectionStringConfigured: Boolean(
-      process.env.SQL_CONNECTION_STRING && process.env.SQL_CONNECTION_STRING.trim()
-    ),
-    databaseConnectionStringConfigured: Boolean(
-      process.env.DATABASE_CONNECTION_STRING && process.env.DATABASE_CONNECTION_STRING.trim()
+    supabaseUrlConfigured: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_URL.trim()),
+    supabaseServiceRoleKeyConfigured: Boolean(
+      process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.SUPABASE_SERVICE_ROLE_KEY.trim()
     ),
   };
 
-  let database = {
-    connected: false,
-  };
-
+  let database;
   try {
-    const prisma = require("../shared/prisma");
-    await prisma.$queryRaw`SELECT 1`;
-    database = { connected: true };
+    database = await db.checkConnection();
   } catch (_error) {
     database = {
       connected: false,
-      error: "Database connectivity check failed",
+      error: "Supabase connectivity check failed",
     };
   }
-
-  const ok = database.connected && env.databaseUrlConfigured;
+  const ok = database.connected && env.supabaseUrlConfigured && env.supabaseServiceRoleKeyConfigured;
 
   context.res = {
     status: ok ? 200 : 503,
