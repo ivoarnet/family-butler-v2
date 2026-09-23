@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useState } from "react";
+import { useEffect, useState } from "react";
 import { Session } from "@supabase/supabase-js";
 import { DashboardScreen } from "./components/screens/DashboardScreen";
 import { SettingsScreen } from "./components/screens/SettingsScreen";
@@ -90,9 +90,8 @@ export function App() {
   const [session, setSession] = useState<Session | null>(null);
   const [authLoading, setAuthLoading] = useState(true);
   const [authError, setAuthError] = useState<string | null>(null);
-  const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
-  const [isSigningIn, setIsSigningIn] = useState(false);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
+  const [isAuthSubmitting, setIsAuthSubmitting] = useState(false);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
@@ -232,24 +231,66 @@ export function App() {
     }
   }, [isReadOnly, pathname]);
 
-  const signIn = async (event: FormEvent) => {
-    event.preventDefault();
+  const signIn = async ({ email, password }: { email: string; password: string }) => {
     if (!isSupabaseAuthConfigured) {
       return;
     }
 
-    setIsSigningIn(true);
+    setIsAuthSubmitting(true);
     setAuthError(null);
+    setAuthInfo(null);
     const { error } = await supabase.auth.signInWithPassword({
       email: email.trim(),
       password,
     });
     if (error) {
       setAuthError(error.message);
-    } else {
-      setPassword("");
     }
-    setIsSigningIn(false);
+    setIsAuthSubmitting(false);
+  };
+
+  const register = async ({ fullName, email, password }: { fullName: string; email: string; password: string }) => {
+    if (!isSupabaseAuthConfigured) {
+      return;
+    }
+
+    setIsAuthSubmitting(true);
+    setAuthError(null);
+    setAuthInfo(null);
+    const { error } = await supabase.auth.signUp({
+      email: email.trim(),
+      password,
+      options: {
+        data: {
+          full_name: fullName,
+        },
+      },
+    });
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthInfo("Account created. If email confirmation is enabled, please verify your inbox before signing in.");
+    }
+    setIsAuthSubmitting(false);
+  };
+
+  const forgotPassword = async (email: string) => {
+    if (!isSupabaseAuthConfigured) {
+      return;
+    }
+
+    setIsAuthSubmitting(true);
+    setAuthError(null);
+    setAuthInfo(null);
+    const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
+      redirectTo: window.location.origin,
+    });
+    if (error) {
+      setAuthError(error.message);
+    } else {
+      setAuthInfo("Password reset instructions were sent if this account exists.");
+    }
+    setIsAuthSubmitting(false);
   };
 
   const signOut = async () => {
@@ -270,13 +311,14 @@ export function App() {
   if (!session) {
     return (
       <SignInScreen
-        email={email}
-        credential={password}
-        onEmailChange={setEmail}
-        onCredentialChange={setPassword}
-        onSubmit={signIn}
-        isSigningIn={isSigningIn}
+        onSignIn={signIn}
+        onRegister={register}
+        onForgotPassword={forgotPassword}
+        isSubmitting={isAuthSubmitting}
         error={authError}
+        info={authInfo}
+        theme={theme}
+        onToggleTheme={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
       />
     );
   }
