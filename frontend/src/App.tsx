@@ -204,6 +204,20 @@ export function App() {
   const selectedHouseholdId = defaultHouseholdId || fallbackHouseholdId;
   const canManageCurrentHousehold = userHouseholds.some((household) => household.id === selectedHouseholdId && household.canManage);
 
+  const getAccessToken = async (): Promise<string> => {
+    const { data, error } = await supabase.auth.getSession();
+    if (error) {
+      throw new Error("Could not read auth session");
+    }
+
+    const accessToken = data.session?.access_token ?? session?.access_token;
+    if (!accessToken) {
+      throw new Error("Missing auth token");
+    }
+
+    return accessToken;
+  };
+
   const navigateTo = (nextPathname: "/" | "/settings") => {
     if (window.location.pathname === nextPathname) {
       return;
@@ -417,18 +431,19 @@ export function App() {
   };
 
   const changeDefaultHousehold = async (nextHouseholdId: string) => {
-    if (!session?.access_token || !nextHouseholdId || nextHouseholdId === selectedHouseholdId || isReadOnly) {
+    if (!nextHouseholdId || nextHouseholdId === selectedHouseholdId || isReadOnly) {
       return;
     }
 
     try {
       setIsSaving(true);
+      const accessToken = await getAccessToken();
       const settings = await writeUserSettings(
-        session.access_token,
+        accessToken,
         { defaultHouseholdId: nextHouseholdId },
         fallbackHouseholdId
       );
-      const loadedHousehold = await readHousehold(settings.defaultHouseholdId, session.access_token);
+      const loadedHousehold = await readHousehold(settings.defaultHouseholdId, accessToken);
       setUserHouseholds(settings.households);
       setDefaultHouseholdId(settings.defaultHouseholdId);
       setLinkedMembers(settings.linkedMembers);
@@ -442,7 +457,7 @@ export function App() {
   };
 
   const createHousehold = async (name: string) => {
-    if (!session?.access_token || isReadOnly) {
+    if (isReadOnly) {
       return;
     }
 
@@ -453,8 +468,9 @@ export function App() {
 
     try {
       setIsSaving(true);
-      const settings = await createUserHousehold(session.access_token, householdName, fallbackHouseholdId);
-      const createdHousehold = await readHousehold(settings.householdId, session.access_token);
+      const accessToken = await getAccessToken();
+      const settings = await createUserHousehold(accessToken, householdName, fallbackHouseholdId);
+      const createdHousehold = await readHousehold(settings.householdId, accessToken);
 
       setUserHouseholds(settings.households);
       setDefaultHouseholdId(settings.defaultHouseholdId);

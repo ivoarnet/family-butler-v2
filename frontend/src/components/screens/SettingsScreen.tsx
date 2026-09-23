@@ -60,6 +60,14 @@ export function SettingsScreen({
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
     [householdData.familyMembers]
   );
+  const ownedHouseholds = useMemo(
+    () => householdOptions.filter((household) => household.canManage),
+    [householdOptions]
+  );
+  const linkedHouseholds = useMemo(
+    () => householdOptions.filter((household) => !household.canManage),
+    [householdOptions]
+  );
 
   const filteredContacts = useMemo(() => {
     const search = contactSearch.trim().toLowerCase();
@@ -324,19 +332,38 @@ export function SettingsScreen({
         <section className="settings-card">
           <h2>Household Setting</h2>
           <div className="settings-form-row">
-            <label htmlFor="default-household">Default household</label>
-            <select
-              id="default-household"
-              value={defaultHouseholdId}
-              onChange={(event) => onDefaultHouseholdChange(event.target.value)}
-            >
-              {householdOptions.map((household) => (
-                <option key={household.id} value={household.id}>
-                  {household.name}
-                  {household.canManage ? "" : " (linked member)"}
-                </option>
+            <label>Default household</label>
+            <div className="household-list" role="radiogroup" aria-label="Default household">
+              {ownedHouseholds.map((household) => (
+                <label key={household.id} className="household-list-item">
+                  <input
+                    type="radio"
+                    name="default-household"
+                    checked={defaultHouseholdId === household.id}
+                    onChange={() => onDefaultHouseholdChange(household.id)}
+                  />
+                  <span>{household.name}</span>
+                </label>
               ))}
-            </select>
+            </div>
+            {linkedHouseholds.length > 0 ? (
+              <>
+                <label>Linked households</label>
+                <div className="household-list household-list-linked" role="radiogroup" aria-label="Linked households">
+                  {linkedHouseholds.map((household) => (
+                    <label key={household.id} className="household-list-item">
+                      <input
+                        type="radio"
+                        name="default-household"
+                        checked={defaultHouseholdId === household.id}
+                        onChange={() => onDefaultHouseholdChange(household.id)}
+                      />
+                      <span>{household.name}</span>
+                    </label>
+                  ))}
+                </div>
+              </>
+            ) : null}
           </div>
           <div className="settings-form-row">
             <label htmlFor="household-name">Household name</label>

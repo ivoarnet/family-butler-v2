@@ -35,3 +35,6 @@
 - Added admin household creation controls in Settings to create a new household and immediately switch it as the default household.
 - Switched household creation to a modal dialog consistent with other create/edit forms in Settings.
 - Added server-side household creation via `POST /api/user-settings` to guarantee household persistence in Supabase before default selection is updated.
+- Fixed household create/switch flows to fetch a fresh Supabase access token before API writes, preventing stale-token `401 Invalid or expired token` errors.
+- Replaced default-household selector with a household list (owned + linked sections) using single radio selection semantics so exactly one household is active.
+- Added updated settings screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-household-list-selection.png`.

@@ -250,6 +250,26 @@ body,
   font-weight: 700;
 }
 
+.household-list {
+  display: grid;
+  gap: 0.45rem;
+}
+
+.household-list-item {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+  min-height: 2.4rem;
+  border: 1px solid var(--border);
+  border-radius: 0.8rem;
+  background: var(--surface-strong);
+  padding: 0.45rem 0.65rem;
+}
+
+.household-list-item input {
+  accent-color: var(--accent-strong);
+}
+
 .inline-controls,
 .toolbar-controls {
   display: flex;
