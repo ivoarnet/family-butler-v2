@@ -22,6 +22,7 @@ export function SettingsScreen({
   householdOptions,
   defaultHouseholdId,
   onDefaultHouseholdChange,
+  onCreateHousehold,
   linkedMembers,
   canManageCurrentHousehold,
 }: {
@@ -31,6 +32,7 @@ export function SettingsScreen({
   householdOptions: UserHouseholdOption[];
   defaultHouseholdId: string;
   onDefaultHouseholdChange: (householdId: string) => void;
+  onCreateHousehold: (name: string) => Promise<void>;
   linkedMembers: UserHouseholdMemberLink[];
   canManageCurrentHousehold: boolean;
 }) {
@@ -44,6 +46,8 @@ export function SettingsScreen({
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [newHouseholdName, setNewHouseholdName] = useState("");
+  const [creatingHousehold, setCreatingHousehold] = useState(false);
 
   useEffect(() => {
     setHouseholdNameDraft(householdData.householdName);
@@ -73,6 +77,21 @@ export function SettingsScreen({
     }
     setHouseholdData((current) => ({ ...current, householdName: trimmed }));
     setHouseholdNameDraft(trimmed);
+  };
+
+  const createHousehold = async () => {
+    const trimmed = newHouseholdName.trim();
+    if (!trimmed || creatingHousehold) {
+      return;
+    }
+
+    setCreatingHousehold(true);
+    try {
+      await onCreateHousehold(trimmed);
+      setNewHouseholdName("");
+    } finally {
+      setCreatingHousehold(false);
+    }
   };
 
   const openAddMember = () => {
@@ -322,6 +341,21 @@ export function SettingsScreen({
               />
               <button type="button" className="primary-pill" onClick={saveHouseholdName} disabled={!canManageCurrentHousehold}>
                 Save
+              </button>
+            </div>
+          </div>
+          <div className="settings-form-row">
+            <label htmlFor="new-household-name">Create household</label>
+            <div className="inline-controls">
+              <input
+                id="new-household-name"
+                type="text"
+                value={newHouseholdName}
+                onChange={(event) => setNewHouseholdName(event.target.value)}
+                placeholder="New household name"
+              />
+              <button type="button" className="primary-pill" onClick={createHousehold} disabled={!newHouseholdName.trim() || creatingHousehold}>
+                {creatingHousehold ? "Creating..." : "Create"}
               </button>
             </div>
           </div>

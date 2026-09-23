@@ -32,3 +32,4 @@
 - Registration/first authenticated load now auto-provisions a default household for new admin users when none exists.
 - Settings now lets users choose their default household and keeps owner-only edits disabled for linked (non-owned) households.
 - Added updated authentication screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-default-household-flow.png`.
+- Added admin household creation controls in Settings to create a new household and immediately switch it as the default household.

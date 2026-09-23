@@ -412,6 +412,46 @@ export function App() {
     }
   };
 
+  const createHousehold = async (name: string) => {
+    if (!session?.access_token || isReadOnly) {
+      return;
+    }
+
+    const householdName = name.trim();
+    if (!householdName) {
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const householdId = crypto.randomUUID();
+      const createdHousehold = await writeHousehold(
+        {
+          householdId,
+          householdName,
+          familyMembers: [],
+          contacts: [],
+        },
+        session.access_token
+      );
+      const settings = await writeUserSettings(
+        session.access_token,
+        { defaultHouseholdId: householdId },
+        fallbackHouseholdId
+      );
+
+      setUserHouseholds(settings.households);
+      setDefaultHouseholdId(settings.defaultHouseholdId);
+      setLinkedMembers(settings.linkedMembers);
+      setHouseholdData(createdHousehold);
+      setDataError(null);
+    } catch {
+      setDataError("Could not create household.");
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
   if (authLoading) {
     return (
       <div className="dashboard-page">
@@ -458,6 +498,7 @@ export function App() {
         householdOptions={userHouseholds}
         defaultHouseholdId={selectedHouseholdId}
         onDefaultHouseholdChange={changeDefaultHousehold}
+        onCreateHousehold={createHousehold}
         linkedMembers={linkedMembers}
         canManageCurrentHousehold={canManageCurrentHousehold}
       />
