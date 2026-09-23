@@ -1,6 +1,8 @@
 const TABLES = {
   households: "households",
   householdOwners: "household_owners",
+  userProfiles: "user_profiles",
+  userHouseholdMembers: "user_household_members",
   members: "household_members",
   contacts: "contacts",
   tasks: "tasks",
@@ -42,6 +44,11 @@ const mapTask = (row) => ({
   id: row.id,
   title: row.title,
   createdAt: row.created_at,
+});
+
+const mapHouseholdSummary = (row) => ({
+  id: row.id,
+  name: row.name,
 });
 
 const parseErrorMessage = async (response) => {
@@ -140,6 +147,21 @@ module.exports = function createSupabaseProvider() {
     return response.json();
   };
 
+  const listHouseholdsByIds = async (householdIds) => {
+    if (!Array.isArray(householdIds) || householdIds.length === 0) {
+      return [];
+    }
+
+    const data = await request(TABLES.households, {
+      params: {
+        select: "id,name",
+        id: `in.${formatInList(householdIds)}`,
+      },
+    });
+
+    return Array.isArray(data) ? data.map(mapHouseholdSummary) : [];
+  };
+
   return {
     async ensureHousehold(householdId, householdName, holidayRegion) {
       await request(TABLES.households, {
@@ -185,6 +207,107 @@ module.exports = function createSupabaseProvider() {
           select: "household_id,user_id",
           household_id: `eq.${householdId}`,
           limit: 1,
+        },
+
+        async listOwnedHouseholds(userId) {
+          const ownerRows = await request(TABLES.householdOwners, {
+            params: {
+              select: "household_id",
+              user_id: `eq.${userId}`,
+            },
+          });
+
+          const householdIds = Array.isArray(ownerRows) ? ownerRows.map((row) => row.household_id).filter(Boolean) : [];
+          return listHouseholdsByIds(householdIds);
+        },
+
+        async listLinkedHouseholds(userId) {
+          const linkedRows = await request(TABLES.userHouseholdMembers, {
+            params: {
+              select: "household_member_id",
+              user_id: `eq.${userId}`,
+            },
+          });
+
+          const memberIds = Array.isArray(linkedRows) ? linkedRows.map((row) => row.household_member_id).filter(Boolean) : [];
+          if (memberIds.length === 0) {
+            return [];
+          }
+
+          const members = await request(TABLES.members, {
+            params: {
+              select: "id,household_id",
+              id: `in.${formatInList(memberIds)}`,
+            },
+          });
+
+          const householdIds = Array.isArray(members)
+            ? [...new Set(members.map((member) => member.household_id).filter(Boolean))]
+            : [];
+
+          return listHouseholdsByIds(householdIds);
+        },
+
+        async listLinkedHouseholdMembers(userId) {
+          const linkedRows = await request(TABLES.userHouseholdMembers, {
+            params: {
+              select: "household_member_id",
+              user_id: `eq.${userId}`,
+            },
+          });
+
+          const memberIds = Array.isArray(linkedRows) ? linkedRows.map((row) => row.household_member_id).filter(Boolean) : [];
+          if (memberIds.length === 0) {
+            return [];
+          }
+
+          const members = await request(TABLES.members, {
+            params: {
+              select: "id,household_id",
+              id: `in.${formatInList(memberIds)}`,
+            },
+          });
+
+          return Array.isArray(members)
+            ? members.map((member) => ({
+                memberId: member.id,
+                householdId: member.household_id,
+              }))
+            : [];
+        },
+
+        async getUserProfile(userId) {
+          const profiles = await request(TABLES.userProfiles, {
+            params: {
+              select: "user_id,default_household_id",
+              user_id: `eq.${userId}`,
+              limit: 1,
+            },
+          });
+
+          const profile = Array.isArray(profiles) ? profiles[0] : null;
+          if (!profile) {
+            return null;
+          }
+
+          return {
+            userId: profile.user_id,
+            defaultHouseholdId: profile.default_household_id ?? null,
+          };
+        },
+
+        async setUserDefaultHousehold(userId, defaultHouseholdId) {
+          await request(TABLES.userProfiles, {
+            method: "POST",
+            params: { on_conflict: "user_id" },
+            headers: {
+              Prefer: "resolution=merge-duplicates,return=minimal",
+            },
+            body: {
+              user_id: userId,
+              default_household_id: defaultHouseholdId,
+            },
+          });
         },
       });
 

@@ -28,3 +28,7 @@
 - Added updated authentication UI screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-signin-screen.png`.
 - Redesigned authentication into a polished responsive two-column login/registration experience with first-class light/dark modes, notched outlined fields, password visibility toggles, and forgot-password/reset affordances.
 - Added updated premium authentication screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-screen-premium-layout.png`.
+- Added `/api/user-settings` to provision/select per-user default households and support linked household-member context.
+- Registration/first authenticated load now auto-provisions a default household for new admin users when none exists.
+- Settings now lets users choose their default household and keeps owner-only edits disabled for linked (non-owned) households.
+- Added updated authentication screenshot at `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/auth-default-household-flow.png`.

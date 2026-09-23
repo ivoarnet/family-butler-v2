@@ -4,7 +4,7 @@ This project uses Supabase for:
 
 - Auth (email/password)
 - Postgres tables (`households`, `household_members`, `contacts`, `tasks`)
-- Authorization data (`household_owners`)
+- Authorization/profile data (`household_owners`, `user_profiles`, `user_household_members`)
 
 ## 1) Create a Supabase project
 
@@ -59,6 +59,13 @@ create table if not exists public.household_owners (
 create unique index if not exists idx_household_owners_user_household
   on public.household_owners (user_id, household_id);
 
+create table if not exists public.user_profiles (
+  user_id uuid primary key references auth.users(id) on delete cascade,
+  default_household_id uuid references public.households(id) on delete set null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create table if not exists public.household_members (
   id uuid primary key,
   household_id uuid not null references public.households(id) on delete cascade,
@@ -70,6 +77,13 @@ create table if not exists public.household_members (
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
   unique (household_id, sort_order)
+);
+
+create table if not exists public.user_household_members (
+  user_id uuid not null references auth.users(id) on delete cascade,
+  household_member_id uuid not null references public.household_members(id) on delete cascade,
+  created_at timestamptz not null default now(),
+  primary key (user_id, household_member_id)
 );
 
 create table if not exists public.contacts (
@@ -110,6 +124,8 @@ The API already enforces access server-side, and these policies provide defense-
 ```sql
 alter table public.households enable row level security;
 alter table public.household_owners enable row level security;
+alter table public.user_profiles enable row level security;
+alter table public.user_household_members enable row level security;
 alter table public.household_members enable row level security;
 alter table public.contacts enable row level security;
 
@@ -149,6 +165,15 @@ with check (
 
 drop policy if exists household_owners_self_read on public.household_owners;
 create policy household_owners_self_read on public.household_owners
+for select using (user_id = auth.uid());
+
+drop policy if exists user_profiles_self_access on public.user_profiles;
+create policy user_profiles_self_access on public.user_profiles
+for all using (user_id = auth.uid())
+with check (user_id = auth.uid());
+
+drop policy if exists user_household_members_self_read on public.user_household_members;
+create policy user_household_members_self_read on public.user_household_members
 for select using (user_id = auth.uid());
 
 drop policy if exists household_members_access on public.household_members;
@@ -243,6 +268,14 @@ values ('00000000-0000-0000-0000-000000000001', '<admin-auth-user-id>')
 on conflict (household_id) do update set user_id = excluded.user_id;
 ```
 
+Optionally link a user to one or more `household_members` entries (used to offer additional default household choices in settings):
+
+```sql
+insert into public.user_household_members (user_id, household_member_id)
+values ('<auth-user-id>', '<household-member-id>')
+on conflict (user_id, household_member_id) do nothing;
+```
+
 ## 7) Demo testing best practice (non-production)
 
 Do **not** bypass auth in app code for tests.  
@@ -258,7 +291,10 @@ Best practice: create a dedicated non-production demo account and sign in throug
 2. `npm run dev`
 3. Sign in through the UI
 4. Verify:
+   - Admin can register/sign in and receives an auto-provisioned default household on first authenticated load
    - Admin can load/update owned households and create a new household via `PUT /api/households/{new-id}`
+   - `GET /api/user-settings` returns available households and default household id
+   - `PUT /api/user-settings` updates the default household used in Settings
    - Demo user can only read `Family Butler` household and cannot update/delete
    - `GET /api/health?checks=1` returns healthy when env is configured
 

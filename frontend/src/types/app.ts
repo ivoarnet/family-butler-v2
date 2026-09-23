@@ -8,3 +8,21 @@ export interface HouseholdData {
   familyMembers: FamilyMember[];
   contacts: Contact[];
 }
+
+export interface UserHouseholdOption {
+  id: string;
+  name: string;
+  canManage: boolean;
+  source: "owned" | "member-link" | "demo";
+}
+
+export interface UserHouseholdMemberLink {
+  memberId: string;
+  householdId: string;
+}
+
+export interface UserSettingsPayload {
+  defaultHouseholdId: string;
+  households: UserHouseholdOption[];
+  linkedMembers: UserHouseholdMemberLink[];
+}

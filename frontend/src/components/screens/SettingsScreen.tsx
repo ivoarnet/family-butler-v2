@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ContactDialog } from "../ContactDialog";
 import { MemberDialog } from "../MemberDialog";
-import { HouseholdData } from "../../types/app";
+import { HouseholdData, UserHouseholdMemberLink, UserHouseholdOption } from "../../types/app";
 import { FamilyMember, MemberAvatarColor } from "../../types/family";
 import {
   ContactFormState,
@@ -19,10 +19,20 @@ export function SettingsScreen({
   householdData,
   setHouseholdData,
   onGoHome,
+  householdOptions,
+  defaultHouseholdId,
+  onDefaultHouseholdChange,
+  linkedMembers,
+  canManageCurrentHousehold,
 }: {
   householdData: HouseholdData;
   setHouseholdData: React.Dispatch<React.SetStateAction<HouseholdData>>;
   onGoHome: () => void;
+  householdOptions: UserHouseholdOption[];
+  defaultHouseholdId: string;
+  onDefaultHouseholdChange: (householdId: string) => void;
+  linkedMembers: UserHouseholdMemberLink[];
+  canManageCurrentHousehold: boolean;
 }) {
   const [householdNameDraft, setHouseholdNameDraft] = useState(householdData.householdName);
   const [memberFormState, setMemberFormState] = useState<MemberFormState>(buildMemberFormState);
@@ -286,23 +296,48 @@ export function SettingsScreen({
         <section className="settings-card">
           <h2>Household Setting</h2>
           <div className="settings-form-row">
+            <label htmlFor="default-household">Default household</label>
+            <select
+              id="default-household"
+              value={defaultHouseholdId}
+              onChange={(event) => onDefaultHouseholdChange(event.target.value)}
+            >
+              {householdOptions.map((household) => (
+                <option key={household.id} value={household.id}>
+                  {household.name}
+                  {household.canManage ? "" : " (linked member)"}
+                </option>
+              ))}
+            </select>
+          </div>
+          <div className="settings-form-row">
             <label htmlFor="household-name">Household name</label>
             <div className="inline-controls">
-              <input id="household-name" type="text" value={householdNameDraft} onChange={(event) => setHouseholdNameDraft(event.target.value)} />
-              <button type="button" className="primary-pill" onClick={saveHouseholdName}>
+              <input
+                id="household-name"
+                type="text"
+                value={householdNameDraft}
+                onChange={(event) => setHouseholdNameDraft(event.target.value)}
+                disabled={!canManageCurrentHousehold}
+              />
+              <button type="button" className="primary-pill" onClick={saveHouseholdName} disabled={!canManageCurrentHousehold}>
                 Save
               </button>
             </div>
           </div>
           <div className="coming-soon-card">
-            <strong>More household settings are coming soon.</strong>
+            <strong>
+              {linkedMembers.length > 0
+                ? `Linked to ${linkedMembers.length} household member${linkedMembers.length === 1 ? "" : "s"}.`
+                : "More household settings are coming soon."}
+            </strong>
           </div>
         </section>
 
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
-            <button type="button" className="primary-pill" onClick={openAddMember}>
+            <button type="button" className="primary-pill" onClick={openAddMember} disabled={!canManageCurrentHousehold}>
               + Member
             </button>
           </div>
@@ -359,6 +394,7 @@ export function SettingsScreen({
                         <input
                           type="checkbox"
                           checked={member.visibleInCalendar}
+                          disabled={!canManageCurrentHousehold}
                           onChange={(event) =>
                             updateMemberRow(member.id, (current) => ({ ...current, visibleInCalendar: event.target.checked }))
                           }
@@ -369,6 +405,7 @@ export function SettingsScreen({
                     <td>
                       <select
                         value={member.avatarColor}
+                        disabled={!canManageCurrentHousehold}
                         onChange={(event) =>
                           updateMemberRow(member.id, (current) => ({
                             ...current,
@@ -384,7 +421,12 @@ export function SettingsScreen({
                       </select>
                     </td>
                     <td>
-                      <button type="button" className="icon-button compact-icon-button" onClick={() => openEditMember(member)}>
+                      <button
+                        type="button"
+                        className="icon-button compact-icon-button"
+                        onClick={() => openEditMember(member)}
+                        disabled={!canManageCurrentHousehold}
+                      >
                         ✎
                       </button>
                     </td>
@@ -414,7 +456,7 @@ export function SettingsScreen({
             <h2>Contact List</h2>
             <div className="toolbar-controls">
               <input type="search" placeholder="Search contacts" value={contactSearch} onChange={(event) => setContactSearch(event.target.value)} />
-              <button type="button" className="primary-pill no-wrap-button" onClick={openAddContact}>
+              <button type="button" className="primary-pill no-wrap-button" onClick={openAddContact} disabled={!canManageCurrentHousehold}>
                 + Contact
               </button>
             </div>
@@ -448,6 +490,7 @@ export function SettingsScreen({
                           className="icon-button compact-icon-button"
                           title="Edit contact"
                           onClick={() => openEditContact(contact)}
+                          disabled={!canManageCurrentHousehold}
                         >
                           ✎
                         </button>
@@ -456,6 +499,7 @@ export function SettingsScreen({
                           className="icon-button compact-icon-button"
                           title="Delete contact"
                           onClick={() => deleteContact(contact.id)}
+                          disabled={!canManageCurrentHousehold}
                         >
                           🗑
                         </button>

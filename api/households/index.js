@@ -1,10 +1,12 @@
 const { randomUUID } = require("crypto");
 const db = require("../shared/db");
 const { APP_ROLES, authenticateRequest, createHttpError } = require("../shared/auth");
-
-const DEFAULT_HOUSEHOLD_NAME = "Family Butler";
-const DEFAULT_HOLIDAY_REGION = process.env.DEFAULT_HOLIDAY_REGION || "CH";
-const DEMO_HOUSEHOLD_ID = process.env.DEMO_HOUSEHOLD_ID || "00000000-0000-0000-0000-000000000001";
+const {
+  DEFAULT_HOUSEHOLD_NAME,
+  DEFAULT_HOLIDAY_REGION,
+  assertUserCanManageHousehold,
+  assertUserCanReadHousehold,
+} = require("../shared/user-households");
 
 const normalizeMember = (member) => ({
   id: member.id,
@@ -42,20 +44,6 @@ const getHouseholdOrThrow = async (householdId) => {
     throw createHttpError(404, "household not found");
   }
   return household;
-};
-
-const assertHouseholdReadAccess = async (user, householdId) => {
-  if (user.role === APP_ROLES.demouser) {
-    if (householdId !== DEMO_HOUSEHOLD_ID) {
-      throw createHttpError(403, "Forbidden");
-    }
-    return;
-  }
-
-  const owner = await db.getHouseholdOwner(householdId);
-  if (!owner || owner.userId !== user.id) {
-    throw createHttpError(403, "Forbidden");
-  }
 };
 
 const cleanOptionalText = (value) => {
@@ -145,7 +133,7 @@ module.exports = async function households(context, req) {
     const method = typeof httpRequest.method === "string" ? httpRequest.method.toUpperCase() : "";
 
     if (method === "GET") {
-      await assertHouseholdReadAccess(currentUser, householdId);
+      await assertUserCanReadHousehold(currentUser, householdId);
       const household = await getHouseholdOrThrow(householdId);
 
       context.res = {
@@ -164,12 +152,9 @@ module.exports = async function households(context, req) {
       const householdName = requestedName || DEFAULT_HOUSEHOLD_NAME;
       const members = parseIncomingMembers(httpRequest.body?.familyMembers);
       const contacts = parseIncomingContacts(httpRequest.body?.contacts);
-      const owner = await db.getHouseholdOwner(householdId);
       const existingHousehold = await db.getHouseholdWithRelations(householdId);
       if (existingHousehold) {
-        if (!owner || owner.userId !== currentUser.id) {
-          throw createHttpError(403, "Forbidden");
-        }
+        await assertUserCanManageHousehold(currentUser, householdId);
         await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
       } else {
         await db.createHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
@@ -192,11 +177,7 @@ module.exports = async function households(context, req) {
         throw createHttpError(403, "Forbidden");
       }
 
-      const owner = await db.getHouseholdOwner(householdId);
-      if (!owner || owner.userId !== currentUser.id) {
-        throw createHttpError(403, "Forbidden");
-      }
-
+      await assertUserCanManageHousehold(currentUser, householdId);
       await db.deleteHousehold(householdId);
       context.res = {
         status: 204,

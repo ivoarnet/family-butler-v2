@@ -3,7 +3,7 @@ import { Session } from "@supabase/supabase-js";
 import { DashboardScreen } from "./components/screens/DashboardScreen";
 import { SettingsScreen } from "./components/screens/SettingsScreen";
 import { SignInScreen } from "./components/screens/SignInScreen";
-import { HouseholdData, ThemeMode } from "./types/app";
+import { HouseholdData, ThemeMode, UserHouseholdMemberLink, UserHouseholdOption, UserSettingsPayload } from "./types/app";
 import { Contact, FamilyMember } from "./types/family";
 import { normalizeFamilyMembers } from "./utils/familyUtils";
 import { isSupabaseAuthConfigured, supabase } from "./supabaseClient";
@@ -14,6 +14,7 @@ const THEME_STORAGE_KEY = "family-butler-theme";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 const DEFAULT_HOUSEHOLD_ID = import.meta.env.VITE_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
 const DEMO_HOUSEHOLD_ID = import.meta.env.VITE_DEMO_HOUSEHOLD_ID ?? "00000000-0000-0000-0000-000000000001";
+const DEFAULT_HOUSEHOLD_NAME = "Family Butler";
 
 const getThemeFromSystem = (): ThemeMode =>
   window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
@@ -50,6 +51,43 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
 const getRoleFromSession = (session: Session | null): AppRole =>
   session?.user?.app_metadata?.role === "demouser" ? "demouser" : "admin";
 
+const toUserSettings = (payload: Partial<UserSettingsPayload>, fallbackHouseholdId: string): UserSettingsPayload => {
+  const households = Array.isArray(payload.households)
+    ? payload.households
+        .filter((household): household is UserHouseholdOption => Boolean(household && household.id && household.name))
+        .map((household) => ({
+          id: household.id,
+          name: household.name,
+          canManage: Boolean(household.canManage),
+          source: household.source ?? "owned",
+        }))
+    : [];
+  const uniqueHouseholds = [...new Map(households.map((household) => [household.id, household])).values()];
+  const effectiveHouseholds =
+    uniqueHouseholds.length > 0
+      ? uniqueHouseholds
+      : [{ id: fallbackHouseholdId, name: DEFAULT_HOUSEHOLD_NAME, canManage: true, source: "owned" as const }];
+  const householdIds = new Set(effectiveHouseholds.map((household) => household.id));
+  const defaultHouseholdId =
+    typeof payload.defaultHouseholdId === "string" && householdIds.has(payload.defaultHouseholdId)
+      ? payload.defaultHouseholdId
+      : effectiveHouseholds[0].id;
+  const linkedMembers = Array.isArray(payload.linkedMembers)
+    ? payload.linkedMembers
+        .filter((link): link is UserHouseholdMemberLink => Boolean(link && link.memberId && link.householdId))
+        .map((link) => ({
+          memberId: link.memberId,
+          householdId: link.householdId,
+        }))
+    : [];
+
+  return {
+    defaultHouseholdId,
+    households: effectiveHouseholds,
+    linkedMembers,
+  };
+};
+
 const readHousehold = async (householdId: string, accessToken: string): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`, {
     headers: {
@@ -60,6 +98,39 @@ const readHousehold = async (householdId: string, accessToken: string): Promise<
     throw new Error("Failed to load household data");
   }
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, householdId);
+};
+
+const readUserSettings = async (accessToken: string, fallbackHouseholdId: string): Promise<UserSettingsPayload> => {
+  const response = await fetch(`${API_BASE_URL}/api/user-settings`, {
+    headers: {
+      Authorization: ["Bearer", accessToken].join(" "),
+    },
+  });
+  if (!response.ok) {
+    throw new Error("Failed to load user settings");
+  }
+
+  return toUserSettings((await response.json()) as Partial<UserSettingsPayload>, fallbackHouseholdId);
+};
+
+const writeUserSettings = async (
+  accessToken: string,
+  payload: { defaultHouseholdId: string },
+  fallbackHouseholdId: string
+): Promise<UserSettingsPayload> => {
+  const response = await fetch(`${API_BASE_URL}/api/user-settings`, {
+    method: "PUT",
+    headers: {
+      Authorization: ["Bearer", accessToken].join(" "),
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    throw new Error("Failed to save user settings");
+  }
+
+  return toUserSettings((await response.json()) as Partial<UserSettingsPayload>, fallbackHouseholdId);
 };
 
 const writeHousehold = async (household: HouseholdData, accessToken: string): Promise<HouseholdData> => {
@@ -95,9 +166,14 @@ export function App() {
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  const [userHouseholds, setUserHouseholds] = useState<UserHouseholdOption[]>([]);
+  const [defaultHouseholdId, setDefaultHouseholdId] = useState(DEFAULT_HOUSEHOLD_ID);
+  const [linkedMembers, setLinkedMembers] = useState<UserHouseholdMemberLink[]>([]);
   const role = getRoleFromSession(session);
   const isReadOnly = role === "demouser";
-  const householdId = isReadOnly ? DEMO_HOUSEHOLD_ID : DEFAULT_HOUSEHOLD_ID;
+  const fallbackHouseholdId = isReadOnly ? DEMO_HOUSEHOLD_ID : DEFAULT_HOUSEHOLD_ID;
+  const selectedHouseholdId = defaultHouseholdId || fallbackHouseholdId;
+  const canManageCurrentHousehold = userHouseholds.some((household) => household.id === selectedHouseholdId && household.canManage);
 
   const navigateTo = (nextPathname: "/" | "/settings") => {
     if (window.location.pathname === nextPathname) {
@@ -144,6 +220,9 @@ export function App() {
   useEffect(() => {
     if (!session?.access_token) {
       setHouseholdData(getInitialHouseholdData());
+      setDefaultHouseholdId(DEFAULT_HOUSEHOLD_ID);
+      setUserHouseholds([]);
+      setLinkedMembers([]);
       setInitialLoadComplete(false);
       setDataError(null);
       return;
@@ -154,10 +233,14 @@ export function App() {
 
     const loadHouseholdData = async () => {
       try {
-        const loaded = await readHousehold(householdId, session.access_token);
+        const settings = await readUserSettings(session.access_token, fallbackHouseholdId);
+        const loaded = await readHousehold(settings.defaultHouseholdId, session.access_token);
         if (cancelled) {
           return;
         }
+        setUserHouseholds(settings.households);
+        setDefaultHouseholdId(settings.defaultHouseholdId);
+        setLinkedMembers(settings.linkedMembers);
         setHouseholdData(loaded);
         setDataError(null);
       } catch {
@@ -176,10 +259,10 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [householdId, session?.access_token]);
+  }, [fallbackHouseholdId, session?.access_token]);
 
   useEffect(() => {
-    if (!initialLoadComplete || !session?.access_token || isReadOnly) {
+    if (!initialLoadComplete || !session?.access_token || isReadOnly || !canManageCurrentHousehold) {
       return;
     }
 
@@ -217,7 +300,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [householdData, initialLoadComplete, isReadOnly, session?.access_token]);
+  }, [householdData, initialLoadComplete, isReadOnly, session?.access_token, canManageCurrentHousehold]);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
@@ -257,7 +340,7 @@ export function App() {
     setIsAuthSubmitting(true);
     setAuthError(null);
     setAuthInfo(null);
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email: email.trim(),
       password,
       options: {
@@ -269,6 +352,9 @@ export function App() {
     if (error) {
       setAuthError(error.message);
     } else {
+      if (data.session?.access_token) {
+        await readUserSettings(data.session.access_token, fallbackHouseholdId);
+      }
       setAuthInfo("Account created. If email confirmation is enabled, please verify your inbox before signing in.");
     }
     setIsAuthSubmitting(false);
@@ -295,7 +381,35 @@ export function App() {
 
   const signOut = async () => {
     await supabase.auth.signOut();
+    setDefaultHouseholdId(DEFAULT_HOUSEHOLD_ID);
+    setUserHouseholds([]);
+    setLinkedMembers([]);
     setPathname("/");
+  };
+
+  const changeDefaultHousehold = async (nextHouseholdId: string) => {
+    if (!session?.access_token || !nextHouseholdId || nextHouseholdId === selectedHouseholdId || isReadOnly) {
+      return;
+    }
+
+    try {
+      setIsSaving(true);
+      const settings = await writeUserSettings(
+        session.access_token,
+        { defaultHouseholdId: nextHouseholdId },
+        fallbackHouseholdId
+      );
+      const loadedHousehold = await readHousehold(settings.defaultHouseholdId, session.access_token);
+      setUserHouseholds(settings.households);
+      setDefaultHouseholdId(settings.defaultHouseholdId);
+      setLinkedMembers(settings.linkedMembers);
+      setHouseholdData(loadedHousehold);
+      setDataError(null);
+    } catch {
+      setDataError("Could not switch default household.");
+    } finally {
+      setIsSaving(false);
+    }
   };
 
   if (authLoading) {
@@ -337,7 +451,16 @@ export function App() {
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
-      <SettingsScreen householdData={householdData} setHouseholdData={setHouseholdData} onGoHome={() => navigateTo("/")} />
+      <SettingsScreen
+        householdData={householdData}
+        setHouseholdData={setHouseholdData}
+        onGoHome={() => navigateTo("/")}
+        householdOptions={userHouseholds}
+        defaultHouseholdId={selectedHouseholdId}
+        onDefaultHouseholdChange={changeDefaultHousehold}
+        linkedMembers={linkedMembers}
+        canManageCurrentHousehold={canManageCurrentHousehold}
+      />
     </>
   ) : (
     <>
