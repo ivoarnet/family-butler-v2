@@ -22,3 +22,24 @@ export interface Contact {
   email?: string;
   mobilePhone?: string;
 }
+
+export interface EventType {
+  id: string;
+  name: string;
+  icon?: string;
+  sortOrder: number;
+}
+
+export interface HouseholdEvent {
+  id: string;
+  title: string;
+  date: string;
+  memberIds: string[];
+  allDay: boolean;
+  startTime?: string;
+  endTime?: string;
+  eventTypeId?: string;
+  repeatRule?: string;
+  location?: string;
+  notes?: string;
+}

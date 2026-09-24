@@ -742,6 +742,30 @@ body,
   font-size: 0.85rem;
 }
 
+.event-cell {
+  min-width: 11rem;
+}
+
+.event-item {
+  display: grid;
+  gap: 0.15rem;
+  width: fit-content;
+  margin-bottom: 0.3rem;
+  padding: 0.25rem 0.6rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(127, 139, 255, 0.35);
+  background: rgba(127, 139, 255, 0.16);
+}
+
+.event-item strong {
+  font-size: 0.83rem;
+}
+
+.event-item small {
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+}
+
 .fab {
   position: fixed;
   right: 1.5rem;
@@ -754,8 +778,8 @@ body,
   color: #fff;
   background: linear-gradient(90deg, #7f8bff, #b07cff);
   box-shadow: 0 14px 30px rgba(108, 121, 255, 0.4);
-  opacity: 0.7;
-  cursor: not-allowed;
+  opacity: 1;
+  cursor: pointer;
 }
 
 @media (max-width: 1120px) {

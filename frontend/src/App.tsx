@@ -5,7 +5,7 @@ import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, The
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
-import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
+import { Contact, EventType, FamilyMember, HouseholdEvent, MemberAvatarColor } from "./types/family";
 
 const THEME_STORAGE_KEY = "family-butler-theme";
 const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
@@ -42,6 +42,8 @@ const defaultHouseholdData: HouseholdData = {
   householdName: "",
   familyMembers: [],
   contacts: [],
+  eventTypes: [],
+  events: [],
 };
 
 const getThemeFromSystem = (): ThemeMode =>
@@ -65,6 +67,34 @@ const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
       avatarColor: normalizeMemberColor(member.avatarColor),
     }));
 
+const normalizeEventTypes = (eventTypes: EventType[]): EventType[] =>
+  [...eventTypes]
+    .filter((eventType) => eventType && typeof eventType.name === "string" && eventType.name.trim())
+    .sort((a, b) => a.sortOrder - b.sortOrder)
+    .map((eventType, index) => ({
+      id: eventType.id,
+      name: eventType.name.trim(),
+      icon: eventType.icon?.trim() || undefined,
+      sortOrder: index,
+    }));
+
+const normalizeEvents = (events: HouseholdEvent[]): HouseholdEvent[] =>
+  events
+    .filter((event) => event && typeof event.title === "string" && event.title.trim())
+    .map((event) => ({
+      id: event.id,
+      title: event.title.trim(),
+      date: event.date,
+      memberIds: Array.isArray(event.memberIds) ? [...new Set(event.memberIds.filter((memberId) => typeof memberId === "string" && memberId))] : [],
+      allDay: event.allDay !== false,
+      startTime: event.allDay ? undefined : event.startTime?.trim() || undefined,
+      endTime: event.allDay ? undefined : event.endTime?.trim() || undefined,
+      eventTypeId: event.eventTypeId?.trim() || undefined,
+      repeatRule: event.repeatRule?.trim() || undefined,
+      location: event.location?.trim() || undefined,
+      notes: event.notes?.trim() || undefined,
+    }));
+
 const getInitialHouseholdData = (): HouseholdData => ({ ...defaultHouseholdData });
 
 const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): HouseholdData => {
@@ -76,6 +106,8 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
       ? normalizeFamilyMembers(payload.familyMembers.filter(Boolean) as FamilyMember[])
       : fallback.familyMembers,
     contacts: Array.isArray(payload.contacts) ? (payload.contacts.filter(Boolean) as Contact[]) : fallback.contacts,
+    eventTypes: Array.isArray(payload.eventTypes) ? normalizeEventTypes(payload.eventTypes.filter(Boolean) as EventType[]) : fallback.eventTypes,
+    events: Array.isArray(payload.events) ? normalizeEvents(payload.events.filter(Boolean) as HouseholdEvent[]) : fallback.events,
   };
 };
 
@@ -154,6 +186,8 @@ const writeHousehold = async (accessToken: string, household: HouseholdData): Pr
       householdName: household.householdName,
       familyMembers: normalizeFamilyMembers(household.familyMembers),
       contacts: household.contacts,
+      eventTypes: normalizeEventTypes(household.eventTypes),
+      events: normalizeEvents(household.events),
     }),
   });
 
@@ -795,6 +829,7 @@ export function App() {
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <DashboardPage
         householdData={householdData}
+        setHouseholdData={setHouseholdData}
         onOpenSettings={openSettingsSection}
         currentUserLabel={currentUserLabel}
         currentUserEmail={currentUserEmail}

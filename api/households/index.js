@@ -25,7 +25,28 @@ const normalizeContact = (contact) => ({
   mobilePhone: contact.mobilePhone ?? undefined,
 });
 
-const normalizeHouseholdData = ({ household, members, contacts }) => ({
+const normalizeEventType = (eventType) => ({
+  id: eventType.id,
+  name: eventType.name,
+  icon: eventType.icon ?? undefined,
+  sortOrder: eventType.sortOrder,
+});
+
+const normalizeEvent = (event) => ({
+  id: event.id,
+  title: event.title,
+  date: event.date,
+  memberIds: event.memberIds,
+  allDay: event.allDay,
+  startTime: event.startTime ?? undefined,
+  endTime: event.endTime ?? undefined,
+  eventTypeId: event.eventTypeId ?? undefined,
+  repeatRule: event.repeatRule ?? undefined,
+  location: event.location ?? undefined,
+  notes: event.notes ?? undefined,
+});
+
+const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [] }) => ({
   householdId: household.id,
   householdName: household.name,
   familyMembers: members
@@ -33,6 +54,8 @@ const normalizeHouseholdData = ({ household, members, contacts }) => ({
     .sort((a, b) => a.sortOrder - b.sortOrder)
     .map(normalizeMember),
   contacts: contacts.map(normalizeContact),
+  eventTypes: eventTypes.slice().sort((a, b) => a.sortOrder - b.sortOrder).map(normalizeEventType),
+  events: events.map(normalizeEvent),
 });
 
 const normalizeHouseholdSummary = (household) => ({
@@ -117,6 +140,81 @@ const parseIncomingContacts = (contacts) => {
     });
 };
 
+const parseIncomingEventTypes = (eventTypes) => {
+  if (!Array.isArray(eventTypes)) {
+    return [];
+  }
+
+  return eventTypes
+    .filter((eventType) => eventType && typeof eventType === "object")
+    .map((eventType, index) => {
+      const name = cleanOptionalText(eventType.name);
+      if (!name) {
+        throw new Error("event type name is required");
+      }
+
+      const requestedId = typeof eventType.id === "string" && eventType.id ? eventType.id : null;
+      return {
+        id: requestedId || randomUUID(),
+        name,
+        icon: cleanOptionalText(eventType.icon),
+        sortOrder: index,
+      };
+    });
+};
+
+const parseIncomingEvents = (events) => {
+  if (!Array.isArray(events)) {
+    return [];
+  }
+
+  return events
+    .filter((event) => event && typeof event === "object")
+    .map((event) => {
+      const title = cleanOptionalText(event.title);
+      if (!title) {
+        throw new Error("event title is required");
+      }
+
+      const date = cleanOptionalText(event.date);
+      if (!date || !/^\d{4}-\d{2}-\d{2}$/.test(date)) {
+        throw new Error("event date is required");
+      }
+
+      const allDay = event.allDay !== false;
+      const startTime = cleanOptionalText(event.startTime);
+      const endTime = cleanOptionalText(event.endTime);
+      if (!allDay && (!startTime || !endTime)) {
+        throw new Error("event startTime and endTime are required for non all-day events");
+      }
+      if (!allDay && startTime && endTime && startTime >= endTime) {
+        throw new Error("event time range is invalid");
+      }
+
+      const requestedId = typeof event.id === "string" && event.id ? event.id : null;
+      const memberIds = Array.isArray(event.memberIds)
+        ? [...new Set(event.memberIds.filter((memberId) => typeof memberId === "string" && memberId))]
+        : [];
+      if (memberIds.length === 0) {
+        throw new Error("event memberIds are required");
+      }
+
+      return {
+        id: requestedId || randomUUID(),
+        title,
+        date,
+        memberIds,
+        allDay,
+        startTime: allDay ? null : startTime,
+        endTime: allDay ? null : endTime,
+        eventTypeId: cleanOptionalText(event.eventTypeId),
+        repeatRule: cleanOptionalText(event.repeatRule),
+        location: cleanOptionalText(event.location),
+        notes: cleanOptionalText(event.notes),
+      };
+    });
+};
+
 const assertMemberIdsAuthorized = async (householdId, existingMemberIds, requestedMembers) => {
   const idsToValidate = [...new Set(requestedMembers.map((member) => member.id).filter((memberId) => !existingMemberIds.has(memberId)))];
   const ownershipChecks = await Promise.all(idsToValidate.map((memberId) => db.getMemberHouseholdId(memberId)));
@@ -135,6 +233,17 @@ const assertContactIdsAuthorized = async (householdId, existingContactIds, reque
   ownershipChecks.forEach((ownerHouseholdId, index) => {
     if (ownerHouseholdId && ownerHouseholdId !== householdId) {
       throw new Error(`contact id is not authorized for this household: ${idsToValidate[index]}`);
+    }
+  });
+};
+
+const assertEventTypeIdsAuthorized = async (householdId, existingEventTypeIds, requestedEventTypes) => {
+  const idsToValidate = [...new Set(requestedEventTypes.map((eventType) => eventType.id).filter((eventTypeId) => !existingEventTypeIds.has(eventTypeId)))];
+  const ownershipChecks = await Promise.all(idsToValidate.map((eventTypeId) => db.getEventTypeHouseholdId(eventTypeId)));
+
+  ownershipChecks.forEach((ownerHouseholdId, index) => {
+    if (ownerHouseholdId && ownerHouseholdId !== householdId) {
+      throw new Error(`event type id is not authorized for this household: ${idsToValidate[index]}`);
     }
   });
 };
@@ -232,14 +341,33 @@ module.exports = async function households(context, req) {
       const householdName = requestedName || existingHousehold.household.name || DEFAULT_HOUSEHOLD_NAME;
       const existingMemberIds = new Set(existingHousehold.members.map((member) => member.id));
       const existingContactIds = new Set(existingHousehold.contacts.map((contact) => contact.id));
+      const existingEventTypeIds = new Set((existingHousehold.eventTypes ?? []).map((eventType) => eventType.id));
       const members = parseIncomingMembers(httpRequest.body?.familyMembers);
       const contacts = parseIncomingContacts(httpRequest.body?.contacts);
+      const eventTypes = parseIncomingEventTypes(httpRequest.body?.eventTypes);
+      const events = parseIncomingEvents(httpRequest.body?.events);
       await assertMemberIdsAuthorized(householdId, existingMemberIds, members);
       await assertContactIdsAuthorized(householdId, existingContactIds, contacts);
+      await assertEventTypeIdsAuthorized(householdId, existingEventTypeIds, eventTypes);
+
+      const requestedMemberIds = new Set(members.map((member) => member.id));
+      const requestedEventTypeIds = new Set(eventTypes.map((eventType) => eventType.id));
+      events.forEach((event) => {
+        event.memberIds.forEach((memberId) => {
+          if (!requestedMemberIds.has(memberId)) {
+            throw new Error(`event member id is not authorized for this household: ${memberId}`);
+          }
+        });
+        if (event.eventTypeId && !requestedEventTypeIds.has(event.eventTypeId)) {
+          throw new Error(`event type id is not part of this household: ${event.eventTypeId}`);
+        }
+      });
 
       await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION, authenticatedUserId);
       await db.replaceMembers(householdId, members);
       await db.replaceContacts(householdId, contacts);
+      await db.replaceEventTypes(householdId, eventTypes);
+      await db.replaceEvents(householdId, events);
 
       const household = await getHouseholdOrThrow(householdId, authenticatedUserId);
 
