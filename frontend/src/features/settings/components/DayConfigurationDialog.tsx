@@ -24,6 +24,7 @@ export interface DayConfigurationDialogFormState {
 
 interface DayConfigurationDialogProps {
   open: boolean;
+  editing: boolean;
   formState: DayConfigurationDialogFormState;
   categoryOptions: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }>;
   startDateError: boolean;
@@ -36,6 +37,7 @@ interface DayConfigurationDialogProps {
 
 export function DayConfigurationDialog({
   open,
+  editing,
   formState,
   categoryOptions,
   startDateError,
@@ -56,7 +58,7 @@ export function DayConfigurationDialog({
       <Box component="form" onSubmit={onSubmit} noValidate>
         <DialogHeader>
           <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-            Add day configuration
+            {editing ? "Edit special day" : "Add special day"}
           </Typography>
           <Button type="button" onClick={onClose} aria-label="Close day configuration dialog" sx={{ minWidth: "auto", color: "var(--text-primary)", borderRadius: "999px" }}>
             <CloseIcon fontSize="small" />
@@ -136,7 +138,7 @@ export function DayConfigurationDialog({
             Cancel
           </Button>
           <GradientButton type="submit" variant="contained" disableElevation>
-            Save day
+            {editing ? "Save changes" : "Save day"}
           </GradientButton>
         </DialogActionsBar>
       </Box>

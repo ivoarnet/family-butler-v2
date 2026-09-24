@@ -171,6 +171,7 @@ export function SettingsPage({
   const [eventTypeFormState, setEventTypeFormState] = useState<EventTypeDialogFormState>(buildEventTypeFormState);
   const [eventTypeFormSubmitted, setEventTypeFormSubmitted] = useState(false);
   const [dayConfigurationModalOpen, setDayConfigurationModalOpen] = useState(false);
+  const [editingDayConfigurationId, setEditingDayConfigurationId] = useState<string | null>(null);
   const [dayConfigurationFormState, setDayConfigurationFormState] = useState<DayConfigurationDialogFormState>(buildDayConfigurationFormState);
   const [dayConfigurationFormSubmitted, setDayConfigurationFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
@@ -532,6 +533,7 @@ export function SettingsPage({
   const resetDayConfigurationForm = () => {
     setDayConfigurationFormState(buildDayConfigurationFormState());
     setDayConfigurationFormSubmitted(false);
+    setEditingDayConfigurationId(null);
   };
 
   const openAddDayConfiguration = () => {
@@ -539,9 +541,26 @@ export function SettingsPage({
     setDayConfigurationModalOpen(true);
   };
 
+  const openEditDayConfiguration = (dayConfigurationId: string) => {
+    const dayConfiguration = householdData.dayConfigurations.find((item) => item.id === dayConfigurationId);
+    if (!dayConfiguration) {
+      return;
+    }
+
+    setEditingDayConfigurationId(dayConfigurationId);
+    setDayConfigurationFormSubmitted(false);
+    setDayConfigurationFormState({
+      category: dayConfiguration.category,
+      startDate: dayConfiguration.startDate,
+      endDate: dayConfiguration.endDate,
+      label: dayConfiguration.label ?? "",
+    });
+    setDayConfigurationModalOpen(true);
+  };
+
   const closeDayConfigurationModal = () => {
     setDayConfigurationModalOpen(false);
-    setDayConfigurationFormSubmitted(false);
+    resetDayConfigurationForm();
   };
 
   const submitDayConfiguration = (event: FormEvent) => {
@@ -558,16 +577,28 @@ export function SettingsPage({
 
     setHouseholdData((current) => ({
       ...current,
-      dayConfigurations: [
-        ...current.dayConfigurations,
-        {
-          id: crypto.randomUUID(),
-          category: dayConfigurationFormState.category,
-          startDate: dayConfigurationFormState.startDate,
-          endDate: dayConfigurationFormState.endDate,
-          label: dayConfigurationFormState.label.trim() || undefined,
-        },
-      ],
+      dayConfigurations: editingDayConfigurationId
+        ? current.dayConfigurations.map((existingDayConfiguration) =>
+            existingDayConfiguration.id === editingDayConfigurationId
+              ? {
+                  ...existingDayConfiguration,
+                  category: dayConfigurationFormState.category,
+                  startDate: dayConfigurationFormState.startDate,
+                  endDate: dayConfigurationFormState.endDate,
+                  label: dayConfigurationFormState.label.trim() || undefined,
+                }
+              : existingDayConfiguration
+          )
+        : [
+            ...current.dayConfigurations,
+            {
+              id: crypto.randomUUID(),
+              category: dayConfigurationFormState.category,
+              startDate: dayConfigurationFormState.startDate,
+              endDate: dayConfigurationFormState.endDate,
+              label: dayConfigurationFormState.label.trim() || undefined,
+            },
+          ],
     }));
     setDayConfigurationModalOpen(false);
     resetDayConfigurationForm();
@@ -1043,7 +1074,7 @@ export function SettingsPage({
         {showSettingsWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar">
-            <h2>Day configuration</h2>
+            <h2>Special Days</h2>
             <button type="button" className="primary-pill no-wrap-button" onClick={openAddDayConfiguration} disabled={!canEditActiveHousehold}>
               + Special day
             </button>
@@ -1052,7 +1083,7 @@ export function SettingsPage({
           {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to configure special days.</div> : null}
 
           <div className="table-scroll">
-            <table className="settings-table" aria-label="Day configuration">
+            <table className="settings-table" aria-label="Special Days">
               <thead>
                 <tr>
                   <th>Category</th>
@@ -1081,6 +1112,14 @@ export function SettingsPage({
                           <button
                             type="button"
                             className="icon-button compact-icon-button"
+                            title="Edit day configuration"
+                            onClick={() => openEditDayConfiguration(dayConfiguration.id)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button compact-icon-button"
                             title="Delete day configuration"
                             onClick={() => deleteDayConfiguration(dayConfiguration.id)}
                           >
@@ -1096,6 +1135,7 @@ export function SettingsPage({
 
           <DayConfigurationDialog
             open={dayConfigurationModalOpen}
+            editing={Boolean(editingDayConfigurationId)}
             formState={dayConfigurationFormState}
             categoryOptions={DAY_CONFIGURATION_OPTIONS}
             startDateError={dayConfigurationStartDateError}
