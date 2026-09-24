@@ -37,4 +37,7 @@
 - Removed Azure SQL Data API Builder and Prisma artifacts (`/home/runner/work/family-butler-v2/family-butler-v2/swa-db-connections`, `/home/runner/work/family-butler-v2/family-butler-v2/prisma`, and old Prisma deployment workflow).
 - Added Supabase migration/cutover guide at `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`.
 - Added a dashboard avatar context menu for logged-in users with a larger profile header (avatar + email), direct links to **My profile** and **My households**, and a logout action.
+- Split account management into two clear pages and flow:
+  - **Profile** page for personal details and household list/selection/creation
+  - **Settings** page for selected-household data only (members and contacts)
 - Added avatar menu visualization reference for issue alignment: `https://github.com/user-attachments/assets/a68ea3ad-d064-4f7e-a47d-742c973d40ba`.

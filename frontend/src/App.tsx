@@ -60,6 +60,7 @@ interface ContactFormState {
 }
 
 type SettingsSection = "profile" | "households";
+type NavigationTarget = "settings" | "profile" | "households";
 
 const THEME_STORAGE_KEY = "family-butler-theme";
 const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
@@ -400,7 +401,7 @@ function DashboardApp({
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
-  onOpenSettings: (section: SettingsSection) => void;
+  onOpenSettings: (target: NavigationTarget) => void;
   currentUserLabel: string;
   currentUserEmail: string;
   currentUserInitials: string;
@@ -545,7 +546,7 @@ function DashboardApp({
           <button
             type="button"
             className="icon-button"
-            onClick={() => onOpenSettings("households")}
+            onClick={() => onOpenSettings("settings")}
             title="Open settings"
             aria-label="Open settings"
           >
@@ -693,8 +694,10 @@ function DashboardApp({
 }
 
 function SettingsPage({
+  mode,
   households,
   activeHouseholdId,
+  onSwitchHousehold,
   onCreateHousehold,
   isContextLoading,
   isCreatingHousehold,
@@ -710,8 +713,10 @@ function SettingsPage({
   isProfileSaving,
   onSaveProfile,
 }: {
+  mode: "profile" | "settings";
   households: HouseholdSummary[];
   activeHouseholdId: string | null;
+  onSwitchHousehold: (householdId: string) => void;
   onCreateHousehold: (householdName: string) => Promise<{ ok: boolean; error?: string }>;
   isContextLoading: boolean;
   isCreatingHousehold: boolean;
@@ -764,7 +769,9 @@ function SettingsPage({
     });
   }, [contactSearch, householdData.contacts]);
   const canEditActiveHousehold = Boolean(activeHouseholdId) && !isContextLoading;
-  const showHouseholdWorkspace = settingsSection === "households";
+  const showHouseholdWorkspace = mode === "profile" && settingsSection === "households";
+  const showProfileWorkspace = mode === "profile" && settingsSection === "profile";
+  const showSettingsWorkspace = mode === "settings";
 
   const createHouseholdNameError = createHouseholdSubmitted && !newHouseholdName.trim();
   const profileFirstNameError = profileSubmitAttempted && !profileFirstName.trim();
@@ -1037,8 +1044,14 @@ function SettingsPage({
         </button>
         <div className="header-branding">
           <div>
-            <h1>Settings</h1>
-            <p>{activeHouseholdId ? `Active household: ${householdData.householdName}` : "Create your first household to get started"}</p>
+            <h1>{mode === "profile" ? "Profile" : "Settings"}</h1>
+            <p>
+              {mode === "profile"
+                ? "Manage your personal details and households"
+                : activeHouseholdId
+                  ? `Selected household: ${householdData.householdName}`
+                  : "Select a household in Profile before editing household settings"}
+            </p>
           </div>
         </div>
         <button
@@ -1053,25 +1066,27 @@ function SettingsPage({
       </header>
 
       <main className="settings-main">
-        <section className="settings-card">
-          <div className="section-toolbar">
-            <h2>My account</h2>
-            <div className="pill-group view-switcher" role="tablist" aria-label="Account sections">
-              <button type="button" className={settingsSection === "profile" ? "active" : ""} onClick={() => setSettingsSection("profile")}>
-                My profile
-              </button>
-              <button
-                type="button"
-                className={settingsSection === "households" ? "active" : ""}
-                onClick={() => setSettingsSection("households")}
-              >
-                My households
-              </button>
+        {mode === "profile" ? (
+          <section className="settings-card">
+            <div className="section-toolbar">
+              <h2>My account</h2>
+              <div className="pill-group view-switcher" role="tablist" aria-label="Profile sections">
+                <button type="button" className={settingsSection === "profile" ? "active" : ""} onClick={() => setSettingsSection("profile")}>
+                  My profile
+                </button>
+                <button
+                  type="button"
+                  className={settingsSection === "households" ? "active" : ""}
+                  onClick={() => setSettingsSection("households")}
+                >
+                  My households
+                </button>
+              </div>
             </div>
-          </div>
-        </section>
+          </section>
+        ) : null}
 
-        {settingsSection === "profile" ? (
+        {showProfileWorkspace ? (
           <section className="settings-card">
             <h2>My profile</h2>
             <form className="auth-form" onSubmit={submitProfile}>
@@ -1128,9 +1143,37 @@ function SettingsPage({
               <div>Create your first household to begin adding members and contacts.</div>
             </div>
           ) : (
-            <div className="coming-soon-card">
-              <strong>{households.length} households available.</strong>
-              <div>Use the avatar menu in the dashboard header to view and switch households.</div>
+            <div className="table-scroll">
+              <table className="settings-table" aria-label="Households">
+                <thead>
+                  <tr>
+                    <th>Name</th>
+                    <th>Status</th>
+                    <th>Action</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {households.map((household) => {
+                    const isSelected = household.id === activeHouseholdId;
+                    return (
+                      <tr key={household.id} className={isSelected ? "selected-household-row" : ""}>
+                        <td>{household.name}</td>
+                        <td>{isSelected ? <span className="selected-pill">Selected</span> : "—"}</td>
+                        <td>
+                          <button
+                            type="button"
+                            className="primary-pill"
+                            onClick={() => onSwitchHousehold(household.id)}
+                            disabled={isSelected || isContextLoading}
+                          >
+                            {isSelected ? "Active" : "Select"}
+                          </button>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
             </div>
           )}
 
@@ -1167,15 +1210,7 @@ function SettingsPage({
         </section>
         ) : null}
 
-        {showHouseholdWorkspace ? (
-        <section className="settings-card">
-          <div className="coming-soon-card">
-            <strong>Household context applies to all sections below.</strong>
-          </div>
-        </section>
-        ) : null}
-
-        {showHouseholdWorkspace ? (
+        {showSettingsWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
@@ -1289,7 +1324,7 @@ function SettingsPage({
         </section>
         ) : null}
 
-        {showHouseholdWorkspace ? (
+        {showSettingsWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar responsive-toolbar">
             <h2>Contact List</h2>
@@ -1642,7 +1677,7 @@ export function App() {
     window.location.reload();
   };
 
-  const navigateTo = (nextPathname: "/" | "/settings") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -1678,9 +1713,14 @@ export function App() {
     setProfileLastName(metadataLast || derived.lastName);
   }, [currentUser, currentUserLabel]);
 
-  const openSettingsSection = (section: SettingsSection) => {
-    setSettingsSection(section);
-    navigateTo("/settings");
+  const openSettingsSection = (target: NavigationTarget) => {
+    if (target === "settings") {
+      navigateTo("/settings");
+      return;
+    }
+
+    setSettingsSection(target);
+    navigateTo("/profile");
   };
 
   const saveProfile = async (firstName: string, lastName: string): Promise<{ ok: boolean; error?: string }> => {
@@ -1833,7 +1873,25 @@ export function App() {
     );
   }
 
-  if (!activeHouseholdId && pathname !== "/settings") {
+  if (!activeHouseholdId && pathname === "/settings") {
+    return (
+      <>
+        {dataError ? <div role="alert">{dataError}</div> : null}
+        <div className="dashboard-page">
+          <main className="dashboard-main">
+            <section className="calendar-card">
+              <p>Select a household in Profile before editing household settings.</p>
+              <button type="button" className="primary-pill" onClick={() => openSettingsSection("households")}>
+                Go to Profile Households
+              </button>
+            </section>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  if (!activeHouseholdId && pathname !== "/profile") {
     return (
       <>
         {dataError ? <div role="alert">{dataError}</div> : null}
@@ -1851,12 +1909,44 @@ export function App() {
     );
   }
 
-  return pathname === "/settings" ? (
+  return pathname === "/profile" ? (
     <>
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       <SettingsPage
+        mode="profile"
         households={households}
         activeHouseholdId={activeHouseholdId}
+        onSwitchHousehold={(householdId) => {
+          void switchActiveHousehold(householdId);
+        }}
+        onCreateHousehold={createAndSelectHousehold}
+        isContextLoading={isContextLoading}
+        isCreatingHousehold={isCreatingHousehold}
+        householdData={householdData}
+        setHouseholdData={setHouseholdData}
+        contextError={dataError}
+        onRetryContextAction={retryLastContextAction}
+        onGoHome={() => navigateTo("/")}
+        initialSection={settingsSection}
+        currentUserEmail={currentUserEmail}
+        initialProfileFirstName={profileFirstName}
+        initialProfileLastName={profileLastName}
+        isProfileSaving={isProfileSaving}
+        onSaveProfile={saveProfile}
+      />
+    </>
+  ) : pathname === "/settings" ? (
+    <>
+      {dataError ? <div role="alert">{dataError}</div> : null}
+      {isSaving ? <div aria-live="polite">Saving…</div> : null}
+      {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
+      <SettingsPage
+        mode="settings"
+        households={households}
+        activeHouseholdId={activeHouseholdId}
+        onSwitchHousehold={(householdId) => {
+          void switchActiveHousehold(householdId);
+        }}
         onCreateHousehold={createAndSelectHousehold}
         isContextLoading={isContextLoading}
         isCreatingHousehold={isCreatingHousehold}
