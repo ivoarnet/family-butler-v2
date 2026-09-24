@@ -30,6 +30,7 @@ const MEMBER_COLOR_LABELS: Record<string, string> = {
   "#7c3aed": "Purple",
 };
 const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
+type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
 const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }> = [
   { value: "school_off", label: "School off", defaultMarker: "SH" },
   { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH" },
@@ -180,6 +181,7 @@ export function SettingsPage({
   const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profileSaveInfo, setProfileSaveInfo] = useState<string | null>(null);
+  const [settingsWorkspaceTab, setSettingsWorkspaceTab] = useState<SettingsWorkspaceTab>("members");
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -672,6 +674,36 @@ export function SettingsPage({
           </section>
         ) : null}
 
+        {showSettingsWorkspace ? (
+          <section className="settings-card">
+            <div className="section-toolbar">
+              <h2>Settings</h2>
+              <div className="pill-group view-switcher" role="tablist" aria-label="Settings sections">
+                <button type="button" className={settingsWorkspaceTab === "members" ? "active" : ""} onClick={() => setSettingsWorkspaceTab("members")}>
+                  Members
+                </button>
+                <button
+                  type="button"
+                  className={settingsWorkspaceTab === "contacts" ? "active" : ""}
+                  onClick={() => setSettingsWorkspaceTab("contacts")}
+                >
+                  Contacts
+                </button>
+                <button type="button" className={settingsWorkspaceTab === "events" ? "active" : ""} onClick={() => setSettingsWorkspaceTab("events")}>
+                  Events
+                </button>
+                <button
+                  type="button"
+                  className={settingsWorkspaceTab === "calendar" ? "active" : ""}
+                  onClick={() => setSettingsWorkspaceTab("calendar")}
+                >
+                  Calendar
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
         {showProfileWorkspace ? (
           <section className="settings-card">
             <h2>My profile</h2>
@@ -748,7 +780,7 @@ export function SettingsPage({
                   <tr>
                     <th>Name</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th className="actions-column">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -758,7 +790,7 @@ export function SettingsPage({
                       <tr key={household.id} className={isSelected ? "selected-household-row" : ""}>
                         <td>{household.name}</td>
                         <td>{isSelected ? <span className="selected-pill">Selected</span> : "—"}</td>
-                        <td>
+                        <td className="actions-cell">
                           <button
                             type="button"
                             className="primary-pill"
@@ -809,7 +841,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "members" ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
@@ -828,7 +860,7 @@ export function SettingsPage({
                   <th>Order</th>
                   <th>Visible</th>
                   <th>Color</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -896,7 +928,7 @@ export function SettingsPage({
                         ))}
                       </select>
                     </td>
-                    <td>
+                    <td className="actions-cell">
                       <button type="button" className="icon-button compact-icon-button" onClick={() => openEditMember(member)}>
                         <EditOutlinedIcon fontSize="small" />
                       </button>
@@ -923,7 +955,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "contacts" ? (
         <section className="settings-card">
           <div className="section-toolbar responsive-toolbar">
             <h2>Contact List</h2>
@@ -955,7 +987,7 @@ export function SettingsPage({
                   <th>Name</th>
                   <th>Birthday</th>
                   <th>Mobile Phone</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -968,7 +1000,7 @@ export function SettingsPage({
                     </td>
                     <td>{formatContactBirthday(contact)}</td>
                     <td>{contact.mobilePhone ?? "—"}</td>
-                    <td>
+                    <td className="actions-cell">
                       <div className="icon-actions">
                         <button
                           type="button"
@@ -1008,7 +1040,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "events" ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Event types</h2>
@@ -1025,7 +1057,7 @@ export function SettingsPage({
                 <tr>
                   <th>Name</th>
                   <th>Icon</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1033,7 +1065,7 @@ export function SettingsPage({
                   <tr key={eventType.id}>
                     <td>{eventType.name}</td>
                     <td>{eventType.icon ?? "—"}</td>
-                    <td>
+                    <td className="actions-cell">
                       <div className="icon-actions">
                         <button
                           type="button"
@@ -1071,7 +1103,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "calendar" ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Special Days</h2>
@@ -1089,7 +1121,7 @@ export function SettingsPage({
                   <th>Category</th>
                   <th>Date range</th>
                   <th>Marker</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1107,7 +1139,7 @@ export function SettingsPage({
                           DAY_CONFIGURATION_OPTIONS.find((option) => option.value === dayConfiguration.category)?.defaultMarker ||
                           "—"}
                       </td>
-                      <td>
+                      <td className="actions-cell">
                         <div className="icon-actions">
                           <button
                             type="button"
