@@ -676,23 +676,19 @@ export function SettingsPage({
         ) : null}
 
         {showSettingsWorkspace ? (
-          <section className="settings-card">
-            <div className="section-toolbar">
-              <h2>Settings</h2>
-              <Tabs
-                value={settingsWorkspaceTab}
-                onChange={(_, value) => setSettingsWorkspaceTab(value as SettingsWorkspaceTab)}
-                aria-label="Settings sections"
-                variant="scrollable"
-                scrollButtons="auto"
-              >
-                <Tab value="members" label="Members" />
-                <Tab value="contacts" label="Contacts" />
-                <Tab value="events" label="Events" />
-                <Tab value="calendar" label="Calendar" />
-              </Tabs>
-            </div>
-          </section>
+          <div className="settings-tabs">
+            <Tabs
+              value={settingsWorkspaceTab}
+              onChange={(_, value) => setSettingsWorkspaceTab(value as SettingsWorkspaceTab)}
+              aria-label="Settings sections"
+              centered
+            >
+              <Tab value="members" label="Members" />
+              <Tab value="contacts" label="Contacts" />
+              <Tab value="events" label="Events" />
+              <Tab value="calendar" label="Calendar" />
+            </Tabs>
+          </div>
         ) : null}
 
         {showProfileWorkspace ? (

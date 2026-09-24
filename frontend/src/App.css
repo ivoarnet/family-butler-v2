@@ -520,6 +520,11 @@ body,
   margin: 0;
 }
 
+.settings-tabs {
+  display: flex;
+  justify-content: center;
+}
+
 .table-scroll,
 .calendar-scroll {
   overflow-x: auto;
