@@ -8,9 +8,10 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
+import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
 import { HouseholdDialog } from "../features/settings/components/HouseholdDialog";
 import { MemberDialog } from "../features/settings/components/MemberDialog";
-import { Contact, FamilyMember, MemberAvatarColor } from "../types/family";
+import { Contact, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
@@ -68,6 +69,11 @@ const buildContactFormState = (contact?: Contact): ContactFormState => ({
   birthYear: contact?.birthYear ? String(contact.birthYear) : "",
   email: contact?.email ?? "",
   mobilePhone: contact?.mobilePhone ?? "",
+});
+
+const buildEventTypeFormState = (eventType?: EventType): EventTypeDialogFormState => ({
+  name: eventType?.name ?? "",
+  icon: eventType?.icon ?? "",
 });
 
 const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
@@ -145,6 +151,10 @@ export function SettingsPage({
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
+  const [eventTypeModalOpen, setEventTypeModalOpen] = useState(false);
+  const [editingEventTypeId, setEditingEventTypeId] = useState<string | null>(null);
+  const [eventTypeFormState, setEventTypeFormState] = useState<EventTypeDialogFormState>(buildEventTypeFormState);
+  const [eventTypeFormSubmitted, setEventTypeFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [profileFirstName, setProfileFirstName] = useState(initialProfileFirstName);
   const [profileLastName, setProfileLastName] = useState(initialProfileLastName);
@@ -427,6 +437,70 @@ export function SettingsPage({
       contacts: current.contacts.filter((contact) => contact.id !== contactId),
     }));
   };
+
+  const openAddEventType = () => {
+    setEditingEventTypeId(null);
+    setEventTypeFormSubmitted(false);
+    setEventTypeFormState(buildEventTypeFormState());
+    setEventTypeModalOpen(true);
+  };
+
+  const openEditEventType = (eventType: EventType) => {
+    setEditingEventTypeId(eventType.id);
+    setEventTypeFormSubmitted(false);
+    setEventTypeFormState(buildEventTypeFormState(eventType));
+    setEventTypeModalOpen(true);
+  };
+
+  const closeEventTypeModal = () => {
+    setEventTypeModalOpen(false);
+    setEditingEventTypeId(null);
+    setEventTypeFormSubmitted(false);
+  };
+
+  const submitEventType = (event: FormEvent) => {
+    event.preventDefault();
+    setEventTypeFormSubmitted(true);
+    const name = eventTypeFormState.name.trim();
+    if (!name) {
+      return;
+    }
+
+    const icon = eventTypeFormState.icon.trim() || undefined;
+    setHouseholdData((current) => {
+      if (!editingEventTypeId) {
+        return {
+          ...current,
+          eventTypes: [...current.eventTypes, { id: crypto.randomUUID(), name, icon, sortOrder: current.eventTypes.length }],
+        };
+      }
+
+      return {
+        ...current,
+        eventTypes: current.eventTypes.map((eventType) =>
+          eventType.id === editingEventTypeId ? { ...eventType, name, icon } : eventType
+        ),
+      };
+    });
+    closeEventTypeModal();
+  };
+
+  const deleteEventType = (eventTypeId: string) => {
+    if (!window.confirm("Delete this event type?")) {
+      return;
+    }
+    setHouseholdData((current) => ({
+      ...current,
+      eventTypes: current.eventTypes
+        .filter((eventType) => eventType.id !== eventTypeId)
+        .map((eventType, index) => ({ ...eventType, sortOrder: index })),
+      events: current.events.map((householdEvent) =>
+        householdEvent.eventTypeId === eventTypeId ? { ...householdEvent, eventTypeId: undefined } : householdEvent
+      ),
+    }));
+  };
+
+  const eventTypeNameError = eventTypeFormSubmitted && !eventTypeFormState.name.trim();
 
   const goBack = () => {
     if (window.history.length > 1) {
@@ -818,6 +892,69 @@ export function SettingsPage({
             onClose={closeContactModal}
             onSubmit={submitContact}
             onFormStateChange={(updater) => setContactFormState((current) => updater(current))}
+          />
+        </section>
+        ) : null}
+
+        {showSettingsWorkspace ? (
+        <section className="settings-card">
+          <div className="section-toolbar">
+            <h2>Event types</h2>
+            <button type="button" className="primary-pill no-wrap-button" onClick={openAddEventType} disabled={!canEditActiveHousehold}>
+              + Event type
+            </button>
+          </div>
+
+          {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to manage event types.</div> : null}
+
+          <div className="table-scroll">
+            <table className="settings-table" aria-label="Event types">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Icon</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(canEditActiveHousehold ? [...householdData.eventTypes].sort((a, b) => a.sortOrder - b.sortOrder) : []).map((eventType) => (
+                  <tr key={eventType.id}>
+                    <td>{eventType.name}</td>
+                    <td>{eventType.icon ?? "—"}</td>
+                    <td>
+                      <div className="icon-actions">
+                        <button
+                          type="button"
+                          className="icon-button compact-icon-button"
+                          title="Edit event type"
+                          onClick={() => openEditEventType(eventType)}
+                        >
+                          <EditOutlinedIcon fontSize="small" />
+                        </button>
+                        <button
+                          type="button"
+                          className="icon-button compact-icon-button"
+                          title="Delete event type"
+                          onClick={() => deleteEventType(eventType.id)}
+                        >
+                          <DeleteOutlinedIcon fontSize="small" />
+                        </button>
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+
+          <EventTypeDialog
+            open={eventTypeModalOpen}
+            editing={Boolean(editingEventTypeId)}
+            formState={eventTypeFormState}
+            nameError={eventTypeNameError}
+            onClose={closeEventTypeModal}
+            onSubmit={submitEventType}
+            onFormStateChange={(updater) => setEventTypeFormState((current) => updater(current))}
           />
         </section>
         ) : null}

@@ -81,6 +81,34 @@ create table if not exists public.tasks (
   created_at timestamptz not null default now()
 );
 
+create table if not exists public.event_types (
+  id uuid primary key,
+  household_id uuid not null references public.households(id) on delete cascade,
+  name text not null,
+  icon text,
+  sort_order integer not null,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  unique (household_id, sort_order)
+);
+
+create table if not exists public.events (
+  id uuid primary key,
+  household_id uuid not null references public.households(id) on delete cascade,
+  title text not null,
+  event_date date not null,
+  member_ids uuid[] not null default '{}',
+  all_day boolean not null default true,
+  start_time time,
+  end_time time,
+  event_type_id uuid references public.event_types(id) on delete set null,
+  repeat_rule text,
+  location text,
+  notes text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+
 create index if not exists idx_household_members_household_sort_order
   on public.household_members (household_id, sort_order);
 
@@ -89,6 +117,12 @@ create index if not exists idx_contacts_household_name
 
 create index if not exists idx_households_created_by_user
   on public.households (created_by_user_id, created_at);
+
+create index if not exists idx_event_types_household_sort
+  on public.event_types (household_id, sort_order);
+
+create index if not exists idx_events_household_date
+  on public.events (household_id, event_date);
 ```
 
 If your `households` table already exists, run this migration before deploying:
@@ -137,6 +171,7 @@ on conflict (id) do nothing;
    - `POST /api/households`
    - `GET /api/households/{householdId}`
    - `PUT /api/households/{householdId}`
+   - Verify event and event type data persists through `PUT /api/households/{householdId}` payloads
 
 ## 7) Production cutover checklist
 

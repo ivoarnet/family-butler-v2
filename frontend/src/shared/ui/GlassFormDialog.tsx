@@ -92,12 +92,22 @@ export const FormField = styled(TextField)(({ theme }) => ({
   "& .MuiInputBase-input": {
     color: "var(--text-primary)",
     backgroundColor: "transparent",
+    "&[type='date']::-webkit-calendar-picker-indicator": {
+      filter: "var(--date-picker-indicator-filter, none)",
+      opacity: 0.92,
+    },
+    "&[type='date']::-webkit-datetime-edit, &[type='date']::-webkit-datetime-edit-text, &[type='date']::-webkit-datetime-edit-month-field, &[type='date']::-webkit-datetime-edit-day-field, &[type='date']::-webkit-datetime-edit-year-field": {
+      color: "var(--text-primary)",
+    },
     "&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus, &:-webkit-autofill:active": {
       WebkitBoxShadow: "0 0 0 100px var(--dialog-field) inset",
       WebkitTextFillColor: "var(--text-primary)",
       caretColor: "var(--text-primary)",
       borderRadius: "inherit",
     },
+  },
+  "& .MuiSvgIcon-root": {
+    color: "var(--text-primary)",
   },
   "& .MuiFormHelperText-root": {
     marginLeft: 2,

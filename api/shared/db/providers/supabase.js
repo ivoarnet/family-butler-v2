@@ -4,6 +4,8 @@ const TABLES = {
   households: "households",
   members: "household_members",
   contacts: "contacts",
+  eventTypes: "event_types",
+  events: "events",
   tasks: "tasks",
 };
 
@@ -48,6 +50,29 @@ const mapTask = (row) => ({
   id: row.id,
   title: row.title,
   createdAt: row.created_at,
+});
+
+const mapEventType = (row) => ({
+  id: row.id,
+  householdId: row.household_id,
+  name: row.name,
+  icon: row.icon,
+  sortOrder: row.sort_order,
+});
+
+const mapEvent = (row) => ({
+  id: row.id,
+  householdId: row.household_id,
+  title: row.title,
+  date: row.event_date,
+  memberIds: Array.isArray(row.member_ids) ? row.member_ids : [],
+  allDay: row.all_day,
+  startTime: row.start_time,
+  endTime: row.end_time,
+  eventTypeId: row.event_type_id,
+  repeatRule: row.repeat_rule,
+  location: row.location,
+  notes: row.notes,
 });
 
 const parseErrorMessage = async (response) => {
@@ -193,6 +218,19 @@ module.exports = function createSupabaseProvider() {
       return row && typeof row.household_id === "string" ? row.household_id : null;
     },
 
+    async getEventTypeHouseholdId(eventTypeId) {
+      const rows = await request(TABLES.eventTypes, {
+        params: {
+          select: "household_id",
+          id: `eq.${eventTypeId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
     async ensureHousehold(householdId, householdName, holidayRegion, userId) {
       await request(TABLES.households, {
         method: "POST",
@@ -210,7 +248,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async getHouseholdWithRelations(householdId, userId) {
-      const [households, members, contacts] = await Promise.all([
+      const [households, members, contacts, eventTypes, events] = await Promise.all([
         request(TABLES.households, {
           params: {
             select: "id,name,holiday_region",
@@ -231,6 +269,20 @@ module.exports = function createSupabaseProvider() {
             household_id: `eq.${householdId}`,
           },
         }),
+        request(TABLES.eventTypes, {
+          params: {
+            select: "id,household_id,name,icon,sort_order",
+            household_id: `eq.${householdId}`,
+            order: "sort_order.asc",
+          },
+        }),
+        request(TABLES.events, {
+          params: {
+            select: "id,household_id,title,event_date,member_ids,all_day,start_time,end_time,event_type_id,repeat_rule,location,notes",
+            household_id: `eq.${householdId}`,
+            order: "event_date.asc",
+          },
+        }),
       ]);
 
       const household = Array.isArray(households) ? households[0] : null;
@@ -242,6 +294,8 @@ module.exports = function createSupabaseProvider() {
         household: mapHousehold(household),
         members: Array.isArray(members) ? members.map(mapMember) : [],
         contacts: Array.isArray(contacts) ? contacts.map(mapContact) : [],
+        eventTypes: Array.isArray(eventTypes) ? eventTypes.map(mapEventType) : [],
+        events: Array.isArray(events) ? events.map(mapEvent) : [],
       };
     },
 
@@ -326,6 +380,97 @@ module.exports = function createSupabaseProvider() {
       }));
 
       await request(TABLES.contacts, {
+        method: "POST",
+        params: { on_conflict: "id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: payload,
+      });
+    },
+
+    async replaceEventTypes(householdId, eventTypes) {
+      const eventTypeIds = eventTypes.map((eventType) => eventType.id);
+
+      if (eventTypeIds.length > 0) {
+        await request(TABLES.eventTypes, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+            id: `not.in.${formatInList(eventTypeIds)}`,
+          },
+        });
+      } else {
+        await request(TABLES.eventTypes, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+          },
+        });
+      }
+
+      if (eventTypeIds.length === 0) {
+        return;
+      }
+
+      const payload = eventTypes.map((eventType) => ({
+        id: eventType.id,
+        household_id: householdId,
+        name: eventType.name,
+        icon: eventType.icon,
+        sort_order: eventType.sortOrder,
+      }));
+
+      await request(TABLES.eventTypes, {
+        method: "POST",
+        params: { on_conflict: "id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: payload,
+      });
+    },
+
+    async replaceEvents(householdId, events) {
+      const eventIds = events.map((event) => event.id);
+
+      if (eventIds.length > 0) {
+        await request(TABLES.events, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+            id: `not.in.${formatInList(eventIds)}`,
+          },
+        });
+      } else {
+        await request(TABLES.events, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+          },
+        });
+      }
+
+      if (eventIds.length === 0) {
+        return;
+      }
+
+      const payload = events.map((event) => ({
+        id: event.id,
+        household_id: householdId,
+        title: event.title,
+        event_date: event.date,
+        member_ids: event.memberIds,
+        all_day: event.allDay,
+        start_time: event.startTime,
+        end_time: event.endTime,
+        event_type_id: event.eventTypeId,
+        repeat_rule: event.repeatRule,
+        location: event.location,
+        notes: event.notes,
+      }));
+
+      await request(TABLES.events, {
         method: "POST",
         params: { on_conflict: "id" },
         headers: {

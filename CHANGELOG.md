@@ -2,6 +2,15 @@
 
 ## Unreleased
 
+- Improved dark-mode picker contrast in the event dialog: MobileTimePicker text/icons now render with light foreground, and the date picker indicator icon is styled to remain light/visible in dark mode.
+- Switched event start/end inputs to MUI X `MobileTimePicker` with 24-hour display (`ampm={false}`), minute-only views, and 5-minute steps to align with common European time entry.
+- Optimized dashboard calendar event cards: extracted a dedicated card component, expanded cards to full column width, added AvatarGroup display for assigned members, and enabled click-through to event view details with transition into edit mode.
+- Added event card/view flow UI reference image URL: `https://github.com/user-attachments/assets/a8556876-a8e4-4aa3-bfb0-1bb7f6d414e9`.
+- Implemented dashboard event creation with a dedicated add-event dialog (`+ Event`) including member avatar multi-select, date picker, all-day vs. begin/end time, configurable event type, repeat rule (RRULE string), location, and notes.
+- Added household settings management for configurable event types via a dedicated dialog and table section.
+- Persisted household-scoped `event_types` and `events` through `/api/households/{householdId}` read/write flow with ownership validation and household cascade semantics.
+- Updated Supabase schema documentation with `event_types` and `events` table creation/alter guidance.
+- Added event creation UI reference image URL for issue alignment: `https://github.com/user-attachments/assets/a8556876-a8e4-4aa3-bfb0-1bb7f6d414e9`.
 - Refactored frontend structure for scale: extracted `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages/DashboardPage.tsx` and `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages/SettingsPage.tsx` so `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/App.tsx` now focuses on app-level setup and route composition.
 - Reorganized UI modules into clear conventions: shared primitives in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/ui`, feature-specific settings dialogs in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/settings/components`, and shared app types in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/app/types.ts`.
 - Added Storybook configuration under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/.storybook` with frontend scripts (`storybook`, `build-storybook`) and shared component stories for `AvatarContextMenu` and glass form primitives.

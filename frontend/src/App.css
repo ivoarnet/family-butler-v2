@@ -23,6 +23,7 @@
   --action-gradient-end: #9a7dff;
   --menu-surface: rgba(255, 255, 255, 0.5);
   --menu-backdrop-blur: 52px;
+  --date-picker-indicator-filter: none;
 }
 
 :root[data-theme="dark"] {
@@ -50,6 +51,7 @@
   --action-gradient-end: #9a7dff;
   --menu-surface: rgba(20, 24, 35, 0.52);
   --menu-backdrop-blur: 52px;
+  --date-picker-indicator-filter: brightness(0) invert(0.88);
 }
 
 * {
@@ -527,6 +529,7 @@ body,
 .calendar-grid {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .settings-table {
@@ -644,6 +647,11 @@ body,
   color: var(--text-secondary);
 }
 
+.birthday-column-header,
+.birthday-cell {
+  width: 11rem;
+}
+
 .member-header {
   display: inline-flex;
   align-items: center;
@@ -726,10 +734,6 @@ body,
   font-weight: 700;
 }
 
-.birthday-cell {
-  min-width: 11rem;
-}
-
 .birthday-item {
   display: block;
   width: fit-content;
@@ -740,6 +744,46 @@ body,
   background: rgba(127, 139, 255, 0.15);
   font-weight: 700;
   font-size: 0.85rem;
+}
+
+.event-cell {
+  min-width: 0;
+  padding: 0.55rem 0.5rem !important;
+}
+
+.event-cell > button {
+  margin-bottom: 0.3rem;
+}
+
+.event-item-title {
+  font-size: 0.83rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.event-cell small {
+  color: var(--text-secondary);
+  font-size: 0.73rem;
+}
+
+.event-cell .MuiAvatarGroup-root {
+  width: fit-content;
+}
+
+.event-cell .MuiAvatar-root {
+  border: 1px solid rgba(8, 12, 24, 0.35);
+}
+
+.event-cell .MuiAvatarGroup-avatar {
+  font-weight: 700;
+}
+
+.event-cell button {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  margin-bottom: 0.3rem;
 }
 
 .fab {
@@ -754,8 +798,8 @@ body,
   color: #fff;
   background: linear-gradient(90deg, #7f8bff, #b07cff);
   box-shadow: 0 14px 30px rgba(108, 121, 255, 0.4);
-  opacity: 0.7;
-  cursor: not-allowed;
+  opacity: 1;
+  cursor: pointer;
 }
 
 @media (max-width: 1120px) {
