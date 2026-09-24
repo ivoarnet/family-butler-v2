@@ -292,6 +292,73 @@ body,
   letter-spacing: 0.02em;
 }
 
+.avatar-menu-wrapper {
+  position: relative;
+}
+
+.avatar-context-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 50;
+  width: min(20rem, 80vw);
+  padding: 0.85rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.7rem;
+}
+
+.avatar-menu-section {
+  display: grid;
+  gap: 0.3rem;
+  padding-bottom: 0.6rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.avatar-menu-section strong {
+  font-size: 0.82rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+}
+
+.avatar-menu-section span {
+  color: var(--text-secondary);
+  font-size: 0.92rem;
+}
+
+.avatar-household-list {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.avatar-household-item {
+  border: 1px solid var(--border);
+  border-radius: 0.65rem;
+  background: var(--surface-strong);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0.35rem 0.55rem;
+  cursor: pointer;
+}
+
+.avatar-household-item.active {
+  background: rgba(127, 139, 255, 0.22);
+  border-color: rgba(127, 139, 255, 0.45);
+  cursor: default;
+}
+
+.avatar-menu-actions {
+  display: flex;
+  gap: 0.5rem;
+  justify-content: flex-end;
+}
+
 .icon-button:hover,
 .pill-group button:hover:not(:disabled),
 .primary-pill:hover,

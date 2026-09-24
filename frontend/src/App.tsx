@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -371,6 +371,9 @@ function DashboardApp({
   theme,
   setTheme,
   householdData,
+  households,
+  activeHouseholdId,
+  onSwitchHousehold,
   onOpenSettings,
   currentUserLabel,
   currentUserInitials,
@@ -379,6 +382,9 @@ function DashboardApp({
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
+  households: HouseholdSummary[];
+  activeHouseholdId: string | null;
+  onSwitchHousehold: (householdId: string) => void;
   onOpenSettings: () => void;
   currentUserLabel: string;
   currentUserInitials: string;
@@ -386,6 +392,8 @@ function DashboardApp({
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -412,8 +420,36 @@ function DashboardApp({
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!isAvatarMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!avatarMenuRef.current?.contains(event.target as Node)) {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isAvatarMenuOpen]);
+
   const periodLabel = useMemo(() => formatPeriodRange(periodStart, DEMO_LOCALE), [periodStart]);
   const todayIso = toIsoDate(now);
+  const activeHouseholdName =
+    households.find((household) => household.id === activeHouseholdId)?.name ??
+    (activeHouseholdId ? householdData.householdName : "No active household");
 
   return (
     <div className="dashboard-page">
@@ -503,17 +539,83 @@ function DashboardApp({
             <SettingsIcon fontSize="small" />
           </button>
 
-          <button
-            type="button"
-            className="icon-button user-avatar-button"
-            onClick={() => {
-              void onSignOut();
-            }}
-            title={`${currentUserLabel} · Sign out`}
-            aria-label={`${currentUserLabel} · Sign out`}
-          >
-            {currentUserInitials}
-          </button>
+          <div className="avatar-menu-wrapper" ref={avatarMenuRef}>
+            <button
+              type="button"
+              className="icon-button user-avatar-button"
+              onClick={() => setIsAvatarMenuOpen((current) => !current)}
+              title={`${currentUserLabel} · Open account menu`}
+              aria-label={`${currentUserLabel} · Open account menu`}
+              aria-expanded={isAvatarMenuOpen}
+              aria-haspopup="menu"
+            >
+              {currentUserInitials}
+            </button>
+
+            {isAvatarMenuOpen ? (
+              <div className="avatar-context-menu" role="menu" aria-label="Account menu">
+                <div className="avatar-menu-section">
+                  <strong>My profile</strong>
+                  <span>{currentUserLabel}</span>
+                </div>
+                <div className="avatar-menu-section">
+                  <strong>My households</strong>
+                  {households.length === 0 ? (
+                    <span>No households yet</span>
+                  ) : (
+                    <div className="avatar-household-list">
+                      {households.map((household) => {
+                        const isActive = household.id === activeHouseholdId;
+                        return (
+                          <button
+                            key={household.id}
+                            type="button"
+                            className={`avatar-household-item ${isActive ? "active" : ""}`}
+                            onClick={() => {
+                              setIsAvatarMenuOpen(false);
+                              if (!isActive) {
+                                onSwitchHousehold(household.id);
+                              }
+                            }}
+                            disabled={isActive}
+                          >
+                            {household.name}
+                            {isActive ? " (active)" : ""}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+                <div className="avatar-menu-section">
+                  <strong>Active household</strong>
+                  <span>{activeHouseholdName}</span>
+                </div>
+                <div className="avatar-menu-actions">
+                  <button
+                    type="button"
+                    className="primary-pill"
+                    onClick={() => {
+                      setIsAvatarMenuOpen(false);
+                      onOpenSettings();
+                    }}
+                  >
+                    Settings
+                  </button>
+                  <button
+                    type="button"
+                    className="primary-pill"
+                    onClick={() => {
+                      setIsAvatarMenuOpen(false);
+                      void onSignOut();
+                    }}
+                  >
+                    Logout
+                  </button>
+                </div>
+              </div>
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -918,37 +1020,9 @@ function SettingsPage({
               <div>Create your first household to begin adding members and contacts.</div>
             </div>
           ) : (
-            <div className="table-scroll">
-              <table className="settings-table" aria-label="Households">
-                <thead>
-                  <tr>
-                    <th>Name</th>
-                    <th>Status</th>
-                    <th>Action</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {households.map((household) => {
-                    const isSelected = household.id === activeHouseholdId;
-                    return (
-                      <tr key={household.id} className={isSelected ? "selected-household-row" : ""}>
-                        <td>{household.name}</td>
-                        <td>{isSelected ? <span className="selected-pill">Selected</span> : "—"}</td>
-                        <td>
-                          <button
-                            type="button"
-                            className="primary-pill"
-                            onClick={() => onSwitchHousehold(household.id)}
-                            disabled={isSelected || isContextLoading}
-                          >
-                            {isSelected ? "Active" : "Switch"}
-                          </button>
-                        </td>
-                      </tr>
-                    );
-                  })}
-                </tbody>
-              </table>
+            <div className="coming-soon-card">
+              <strong>{households.length} households available.</strong>
+              <div>Use the avatar menu in the dashboard header to view and switch households.</div>
             </div>
           )}
 
@@ -1604,6 +1678,11 @@ export function App() {
         theme={theme}
         setTheme={setTheme}
         householdData={householdData}
+        households={households}
+        activeHouseholdId={activeHouseholdId}
+        onSwitchHousehold={(householdId) => {
+          void switchActiveHousehold(householdId);
+        }}
         onOpenSettings={() => navigateTo("/settings")}
         currentUserLabel={currentUserLabel}
         currentUserInitials={currentUserInitials}
