@@ -1,5 +1,6 @@
 import { FormEvent } from "react";
 import { Box, Button, Typography, useMediaQuery } from "@mui/material";
+import CloseIcon from "@mui/icons-material/Close";
 import { styled, useTheme } from "@mui/material/styles";
 import {
   DialogActionsBar,
@@ -86,7 +87,7 @@ export function ContactDialog({
             aria-label="Close contact dialog"
             sx={{ minWidth: "auto", color: "var(--text-primary)", borderRadius: "999px" }}
           >
-            ✕
+            <CloseIcon fontSize="small" />
           </Button>
         </DialogHeader>
 

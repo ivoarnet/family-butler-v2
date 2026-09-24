@@ -1,4 +1,17 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
+import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
+import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import DarkModeIcon from "@mui/icons-material/DarkMode";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import HomeIcon from "@mui/icons-material/Home";
+import LightModeIcon from "@mui/icons-material/LightMode";
+import SettingsIcon from "@mui/icons-material/Settings";
 import { ContactDialog } from "./components/ContactDialog";
 import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
@@ -356,7 +369,7 @@ function DashboardApp({
       <header className="dashboard-header" role="banner">
         <div className="header-branding">
           <div className="icon-badge" aria-hidden>
-            📅
+            <CalendarMonthIcon fontSize="medium" />
           </div>
           <div>
             <h1>{householdData.householdName}</h1>
@@ -372,7 +385,7 @@ function DashboardApp({
               title="Previous two-week period"
               onClick={() => setPeriodStart((current) => addDays(current, -14))}
             >
-              ‹
+              <ChevronLeftIcon fontSize="small" />
             </button>
             <button
               type="button"
@@ -380,7 +393,7 @@ function DashboardApp({
               title="Jump to current period"
               onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
             >
-              📅
+              <CalendarMonthIcon fontSize="small" />
             </button>
             <button
               type="button"
@@ -388,7 +401,7 @@ function DashboardApp({
               title="Next two-week period"
               onClick={() => setPeriodStart((current) => addDays(current, 14))}
             >
-              ›
+              <ChevronRightIcon fontSize="small" />
             </button>
           </div>
 
@@ -426,7 +439,7 @@ function DashboardApp({
             title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
             aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
           >
-            {theme === "dark" ? "☀" : "☾"}
+            {theme === "dark" ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
           </button>
 
           <button
@@ -436,7 +449,7 @@ function DashboardApp({
             title="Open settings"
             aria-label="Open settings"
           >
-            ⚙
+            <SettingsIcon fontSize="small" />
           </button>
         </div>
       </header>
@@ -460,7 +473,9 @@ function DashboardApp({
                   ))}
                   <th>
                     <div className="member-header">
-                      <span className="avatar avatar-birthday">🎂</span>
+                      <span className="avatar avatar-birthday">
+                        <CakeRoundedIcon fontSize="small" />
+                      </span>
                       <span>Birthdays</span>
                     </div>
                   </th>
@@ -806,7 +821,7 @@ function SettingsPage({
     <div className="dashboard-page settings-page">
       <header className="dashboard-header settings-header" role="banner">
         <button type="button" className="icon-button" onClick={goBack} title="Go back" aria-label="Go back">
-          ←
+          <ArrowBackIcon fontSize="small" />
         </button>
         <div className="header-branding">
           <div>
@@ -821,7 +836,7 @@ function SettingsPage({
           title="Go to dashboard"
           aria-label="Go to dashboard"
         >
-          ⌂
+          <HomeIcon fontSize="small" />
         </button>
       </header>
 
@@ -956,7 +971,7 @@ function SettingsPage({
                           disabled={index === 0}
                           title="Move up"
                         >
-                          ↑
+                          <ArrowUpwardIcon fontSize="small" />
                         </button>
                         <button
                           type="button"
@@ -965,7 +980,7 @@ function SettingsPage({
                           disabled={index === orderedMembers.length - 1}
                           title="Move down"
                         >
-                          ↓
+                          <ArrowDownwardIcon fontSize="small" />
                         </button>
                       </div>
                     </td>
@@ -1000,7 +1015,7 @@ function SettingsPage({
                     </td>
                     <td>
                       <button type="button" className="icon-button compact-icon-button" onClick={() => openEditMember(member)}>
-                        ✎
+                        <EditOutlinedIcon fontSize="small" />
                       </button>
                     </td>
                   </tr>
@@ -1063,7 +1078,6 @@ function SettingsPage({
                   <tr key={contact.id}>
                     <td>
                       <div className="member-header">
-                        <span className="avatar avatar-birthday">🎂</span>
                         <span>{`${contact.firstName}${contact.lastName ? ` ${contact.lastName}` : ""}`}</span>
                       </div>
                     </td>
@@ -1077,7 +1091,7 @@ function SettingsPage({
                           title="Edit contact"
                           onClick={() => openEditContact(contact)}
                         >
-                          ✎
+                          <EditOutlinedIcon fontSize="small" />
                         </button>
                         <button
                           type="button"
@@ -1085,7 +1099,7 @@ function SettingsPage({
                           title="Delete contact"
                           onClick={() => deleteContact(contact.id)}
                         >
-                          🗑
+                          <DeleteOutlinedIcon fontSize="small" />
                         </button>
                       </div>
                     </td>
