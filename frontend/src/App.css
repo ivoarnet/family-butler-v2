@@ -21,6 +21,8 @@
   --dialog-backdrop: rgba(12, 18, 32, 0.45);
   --action-gradient-start: #7f8bff;
   --action-gradient-end: #9a7dff;
+  --menu-surface: rgba(255, 255, 255, 0.5);
+  --menu-backdrop-blur: 52px;
 }
 
 :root[data-theme="dark"] {
@@ -46,6 +48,8 @@
   --dialog-backdrop: rgba(7, 10, 18, 0.58);
   --action-gradient-start: #7f8bff;
   --action-gradient-end: #9a7dff;
+  --menu-surface: rgba(20, 24, 35, 0.52);
+  --menu-backdrop-blur: 52px;
 }
 
 * {
@@ -290,6 +294,99 @@ body,
   font-size: 0.82rem;
   font-weight: 700;
   letter-spacing: 0.02em;
+}
+
+.avatar-menu-wrapper {
+  position: relative;
+}
+
+.avatar-context-menu {
+  position: absolute;
+  top: calc(100% + 0.45rem);
+  right: 0;
+  z-index: 50;
+  width: min(20rem, 80vw);
+  padding: 0.85rem;
+  border-radius: 0.95rem;
+  border: 1px solid var(--border);
+  background: var(--menu-surface);
+  backdrop-filter: saturate(160%) blur(var(--menu-backdrop-blur));
+  -webkit-backdrop-filter: saturate(160%) blur(var(--menu-backdrop-blur));
+  box-shadow: var(--shadow);
+  display: grid;
+  gap: 0.7rem;
+}
+
+.avatar-menu-header {
+  display: grid;
+  justify-items: center;
+  gap: 0.55rem;
+  padding-bottom: 0.75rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.avatar-menu-profile-avatar {
+  width: 4.8rem;
+  height: 4.8rem;
+  border-radius: 999px;
+  border: 3px solid rgba(127, 139, 255, 0.35);
+  background: linear-gradient(155deg, rgba(127, 139, 255, 0.6), rgba(154, 125, 255, 0.7));
+  color: #fff;
+  font-weight: 800;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+}
+
+.avatar-menu-profile-avatar img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.avatar-menu-profile-meta {
+  display: grid;
+  gap: 0.15rem;
+  text-align: center;
+}
+
+.avatar-menu-profile-meta span {
+  color: var(--text-secondary);
+}
+
+.avatar-menu-section {
+  display: grid;
+  gap: 0.3rem;
+  padding-bottom: 0.3rem;
+}
+
+.avatar-menu-link {
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  text-align: left;
+  padding: 0.75rem 0.15rem;
+  cursor: pointer;
+}
+
+.avatar-menu-link:hover {
+  background: rgba(127, 139, 255, 0.12);
+}
+
+.avatar-menu-actions {
+  padding-top: 0.4rem;
+}
+
+.avatar-menu-logout-button {
+  width: 100%;
 }
 
 .icon-button:hover,

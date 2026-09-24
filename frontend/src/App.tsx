@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -14,6 +14,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./components/auth/AuthScreen";
+import { AvatarContextMenu } from "./components/AvatarContextMenu";
 import { ContactDialog } from "./components/ContactDialog";
 import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
@@ -58,6 +59,9 @@ interface ContactFormState {
   email: string;
   mobilePhone: string;
 }
+
+type SettingsSection = "profile" | "households";
+type NavigationTarget = "settings" | "profile" | "households";
 
 const THEME_STORAGE_KEY = "family-butler-theme";
 const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
@@ -367,25 +371,48 @@ const getUserInitials = (label: string): string => {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 };
 
+const splitProfileName = (fullName: string): { firstName: string; lastName: string } => {
+  const parts = fullName
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return { firstName: "", lastName: "" };
+  }
+
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
+
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+};
+
 function DashboardApp({
   theme,
   setTheme,
   householdData,
   onOpenSettings,
   currentUserLabel,
+  currentUserEmail,
   currentUserInitials,
+  currentUserAvatarUrl,
   onSignOut,
 }: {
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
-  onOpenSettings: () => void;
+  onOpenSettings: (target: NavigationTarget) => void;
   currentUserLabel: string;
+  currentUserEmail: string;
   currentUserInitials: string;
+  currentUserAvatarUrl: string | null;
   onSignOut: () => Promise<void>;
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -412,9 +439,33 @@ function DashboardApp({
     return () => window.clearInterval(interval);
   }, []);
 
+  useEffect(() => {
+    if (!isAvatarMenuOpen) {
+      return;
+    }
+
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!avatarMenuRef.current?.contains(event.target as Node)) {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setIsAvatarMenuOpen(false);
+      }
+    };
+
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isAvatarMenuOpen]);
+
   const periodLabel = useMemo(() => formatPeriodRange(periodStart, DEMO_LOCALE), [periodStart]);
   const todayIso = toIsoDate(now);
-
   return (
     <div className="dashboard-page">
       <header className="dashboard-header" role="banner">
@@ -496,24 +547,47 @@ function DashboardApp({
           <button
             type="button"
             className="icon-button"
-            onClick={onOpenSettings}
+            onClick={() => onOpenSettings("settings")}
             title="Open settings"
             aria-label="Open settings"
           >
             <SettingsIcon fontSize="small" />
           </button>
 
-          <button
-            type="button"
-            className="icon-button user-avatar-button"
-            onClick={() => {
-              void onSignOut();
-            }}
-            title={`${currentUserLabel} · Sign out`}
-            aria-label={`${currentUserLabel} · Sign out`}
-          >
-            {currentUserInitials}
-          </button>
+          <div className="avatar-menu-wrapper" ref={avatarMenuRef}>
+            <button
+              type="button"
+              className="icon-button user-avatar-button"
+              onClick={() => setIsAvatarMenuOpen((current) => !current)}
+              title={`${currentUserLabel} · Open account menu`}
+              aria-label={`${currentUserLabel} · Open account menu`}
+              aria-expanded={isAvatarMenuOpen}
+              aria-haspopup="menu"
+            >
+              {currentUserInitials}
+            </button>
+
+            {isAvatarMenuOpen ? (
+              <AvatarContextMenu
+                currentUserLabel={currentUserLabel}
+                currentUserEmail={currentUserEmail}
+                currentUserInitials={currentUserInitials}
+                currentUserAvatarUrl={currentUserAvatarUrl}
+                onProfileClick={() => {
+                  setIsAvatarMenuOpen(false);
+                  onOpenSettings("profile");
+                }}
+                onHouseholdsClick={() => {
+                  setIsAvatarMenuOpen(false);
+                  onOpenSettings("households");
+                }}
+                onLogoutClick={() => {
+                  setIsAvatarMenuOpen(false);
+                  void onSignOut();
+                }}
+              />
+            ) : null}
+          </div>
         </div>
       </header>
 
@@ -592,6 +666,7 @@ function DashboardApp({
 }
 
 function SettingsPage({
+  mode,
   households,
   activeHouseholdId,
   onSwitchHousehold,
@@ -603,7 +678,14 @@ function SettingsPage({
   contextError,
   onRetryContextAction,
   onGoHome,
+  initialSection,
+  currentUserEmail,
+  initialProfileFirstName,
+  initialProfileLastName,
+  isProfileSaving,
+  onSaveProfile,
 }: {
+  mode: "profile" | "settings";
   households: HouseholdSummary[];
   activeHouseholdId: string | null;
   onSwitchHousehold: (householdId: string) => void;
@@ -615,7 +697,14 @@ function SettingsPage({
   contextError: string | null;
   onRetryContextAction: () => void;
   onGoHome: () => void;
+  initialSection: SettingsSection;
+  currentUserEmail: string;
+  initialProfileFirstName: string;
+  initialProfileLastName: string;
+  isProfileSaving: boolean;
+  onSaveProfile: (firstName: string, lastName: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSection);
   const [newHouseholdName, setNewHouseholdName] = useState("");
   const [createHouseholdSubmitted, setCreateHouseholdSubmitted] = useState(false);
   const [createHouseholdError, setCreateHouseholdError] = useState<string | null>(null);
@@ -629,6 +718,11 @@ function SettingsPage({
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [profileFirstName, setProfileFirstName] = useState(initialProfileFirstName);
+  const [profileLastName, setProfileLastName] = useState(initialProfileLastName);
+  const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [profileSaveInfo, setProfileSaveInfo] = useState<string | null>(null);
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -647,8 +741,21 @@ function SettingsPage({
     });
   }, [contactSearch, householdData.contacts]);
   const canEditActiveHousehold = Boolean(activeHouseholdId) && !isContextLoading;
+  const showHouseholdWorkspace = mode === "profile" && settingsSection === "households";
+  const showProfileWorkspace = mode === "profile" && settingsSection === "profile";
+  const showSettingsWorkspace = mode === "settings";
 
   const createHouseholdNameError = createHouseholdSubmitted && !newHouseholdName.trim();
+  const profileFirstNameError = profileSubmitAttempted && !profileFirstName.trim();
+
+  useEffect(() => {
+    setSettingsSection(initialSection);
+  }, [initialSection]);
+
+  useEffect(() => {
+    setProfileFirstName(initialProfileFirstName);
+    setProfileLastName(initialProfileLastName);
+  }, [initialProfileFirstName, initialProfileLastName]);
 
   const openAddHousehold = () => {
     setCreateHouseholdSubmitted(false);
@@ -684,6 +791,27 @@ function SettingsPage({
     setCreateHouseholdSubmitted(false);
     setNewHouseholdName("");
     setHouseholdModalOpen(false);
+  };
+
+  const submitProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setProfileSubmitAttempted(true);
+    setProfileSaveInfo(null);
+    setProfileSaveError(null);
+
+    const firstName = profileFirstName.trim();
+    const lastName = profileLastName.trim();
+    if (!firstName) {
+      return;
+    }
+
+    const result = await onSaveProfile(firstName, lastName);
+    if (!result.ok) {
+      setProfileSaveError(result.error ?? "Could not save profile.");
+      return;
+    }
+
+    setProfileSaveInfo("Profile updated.");
   };
 
   const openAddMember = () => {
@@ -888,8 +1016,14 @@ function SettingsPage({
         </button>
         <div className="header-branding">
           <div>
-            <h1>Settings</h1>
-            <p>{activeHouseholdId ? `Active household: ${householdData.householdName}` : "Create your first household to get started"}</p>
+            <h1>{mode === "profile" ? "Profile" : "Settings"}</h1>
+            <p>
+              {mode === "profile"
+                ? "Manage your personal details and households"
+                : activeHouseholdId
+                  ? `Selected household: ${householdData.householdName}`
+                  : "Select a household in Profile before editing household settings"}
+            </p>
           </div>
         </div>
         <button
@@ -904,6 +1038,69 @@ function SettingsPage({
       </header>
 
       <main className="settings-main">
+        {mode === "profile" ? (
+          <section className="settings-card">
+            <div className="section-toolbar">
+              <h2>My account</h2>
+              <div className="pill-group view-switcher" role="tablist" aria-label="Profile sections">
+                <button type="button" className={settingsSection === "profile" ? "active" : ""} onClick={() => setSettingsSection("profile")}>
+                  My profile
+                </button>
+                <button
+                  type="button"
+                  className={settingsSection === "households" ? "active" : ""}
+                  onClick={() => setSettingsSection("households")}
+                >
+                  My households
+                </button>
+              </div>
+            </div>
+          </section>
+        ) : null}
+
+        {showProfileWorkspace ? (
+          <section className="settings-card">
+            <h2>My profile</h2>
+            <form className="auth-form" onSubmit={submitProfile}>
+              <div className="edit-grid">
+                <label>
+                  First name
+                  <input
+                    type="text"
+                    value={profileFirstName}
+                    onChange={(event) => setProfileFirstName(event.target.value)}
+                    placeholder="First name"
+                    autoComplete="given-name"
+                  />
+                </label>
+                <label>
+                  Last name
+                  <input
+                    type="text"
+                    value={profileLastName}
+                    onChange={(event) => setProfileLastName(event.target.value)}
+                    placeholder="Last name"
+                    autoComplete="family-name"
+                  />
+                </label>
+              </div>
+              <label>
+                Email
+                <input type="email" value={currentUserEmail} readOnly />
+              </label>
+              {profileFirstNameError ? <div role="alert">First name is required.</div> : null}
+              {profileSaveError ? <div role="alert">{profileSaveError}</div> : null}
+              {profileSaveInfo ? <div aria-live="polite">{profileSaveInfo}</div> : null}
+              <div className="sheet-actions">
+                <button type="submit" disabled={isProfileSaving}>
+                  {isProfileSaving ? "Saving…" : "Save profile"}
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
+
+        {showHouseholdWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Households</h2>
@@ -941,7 +1138,7 @@ function SettingsPage({
                             onClick={() => onSwitchHousehold(household.id)}
                             disabled={isSelected || isContextLoading}
                           >
-                            {isSelected ? "Active" : "Switch"}
+                            {isSelected ? "Active" : "Select"}
                           </button>
                         </td>
                       </tr>
@@ -983,13 +1180,9 @@ function SettingsPage({
             }}
           />
         </section>
+        ) : null}
 
-        <section className="settings-card">
-          <div className="coming-soon-card">
-            <strong>Household context applies to all sections below.</strong>
-          </div>
-        </section>
-
+        {showSettingsWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
@@ -1101,7 +1294,9 @@ function SettingsPage({
             onVisibleInCalendarChange={(value) => setMemberFormState((current) => ({ ...current, visibleInCalendar: value }))}
           />
         </section>
+        ) : null}
 
+        {showSettingsWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar responsive-toolbar">
             <h2>Contact List</h2>
@@ -1184,6 +1379,7 @@ function SettingsPage({
             onFormStateChange={(updater) => setContactFormState((current) => updater(current))}
           />
         </section>
+        ) : null}
       </main>
     </div>
   );
@@ -1209,6 +1405,10 @@ export function App() {
   const [isContextLoading, setIsContextLoading] = useState(false);
   const [isCreatingHousehold, setIsCreatingHousehold] = useState(false);
   const [failedAction, setFailedAction] = useState<FailedAction>(null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("profile");
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1449,7 +1649,7 @@ export function App() {
     window.location.reload();
   };
 
-  const navigateTo = (nextPathname: "/" | "/settings") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -1460,6 +1660,93 @@ export function App() {
   const currentUser = authSession?.user ?? null;
   const currentUserLabel = useMemo(() => (currentUser ? getUserDisplayName(currentUser) : ""), [currentUser]);
   const currentUserInitials = useMemo(() => getUserInitials(currentUserLabel), [currentUserLabel]);
+  const currentUserEmail = currentUser?.email?.trim() ?? "";
+  const currentUserAvatarUrl =
+    typeof currentUser?.user_metadata?.avatar_url === "string" && currentUser.user_metadata.avatar_url.trim()
+      ? currentUser.user_metadata.avatar_url.trim()
+      : null;
+
+  useEffect(() => {
+    if (!currentUser) {
+      setProfileFirstName("");
+      setProfileLastName("");
+      return;
+    }
+
+    const metadataFirst =
+      typeof currentUser.user_metadata?.first_name === "string" ? currentUser.user_metadata.first_name.trim() : "";
+    const metadataLast =
+      typeof currentUser.user_metadata?.last_name === "string" ? currentUser.user_metadata.last_name.trim() : "";
+    const metadataFull =
+      typeof currentUser.user_metadata?.full_name === "string" ? currentUser.user_metadata.full_name.trim() : "";
+    const derived = splitProfileName(metadataFull || currentUserLabel);
+
+    setProfileFirstName(metadataFirst || derived.firstName);
+    setProfileLastName(metadataLast || derived.lastName);
+  }, [currentUser, currentUserLabel]);
+
+  const openSettingsSection = (target: NavigationTarget) => {
+    if (target === "settings") {
+      navigateTo("/settings");
+      return;
+    }
+
+    setSettingsSection(target);
+    navigateTo("/profile");
+  };
+
+  const saveProfile = async (firstName: string, lastName: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!authClient) {
+      return { ok: false, error: "Authentication client is not configured." };
+    }
+
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    if (!normalizedFirstName) {
+      return { ok: false, error: "First name is required." };
+    }
+
+    const fullName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ");
+
+    setIsProfileSaving(true);
+    try {
+      const { error } = await authClient.auth.updateUser({
+        data: {
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName || undefined,
+          full_name: fullName,
+        },
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      setProfileFirstName(normalizedFirstName);
+      setProfileLastName(normalizedLastName);
+      setAuthSession((currentSession) =>
+        currentSession
+          ? {
+              ...currentSession,
+              user: {
+                ...currentSession.user,
+                user_metadata: {
+                  ...currentSession.user.user_metadata,
+                  first_name: normalizedFirstName,
+                  last_name: normalizedLastName || undefined,
+                  full_name: fullName,
+                },
+              },
+            }
+          : currentSession
+      );
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not save profile." };
+    } finally {
+      setIsProfileSaving(false);
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     if (!authClient) {
@@ -1558,7 +1845,25 @@ export function App() {
     );
   }
 
-  if (!activeHouseholdId && pathname !== "/settings") {
+  if (!activeHouseholdId && pathname === "/settings") {
+    return (
+      <>
+        {dataError ? <div role="alert">{dataError}</div> : null}
+        <div className="dashboard-page">
+          <main className="dashboard-main">
+            <section className="calendar-card">
+              <p>Select a household in Profile before editing household settings.</p>
+              <button type="button" className="primary-pill" onClick={() => openSettingsSection("households")}>
+                Go to Profile Households
+              </button>
+            </section>
+          </main>
+        </div>
+      </>
+    );
+  }
+
+  if (!activeHouseholdId && pathname !== "/profile") {
     return (
       <>
         {dataError ? <div role="alert">{dataError}</div> : null}
@@ -1566,7 +1871,7 @@ export function App() {
           <main className="dashboard-main">
             <section className="calendar-card">
               <p>No household selected.</p>
-              <button type="button" className="primary-pill" onClick={() => navigateTo("/settings")}>
+              <button type="button" className="primary-pill" onClick={() => openSettingsSection("households")}>
                 Go to Households
               </button>
             </section>
@@ -1576,10 +1881,11 @@ export function App() {
     );
   }
 
-  return pathname === "/settings" ? (
+  return pathname === "/profile" ? (
     <>
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       <SettingsPage
+        mode="profile"
         households={households}
         activeHouseholdId={activeHouseholdId}
         onSwitchHousehold={(householdId) => {
@@ -1593,6 +1899,40 @@ export function App() {
         contextError={dataError}
         onRetryContextAction={retryLastContextAction}
         onGoHome={() => navigateTo("/")}
+        initialSection={settingsSection}
+        currentUserEmail={currentUserEmail}
+        initialProfileFirstName={profileFirstName}
+        initialProfileLastName={profileLastName}
+        isProfileSaving={isProfileSaving}
+        onSaveProfile={saveProfile}
+      />
+    </>
+  ) : pathname === "/settings" ? (
+    <>
+      {dataError ? <div role="alert">{dataError}</div> : null}
+      {isSaving ? <div aria-live="polite">Saving…</div> : null}
+      {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
+      <SettingsPage
+        mode="settings"
+        households={households}
+        activeHouseholdId={activeHouseholdId}
+        onSwitchHousehold={(householdId) => {
+          void switchActiveHousehold(householdId);
+        }}
+        onCreateHousehold={createAndSelectHousehold}
+        isContextLoading={isContextLoading}
+        isCreatingHousehold={isCreatingHousehold}
+        householdData={householdData}
+        setHouseholdData={setHouseholdData}
+        contextError={dataError}
+        onRetryContextAction={retryLastContextAction}
+        onGoHome={() => navigateTo("/")}
+        initialSection={settingsSection}
+        currentUserEmail={currentUserEmail}
+        initialProfileFirstName={profileFirstName}
+        initialProfileLastName={profileLastName}
+        isProfileSaving={isProfileSaving}
+        onSaveProfile={saveProfile}
       />
     </>
   ) : (
@@ -1604,9 +1944,11 @@ export function App() {
         theme={theme}
         setTheme={setTheme}
         householdData={householdData}
-        onOpenSettings={() => navigateTo("/settings")}
+        onOpenSettings={openSettingsSection}
         currentUserLabel={currentUserLabel}
+        currentUserEmail={currentUserEmail}
         currentUserInitials={currentUserInitials}
+        currentUserAvatarUrl={currentUserAvatarUrl}
         onSignOut={signOut}
       />
     </>
