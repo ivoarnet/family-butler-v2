@@ -670,11 +670,12 @@ body,
 
 @media (max-width: 1120px) {
   .auth-card {
+    width: min(560px, 100%);
     grid-template-columns: 1fr;
   }
 
   .auth-teaser {
-    min-height: 220px;
+    display: none;
   }
 
   .dashboard-header {
