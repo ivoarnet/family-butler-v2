@@ -118,9 +118,44 @@ export function AgentChat() {
                 suggestions: false,
               }}
               slotProps={{
+                root: {
+                  sx: { height: "100%" },
+                },
+                conversationRoot: {
+                  sx: { height: "100%" },
+                },
+                conversationHeader: {
+                  className: "agent-chat-conversation-header",
+                },
+                conversationTitle: {
+                  sx: { fontWeight: 700 },
+                },
+                conversationSubtitle: {
+                  sx: { color: "var(--text-secondary)" },
+                },
+                messageList: {
+                  sx: { px: "1.25rem", py: "1.2rem", background: "transparent" },
+                },
+                messageRoot: {
+                  sx: { mb: "0.55rem" },
+                },
+                messageContent: {
+                  className: "agent-chat-message-content",
+                },
+                composerRoot: {
+                  sx: {
+                    borderTop: "1px solid var(--border)",
+                    background: "var(--surface-strong)",
+                  },
+                },
                 composerInput: {
                   placeholder: "Message Family Butler Agent…",
                   "aria-label": "Message Agent Chat",
+                  sx: {
+                    borderRadius: "999px",
+                    border: "1px solid var(--border)",
+                    background: "var(--dialog-field)",
+                  },
                 },
               }}
             />

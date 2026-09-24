@@ -863,15 +863,11 @@ body,
   place-items: center;
 }
 
-.chat-fab {
-  background: linear-gradient(145deg, #5f79ff, #3e63ff);
-}
-
 .agent-chat-overlay {
   position: fixed;
   inset: 0;
   z-index: 50;
-  background: linear-gradient(160deg, rgba(11, 18, 36, 0.72), rgba(30, 18, 58, 0.68));
+  background: var(--dialog-backdrop);
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
 }
@@ -899,7 +895,7 @@ body,
   height: 100%;
 }
 
-.mui-agent-chat-box .MuiChatConversationHeader-root {
+.mui-agent-chat-box .agent-chat-conversation-header {
   padding-right: 4.1rem;
   border-bottom: 1px solid var(--border);
   background: var(--surface-strong);
@@ -907,38 +903,17 @@ body,
   -webkit-backdrop-filter: blur(16px);
 }
 
-.mui-agent-chat-box .MuiChatMessageList-root {
-  padding: 1.2rem 1.25rem;
-  background: transparent;
-}
-
-.mui-agent-chat-box .MuiChatMessage-root {
-  margin-bottom: 0.55rem;
-}
-
-.mui-agent-chat-box .MuiChatMessageContent-root {
-  border-radius: 1rem;
-}
-
 .mui-agent-chat-box .MuiChatMessageContent-root[data-message-role="assistant"] {
   background: rgba(127, 139, 255, 0.14);
+}
+
+.mui-agent-chat-box .agent-chat-message-content {
+  border-radius: 1rem;
   border: 1px solid var(--border);
 }
 
 .mui-agent-chat-box .MuiChatMessageContent-root[data-message-role="user"] {
   background: rgba(90, 108, 255, 0.25);
-  border: 1px solid var(--border);
-}
-
-.mui-agent-chat-box .MuiChatComposer-root {
-  border-top: 1px solid var(--border);
-  background: var(--surface-strong);
-}
-
-.mui-agent-chat-box .MuiChatComposerTextArea-input {
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--dialog-field);
 }
 
 @media (max-width: 1120px) {
