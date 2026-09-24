@@ -85,6 +85,16 @@ Health diagnostics:
 
 Use `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md` for the full cutover guide, including schema creation and seed SQL.
 
+## Agentic feature architecture docs
+
+For the planned agent chat + MCP functionality, see:
+
+- `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_OVERVIEW.md`
+- `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_CHAT_ARCHITECTURE.md`
+- `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_MCP_ARCHITECTURE.md`
+- `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_INFRASTRUCTURE.md`
+- `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_EVE_EVALUATION.md`
+
 ## Azure Deployment Notes
 
 This repository includes an Azure Static Web Apps workflow under:
