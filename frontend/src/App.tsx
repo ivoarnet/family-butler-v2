@@ -389,8 +389,6 @@ const splitProfileName = (fullName: string): { firstName: string; lastName: stri
 };
 
 function DashboardApp({
-  theme,
-  setTheme,
   householdData,
   onOpenSettings,
   currentUserLabel,
@@ -399,8 +397,6 @@ function DashboardApp({
   currentUserAvatarUrl,
   onSignOut,
 }: {
-  theme: ThemeMode;
-  setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
   onOpenSettings: (target: NavigationTarget) => void;
   currentUserLabel: string;
@@ -518,32 +514,6 @@ function DashboardApp({
         </div>
 
         <div className="header-meta">
-          <div className="live-clock" aria-live="polite">
-            <strong>
-              {now.toLocaleTimeString(DEMO_LOCALE, {
-                hour: "2-digit",
-                minute: "2-digit",
-              })}
-            </strong>
-            <span>
-              {new Intl.DateTimeFormat(DEMO_LOCALE, {
-                weekday: "long",
-                day: "numeric",
-                month: "long",
-              }).format(now)}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            className="icon-button"
-            onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
-            title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-            aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
-          >
-            {theme === "dark" ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}
-          </button>
-
           <button
             type="button"
             className="icon-button"
@@ -684,6 +654,8 @@ function SettingsPage({
   initialProfileLastName,
   isProfileSaving,
   onSaveProfile,
+  theme,
+  setTheme,
 }: {
   mode: "profile" | "settings";
   households: HouseholdSummary[];
@@ -703,6 +675,8 @@ function SettingsPage({
   initialProfileLastName: string;
   isProfileSaving: boolean;
   onSaveProfile: (firstName: string, lastName: string) => Promise<{ ok: boolean; error?: string }>;
+  theme: ThemeMode;
+  setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
 }) {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSection);
   const [newHouseholdName, setNewHouseholdName] = useState("");
@@ -1087,6 +1061,19 @@ function SettingsPage({
               <label>
                 Email
                 <input type="email" value={currentUserEmail} readOnly />
+              </label>
+              <label>
+                Appearance
+                <button
+                  type="button"
+                  className="primary-pill"
+                  onClick={() => setTheme((current) => (current === "dark" ? "light" : "dark"))}
+                  title={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                  aria-label={theme === "dark" ? "Switch to light mode" : "Switch to dark mode"}
+                >
+                  {theme === "dark" ? <LightModeIcon fontSize="small" /> : <DarkModeIcon fontSize="small" />}{" "}
+                  {theme === "dark" ? "Light mode" : "Dark mode"}
+                </button>
               </label>
               {profileFirstNameError ? <div role="alert">First name is required.</div> : null}
               {profileSaveError ? <div role="alert">{profileSaveError}</div> : null}
@@ -1905,6 +1892,8 @@ export function App() {
         initialProfileLastName={profileLastName}
         isProfileSaving={isProfileSaving}
         onSaveProfile={saveProfile}
+        theme={theme}
+        setTheme={setTheme}
       />
     </>
   ) : pathname === "/settings" ? (
@@ -1933,6 +1922,8 @@ export function App() {
         initialProfileLastName={profileLastName}
         isProfileSaving={isProfileSaving}
         onSaveProfile={saveProfile}
+        theme={theme}
+        setTheme={setTheme}
       />
     </>
   ) : (
@@ -1941,8 +1932,6 @@ export function App() {
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <DashboardApp
-        theme={theme}
-        setTheme={setTheme}
         householdData={householdData}
         onOpenSettings={openSettingsSection}
         currentUserLabel={currentUserLabel}
