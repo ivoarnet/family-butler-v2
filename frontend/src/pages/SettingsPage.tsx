@@ -656,23 +656,20 @@ export function SettingsPage({
 
       <main className="settings-main">
         {mode === "profile" ? (
-          <section className="settings-card">
-            <div className="section-toolbar">
-              <h2>My account</h2>
-              <div className="pill-group view-switcher" role="tablist" aria-label="Profile sections">
-                <button type="button" className={settingsSection === "profile" ? "active" : ""} onClick={() => setSettingsSection("profile")}>
-                  My profile
-                </button>
-                <button
-                  type="button"
-                  className={settingsSection === "households" ? "active" : ""}
-                  onClick={() => setSettingsSection("households")}
-                >
-                  My households
-                </button>
-              </div>
-            </div>
-          </section>
+          <div className="settings-tabs">
+            <Tabs
+              value={settingsSection}
+              onChange={(_, value) => setSettingsSection(value as SettingsSection)}
+              aria-label="Profile sections"
+              centered
+              textColor="inherit"
+              indicatorColor="secondary"
+              sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}
+            >
+              <Tab value="profile" label="My profile" />
+              <Tab value="households" label="My households" />
+            </Tabs>
+          </div>
         ) : null}
 
         {showSettingsWorkspace ? (
