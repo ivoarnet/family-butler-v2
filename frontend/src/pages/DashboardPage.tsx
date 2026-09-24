@@ -20,19 +20,8 @@ interface SpecialEvent {
   birthYear?: number;
 }
 
-interface DayBandSegment {
-  id: string;
-  category: DayConfigurationCategory;
-  marker: string;
-  layer: number;
-  startsInView: boolean;
-  endsInView: boolean;
-  showMarker: boolean;
-}
-
 interface DayCellDecorations {
   corners: Array<{ id: string; category: DayConfigurationCategory; marker: string }>;
-  bands: DayBandSegment[];
 }
 
 const DEMO_LOCALE = "de-CH";
@@ -310,22 +299,10 @@ export function DashboardPage({
       )
       .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
 
-    const multiDayConfigurations = sortedDayConfigurations.filter((dayConfiguration) => dayConfiguration.startDate < dayConfiguration.endDate);
-    const multiDayLayerById = new Map(multiDayConfigurations.map((dayConfiguration, index) => [dayConfiguration.id, index % 2]));
     const dayIndexByIso = new Map(dayIsoValues.map((iso, index) => [iso, index]));
 
     sortedDayConfigurations.forEach((dayConfiguration) => {
       const marker = getDayConfigurationMarker(dayConfiguration);
-      if (dayConfiguration.startDate === dayConfiguration.endDate) {
-        if (!dayIndexByIso.has(dayConfiguration.startDate)) {
-          return;
-        }
-        const entry = grouped.get(dayConfiguration.startDate) ?? { corners: [], bands: [] };
-        entry.corners.push({ id: dayConfiguration.id, category: dayConfiguration.category, marker });
-        grouped.set(dayConfiguration.startDate, entry);
-        return;
-      }
-
       if (dayConfiguration.endDate < firstIso || dayConfiguration.startDate > lastIso) {
         return;
       }
@@ -338,21 +315,10 @@ export function DashboardPage({
         return;
       }
 
-      const markerDayIndex = Math.floor((startIndex + endIndex) / 2);
-      const layer = multiDayLayerById.get(dayConfiguration.id) ?? 0;
-
       for (let index = startIndex; index <= endIndex; index += 1) {
         const isoDate = dayIsoValues[index];
-        const entry = grouped.get(isoDate) ?? { corners: [], bands: [] };
-        entry.bands.push({
-          id: dayConfiguration.id,
-          category: dayConfiguration.category,
-          marker,
-          layer,
-          startsInView: index === startIndex && dayConfiguration.startDate >= firstIso,
-          endsInView: index === endIndex && dayConfiguration.endDate <= lastIso,
-          showMarker: index === markerDayIndex,
-        });
+        const entry = grouped.get(isoDate) ?? { corners: [] };
+        entry.corners.push({ id: `${dayConfiguration.id}-${isoDate}`, category: dayConfiguration.category, marker });
         grouped.set(isoDate, entry);
       }
     });
@@ -640,7 +606,7 @@ export function DashboardPage({
                   const isToday = isoDate === todayIso;
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
-                  const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [], bands: [] };
+                  const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
 
                   return (
                     <tr
@@ -648,17 +614,6 @@ export function DashboardPage({
                       className={`${isToday ? "today-row" : ""} ${!isToday && isWeekend ? "weekend-row" : ""}`.trim()}
                     >
                       <td className="day-cell">
-                        {dayDecorations.bands.map((band) => (
-                          <span
-                            key={`${band.id}-${band.layer}`}
-                            className={`day-special-band ${DAY_CONFIGURATION_META[band.category].className} ${
-                              band.startsInView ? "band-start" : ""
-                            } ${band.endsInView ? "band-end" : ""}`.trim()}
-                            style={{ right: `${0.35 + band.layer * 0.95}rem` }}
-                          >
-                            {band.showMarker ? <span className="day-special-band-marker">{band.marker}</span> : null}
-                          </span>
-                        ))}
                         {dayDecorations.corners.map((corner, index) => (
                           <span
                             key={corner.id}

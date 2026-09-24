@@ -728,36 +728,6 @@ body,
   padding: 0.1rem 0;
 }
 
-.day-special-band {
-  position: absolute;
-  top: 0;
-  bottom: 0;
-  width: 0.8rem;
-  z-index: 1;
-}
-
-.day-special-band.band-start {
-  border-top-left-radius: 0.35rem;
-  border-top-right-radius: 0.35rem;
-}
-
-.day-special-band.band-end {
-  border-bottom-left-radius: 0.35rem;
-  border-bottom-right-radius: 0.35rem;
-}
-
-.day-special-band-marker {
-  position: absolute;
-  inset: 0;
-  display: grid;
-  place-items: center;
-  color: #fff;
-  font-size: 0.6rem;
-  font-weight: 800;
-  letter-spacing: 0.04em;
-  transform: rotate(90deg);
-}
-
 .school-off {
   background: #3b82f6;
 }
