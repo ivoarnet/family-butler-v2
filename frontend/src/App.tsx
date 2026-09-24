@@ -14,6 +14,7 @@ import LightModeIcon from "@mui/icons-material/LightMode";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./components/auth/AuthScreen";
+import { AvatarContextMenu } from "./components/AvatarContextMenu";
 import { ContactDialog } from "./components/ContactDialog";
 import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
@@ -567,53 +568,24 @@ function DashboardApp({
             </button>
 
             {isAvatarMenuOpen ? (
-              <div className="avatar-context-menu" role="menu" aria-label="Account menu">
-                <div className="avatar-menu-header">
-                  <span className="avatar-menu-profile-avatar" aria-hidden>
-                    {currentUserAvatarUrl ? <img src={currentUserAvatarUrl} alt="" /> : currentUserInitials}
-                  </span>
-                  <div className="avatar-menu-profile-meta">
-                    <strong>{currentUserLabel}</strong>
-                    <span>{currentUserEmail || "No email available"}</span>
-                  </div>
-                </div>
-                <div className="avatar-menu-section">
-                  <button
-                    type="button"
-                    className="avatar-menu-link"
-                    onClick={() => {
-                      setIsAvatarMenuOpen(false);
-                      onOpenSettings("profile");
-                    }}
-                  >
-                    <span>My profile</span>
-                    <span aria-hidden>›</span>
-                  </button>
-                  <button
-                    type="button"
-                    className="avatar-menu-link"
-                    onClick={() => {
-                      setIsAvatarMenuOpen(false);
-                      onOpenSettings("households");
-                    }}
-                  >
-                    <span>My households</span>
-                    <span aria-hidden>›</span>
-                  </button>
-                </div>
-                <div className="avatar-menu-actions">
-                  <button
-                    type="button"
-                    className="primary-pill avatar-menu-logout-button"
-                    onClick={() => {
-                      setIsAvatarMenuOpen(false);
-                      void onSignOut();
-                    }}
-                  >
-                    Logout
-                  </button>
-                </div>
-              </div>
+              <AvatarContextMenu
+                currentUserLabel={currentUserLabel}
+                currentUserEmail={currentUserEmail}
+                currentUserInitials={currentUserInitials}
+                currentUserAvatarUrl={currentUserAvatarUrl}
+                onProfileClick={() => {
+                  setIsAvatarMenuOpen(false);
+                  onOpenSettings("profile");
+                }}
+                onHouseholdsClick={() => {
+                  setIsAvatarMenuOpen(false);
+                  onOpenSettings("households");
+                }}
+                onLogoutClick={() => {
+                  setIsAvatarMenuOpen(false);
+                  void onSignOut();
+                }}
+              />
             ) : null}
           </div>
         </div>

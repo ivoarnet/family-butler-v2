@@ -306,8 +306,8 @@ body,
   border-radius: 0.95rem;
   border: 1px solid var(--border);
   background: var(--surface);
-  backdrop-filter: blur(20px);
-  -webkit-backdrop-filter: blur(20px);
+  backdrop-filter: blur(34px);
+  -webkit-backdrop-filter: blur(34px);
   box-shadow: var(--shadow);
   display: grid;
   gap: 0.7rem;
