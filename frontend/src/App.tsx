@@ -59,6 +59,8 @@ interface ContactFormState {
   mobilePhone: string;
 }
 
+type SettingsSection = "profile" | "households";
+
 const THEME_STORAGE_KEY = "family-butler-theme";
 const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
 const DEMO_LOCALE = "de-CH";
@@ -367,27 +369,42 @@ const getUserInitials = (label: string): string => {
   return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
 };
 
+const splitProfileName = (fullName: string): { firstName: string; lastName: string } => {
+  const parts = fullName
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+
+  if (parts.length === 0) {
+    return { firstName: "", lastName: "" };
+  }
+
+  if (parts.length === 1) {
+    return { firstName: parts[0], lastName: "" };
+  }
+
+  return { firstName: parts[0], lastName: parts.slice(1).join(" ") };
+};
+
 function DashboardApp({
   theme,
   setTheme,
   householdData,
-  households,
-  activeHouseholdId,
-  onSwitchHousehold,
   onOpenSettings,
   currentUserLabel,
+  currentUserEmail,
   currentUserInitials,
+  currentUserAvatarUrl,
   onSignOut,
 }: {
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
-  households: HouseholdSummary[];
-  activeHouseholdId: string | null;
-  onSwitchHousehold: (householdId: string) => void;
-  onOpenSettings: () => void;
+  onOpenSettings: (section: SettingsSection) => void;
   currentUserLabel: string;
+  currentUserEmail: string;
   currentUserInitials: string;
+  currentUserAvatarUrl: string | null;
   onSignOut: () => Promise<void>;
 }) {
   const [now, setNow] = useState(() => new Date());
@@ -447,10 +464,6 @@ function DashboardApp({
 
   const periodLabel = useMemo(() => formatPeriodRange(periodStart, DEMO_LOCALE), [periodStart]);
   const todayIso = toIsoDate(now);
-  const activeHouseholdName =
-    households.find((household) => household.id === activeHouseholdId)?.name ??
-    (activeHouseholdId ? householdData.householdName : "No active household");
-
   return (
     <div className="dashboard-page">
       <header className="dashboard-header" role="banner">
@@ -532,7 +545,7 @@ function DashboardApp({
           <button
             type="button"
             className="icon-button"
-            onClick={onOpenSettings}
+            onClick={() => onOpenSettings("households")}
             title="Open settings"
             aria-label="Open settings"
           >
@@ -554,57 +567,43 @@ function DashboardApp({
 
             {isAvatarMenuOpen ? (
               <div className="avatar-context-menu" role="menu" aria-label="Account menu">
-                <div className="avatar-menu-section">
-                  <strong>My profile</strong>
-                  <span>{currentUserLabel}</span>
+                <div className="avatar-menu-header">
+                  <span className="avatar-menu-profile-avatar" aria-hidden>
+                    {currentUserAvatarUrl ? <img src={currentUserAvatarUrl} alt="" /> : currentUserInitials}
+                  </span>
+                  <div className="avatar-menu-profile-meta">
+                    <strong>{currentUserLabel}</strong>
+                    <span>{currentUserEmail || "No email available"}</span>
+                  </div>
                 </div>
                 <div className="avatar-menu-section">
-                  <strong>My households</strong>
-                  {households.length === 0 ? (
-                    <span>No households yet</span>
-                  ) : (
-                    <div className="avatar-household-list">
-                      {households.map((household) => {
-                        const isActive = household.id === activeHouseholdId;
-                        return (
-                          <button
-                            key={household.id}
-                            type="button"
-                            className={`avatar-household-item ${isActive ? "active" : ""}`}
-                            onClick={() => {
-                              setIsAvatarMenuOpen(false);
-                              if (!isActive) {
-                                onSwitchHousehold(household.id);
-                              }
-                            }}
-                            disabled={isActive}
-                          >
-                            {household.name}
-                            {isActive ? " (active)" : ""}
-                          </button>
-                        );
-                      })}
-                    </div>
-                  )}
-                </div>
-                <div className="avatar-menu-section">
-                  <strong>Active household</strong>
-                  <span>{activeHouseholdName}</span>
+                  <button
+                    type="button"
+                    className="avatar-menu-link"
+                    onClick={() => {
+                      setIsAvatarMenuOpen(false);
+                      onOpenSettings("profile");
+                    }}
+                  >
+                    <span>My profile</span>
+                    <span aria-hidden>›</span>
+                  </button>
+                  <button
+                    type="button"
+                    className="avatar-menu-link"
+                    onClick={() => {
+                      setIsAvatarMenuOpen(false);
+                      onOpenSettings("households");
+                    }}
+                  >
+                    <span>My households</span>
+                    <span aria-hidden>›</span>
+                  </button>
                 </div>
                 <div className="avatar-menu-actions">
                   <button
                     type="button"
-                    className="primary-pill"
-                    onClick={() => {
-                      setIsAvatarMenuOpen(false);
-                      onOpenSettings();
-                    }}
-                  >
-                    Settings
-                  </button>
-                  <button
-                    type="button"
-                    className="primary-pill"
+                    className="primary-pill avatar-menu-logout-button"
                     onClick={() => {
                       setIsAvatarMenuOpen(false);
                       void onSignOut();
@@ -696,7 +695,6 @@ function DashboardApp({
 function SettingsPage({
   households,
   activeHouseholdId,
-  onSwitchHousehold,
   onCreateHousehold,
   isContextLoading,
   isCreatingHousehold,
@@ -705,10 +703,15 @@ function SettingsPage({
   contextError,
   onRetryContextAction,
   onGoHome,
+  initialSection,
+  currentUserEmail,
+  initialProfileFirstName,
+  initialProfileLastName,
+  isProfileSaving,
+  onSaveProfile,
 }: {
   households: HouseholdSummary[];
   activeHouseholdId: string | null;
-  onSwitchHousehold: (householdId: string) => void;
   onCreateHousehold: (householdName: string) => Promise<{ ok: boolean; error?: string }>;
   isContextLoading: boolean;
   isCreatingHousehold: boolean;
@@ -717,7 +720,14 @@ function SettingsPage({
   contextError: string | null;
   onRetryContextAction: () => void;
   onGoHome: () => void;
+  initialSection: SettingsSection;
+  currentUserEmail: string;
+  initialProfileFirstName: string;
+  initialProfileLastName: string;
+  isProfileSaving: boolean;
+  onSaveProfile: (firstName: string, lastName: string) => Promise<{ ok: boolean; error?: string }>;
 }) {
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSection);
   const [newHouseholdName, setNewHouseholdName] = useState("");
   const [createHouseholdSubmitted, setCreateHouseholdSubmitted] = useState(false);
   const [createHouseholdError, setCreateHouseholdError] = useState<string | null>(null);
@@ -731,6 +741,11 @@ function SettingsPage({
   const [editingContactId, setEditingContactId] = useState<string | null>(null);
   const [contactFormSubmitted, setContactFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
+  const [profileFirstName, setProfileFirstName] = useState(initialProfileFirstName);
+  const [profileLastName, setProfileLastName] = useState(initialProfileLastName);
+  const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
+  const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
+  const [profileSaveInfo, setProfileSaveInfo] = useState<string | null>(null);
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -749,8 +764,19 @@ function SettingsPage({
     });
   }, [contactSearch, householdData.contacts]);
   const canEditActiveHousehold = Boolean(activeHouseholdId) && !isContextLoading;
+  const showHouseholdWorkspace = settingsSection === "households";
 
   const createHouseholdNameError = createHouseholdSubmitted && !newHouseholdName.trim();
+  const profileFirstNameError = profileSubmitAttempted && !profileFirstName.trim();
+
+  useEffect(() => {
+    setSettingsSection(initialSection);
+  }, [initialSection]);
+
+  useEffect(() => {
+    setProfileFirstName(initialProfileFirstName);
+    setProfileLastName(initialProfileLastName);
+  }, [initialProfileFirstName, initialProfileLastName]);
 
   const openAddHousehold = () => {
     setCreateHouseholdSubmitted(false);
@@ -786,6 +812,27 @@ function SettingsPage({
     setCreateHouseholdSubmitted(false);
     setNewHouseholdName("");
     setHouseholdModalOpen(false);
+  };
+
+  const submitProfile = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    setProfileSubmitAttempted(true);
+    setProfileSaveInfo(null);
+    setProfileSaveError(null);
+
+    const firstName = profileFirstName.trim();
+    const lastName = profileLastName.trim();
+    if (!firstName) {
+      return;
+    }
+
+    const result = await onSaveProfile(firstName, lastName);
+    if (!result.ok) {
+      setProfileSaveError(result.error ?? "Could not save profile.");
+      return;
+    }
+
+    setProfileSaveInfo("Profile updated.");
   };
 
   const openAddMember = () => {
@@ -1008,6 +1055,67 @@ function SettingsPage({
       <main className="settings-main">
         <section className="settings-card">
           <div className="section-toolbar">
+            <h2>My account</h2>
+            <div className="pill-group view-switcher" role="tablist" aria-label="Account sections">
+              <button type="button" className={settingsSection === "profile" ? "active" : ""} onClick={() => setSettingsSection("profile")}>
+                My profile
+              </button>
+              <button
+                type="button"
+                className={settingsSection === "households" ? "active" : ""}
+                onClick={() => setSettingsSection("households")}
+              >
+                My households
+              </button>
+            </div>
+          </div>
+        </section>
+
+        {settingsSection === "profile" ? (
+          <section className="settings-card">
+            <h2>My profile</h2>
+            <form className="auth-form" onSubmit={submitProfile}>
+              <div className="edit-grid">
+                <label>
+                  First name
+                  <input
+                    type="text"
+                    value={profileFirstName}
+                    onChange={(event) => setProfileFirstName(event.target.value)}
+                    placeholder="First name"
+                    autoComplete="given-name"
+                  />
+                </label>
+                <label>
+                  Last name
+                  <input
+                    type="text"
+                    value={profileLastName}
+                    onChange={(event) => setProfileLastName(event.target.value)}
+                    placeholder="Last name"
+                    autoComplete="family-name"
+                  />
+                </label>
+              </div>
+              <label>
+                Email
+                <input type="email" value={currentUserEmail} readOnly />
+              </label>
+              {profileFirstNameError ? <div role="alert">First name is required.</div> : null}
+              {profileSaveError ? <div role="alert">{profileSaveError}</div> : null}
+              {profileSaveInfo ? <div aria-live="polite">{profileSaveInfo}</div> : null}
+              <div className="sheet-actions">
+                <button type="submit" disabled={isProfileSaving}>
+                  {isProfileSaving ? "Saving…" : "Save profile"}
+                </button>
+              </div>
+            </form>
+          </section>
+        ) : null}
+
+        {showHouseholdWorkspace ? (
+        <section className="settings-card">
+          <div className="section-toolbar">
             <h2>Households</h2>
             <button type="button" className="primary-pill no-wrap-button" onClick={openAddHousehold} disabled={isCreatingHousehold || isContextLoading}>
               Create household
@@ -1057,13 +1165,17 @@ function SettingsPage({
             }}
           />
         </section>
+        ) : null}
 
+        {showHouseholdWorkspace ? (
         <section className="settings-card">
           <div className="coming-soon-card">
             <strong>Household context applies to all sections below.</strong>
           </div>
         </section>
+        ) : null}
 
+        {showHouseholdWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
@@ -1175,7 +1287,9 @@ function SettingsPage({
             onVisibleInCalendarChange={(value) => setMemberFormState((current) => ({ ...current, visibleInCalendar: value }))}
           />
         </section>
+        ) : null}
 
+        {showHouseholdWorkspace ? (
         <section className="settings-card">
           <div className="section-toolbar responsive-toolbar">
             <h2>Contact List</h2>
@@ -1258,6 +1372,7 @@ function SettingsPage({
             onFormStateChange={(updater) => setContactFormState((current) => updater(current))}
           />
         </section>
+        ) : null}
       </main>
     </div>
   );
@@ -1283,6 +1398,10 @@ export function App() {
   const [isContextLoading, setIsContextLoading] = useState(false);
   const [isCreatingHousehold, setIsCreatingHousehold] = useState(false);
   const [failedAction, setFailedAction] = useState<FailedAction>(null);
+  const [settingsSection, setSettingsSection] = useState<SettingsSection>("profile");
+  const [profileFirstName, setProfileFirstName] = useState("");
+  const [profileLastName, setProfileLastName] = useState("");
+  const [isProfileSaving, setIsProfileSaving] = useState(false);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -1534,6 +1653,88 @@ export function App() {
   const currentUser = authSession?.user ?? null;
   const currentUserLabel = useMemo(() => (currentUser ? getUserDisplayName(currentUser) : ""), [currentUser]);
   const currentUserInitials = useMemo(() => getUserInitials(currentUserLabel), [currentUserLabel]);
+  const currentUserEmail = currentUser?.email?.trim() ?? "";
+  const currentUserAvatarUrl =
+    typeof currentUser?.user_metadata?.avatar_url === "string" && currentUser.user_metadata.avatar_url.trim()
+      ? currentUser.user_metadata.avatar_url.trim()
+      : null;
+
+  useEffect(() => {
+    if (!currentUser) {
+      setProfileFirstName("");
+      setProfileLastName("");
+      return;
+    }
+
+    const metadataFirst =
+      typeof currentUser.user_metadata?.first_name === "string" ? currentUser.user_metadata.first_name.trim() : "";
+    const metadataLast =
+      typeof currentUser.user_metadata?.last_name === "string" ? currentUser.user_metadata.last_name.trim() : "";
+    const metadataFull =
+      typeof currentUser.user_metadata?.full_name === "string" ? currentUser.user_metadata.full_name.trim() : "";
+    const derived = splitProfileName(metadataFull || currentUserLabel);
+
+    setProfileFirstName(metadataFirst || derived.firstName);
+    setProfileLastName(metadataLast || derived.lastName);
+  }, [currentUser, currentUserLabel]);
+
+  const openSettingsSection = (section: SettingsSection) => {
+    setSettingsSection(section);
+    navigateTo("/settings");
+  };
+
+  const saveProfile = async (firstName: string, lastName: string): Promise<{ ok: boolean; error?: string }> => {
+    if (!authClient) {
+      return { ok: false, error: "Authentication client is not configured." };
+    }
+
+    const normalizedFirstName = firstName.trim();
+    const normalizedLastName = lastName.trim();
+    if (!normalizedFirstName) {
+      return { ok: false, error: "First name is required." };
+    }
+
+    const fullName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ");
+
+    setIsProfileSaving(true);
+    try {
+      const { error } = await authClient.auth.updateUser({
+        data: {
+          first_name: normalizedFirstName,
+          last_name: normalizedLastName || undefined,
+          full_name: fullName,
+        },
+      });
+
+      if (error) {
+        return { ok: false, error: error.message };
+      }
+
+      setProfileFirstName(normalizedFirstName);
+      setProfileLastName(normalizedLastName);
+      setAuthSession((currentSession) =>
+        currentSession
+          ? {
+              ...currentSession,
+              user: {
+                ...currentSession.user,
+                user_metadata: {
+                  ...currentSession.user.user_metadata,
+                  first_name: normalizedFirstName,
+                  last_name: normalizedLastName || undefined,
+                  full_name: fullName,
+                },
+              },
+            }
+          : currentSession
+      );
+      return { ok: true };
+    } catch (error) {
+      return { ok: false, error: error instanceof Error ? error.message : "Could not save profile." };
+    } finally {
+      setIsProfileSaving(false);
+    }
+  };
 
   const signIn = async (email: string, password: string) => {
     if (!authClient) {
@@ -1640,7 +1841,7 @@ export function App() {
           <main className="dashboard-main">
             <section className="calendar-card">
               <p>No household selected.</p>
-              <button type="button" className="primary-pill" onClick={() => navigateTo("/settings")}>
+              <button type="button" className="primary-pill" onClick={() => openSettingsSection("households")}>
                 Go to Households
               </button>
             </section>
@@ -1656,9 +1857,6 @@ export function App() {
       <SettingsPage
         households={households}
         activeHouseholdId={activeHouseholdId}
-        onSwitchHousehold={(householdId) => {
-          void switchActiveHousehold(householdId);
-        }}
         onCreateHousehold={createAndSelectHousehold}
         isContextLoading={isContextLoading}
         isCreatingHousehold={isCreatingHousehold}
@@ -1667,6 +1865,12 @@ export function App() {
         contextError={dataError}
         onRetryContextAction={retryLastContextAction}
         onGoHome={() => navigateTo("/")}
+        initialSection={settingsSection}
+        currentUserEmail={currentUserEmail}
+        initialProfileFirstName={profileFirstName}
+        initialProfileLastName={profileLastName}
+        isProfileSaving={isProfileSaving}
+        onSaveProfile={saveProfile}
       />
     </>
   ) : (
@@ -1678,14 +1882,11 @@ export function App() {
         theme={theme}
         setTheme={setTheme}
         householdData={householdData}
-        households={households}
-        activeHouseholdId={activeHouseholdId}
-        onSwitchHousehold={(householdId) => {
-          void switchActiveHousehold(householdId);
-        }}
-        onOpenSettings={() => navigateTo("/settings")}
+        onOpenSettings={openSettingsSection}
         currentUserLabel={currentUserLabel}
+        currentUserEmail={currentUserEmail}
         currentUserInitials={currentUserInitials}
+        currentUserAvatarUrl={currentUserAvatarUrl}
         onSignOut={signOut}
       />
     </>
