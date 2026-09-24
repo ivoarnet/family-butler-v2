@@ -97,6 +97,7 @@ const parseResponseError = async (response: Response, fallback: string): Promise
 const createRequestHeaders = (accessToken: string, includeJsonContentType = false): HeadersInit => {
   const headers: Record<string, string> = {
     Authorization: ["Bearer", accessToken].join(" "),
+    "x-supabase-auth-token": accessToken,
   };
   if (includeJsonContentType) {
     headers["Content-Type"] = "application/json";

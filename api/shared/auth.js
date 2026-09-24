@@ -5,6 +5,13 @@ const getBearerToken = (headers) => {
     return "";
   }
 
+  const forwardedToken =
+    cleanString(headers["x-supabase-auth-token"]) ||
+    cleanString(headers["X-Supabase-Auth-Token"]);
+  if (forwardedToken) {
+    return forwardedToken;
+  }
+
   const rawAuthorization =
     cleanString(headers.authorization) ||
     cleanString(headers.Authorization);
