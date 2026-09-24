@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
-import { Contact } from "../types/family";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
+import { Contact } from "../types/family";
 
 interface SpecialEvent {
   id: string;
@@ -175,31 +175,83 @@ export function DashboardPage({
     };
   }, [isAvatarMenuOpen]);
 
+  const periodLabel = useMemo(() => formatPeriodRange(periodStart, DEMO_LOCALE), [periodStart]);
+  const todayIso = toIsoDate(now);
   return (
     <div className="dashboard-page">
-      <header className="dashboard-header">
-        <div className="brand">
-          <span className="brand-pill">Family Butler</span>
-          <h1>{householdData.householdName}</h1>
+      <header className="dashboard-header" role="banner">
+        <div className="header-branding">
+          <div className="icon-badge" aria-hidden>
+            <CalendarMonthIcon fontSize="medium" />
+          </div>
+          <div>
+            <h1>{householdData.householdName}</h1>
+            <p>{periodLabel}</p>
+          </div>
         </div>
+
         <div className="header-controls">
-          <button type="button" className="ghost-button" onClick={() => onOpenSettings("settings")}>
-            <SettingsIcon fontSize="small" />
-            Settings
-          </button>
-          <div className="avatar-context-anchor" ref={avatarMenuRef}>
+          <div className="pill-group" role="group" aria-label="Period navigation">
             <button
               type="button"
-              className={`avatar-badge-button${isAvatarMenuOpen ? " open" : ""}`}
-              onClick={() => setIsAvatarMenuOpen((current) => !current)}
-              aria-haspopup="menu"
-              aria-expanded={isAvatarMenuOpen}
-              aria-label="Open account menu"
+              className="icon-button"
+              title="Previous two-week period"
+              onClick={() => setPeriodStart((current) => addDays(current, -14))}
             >
-              <span className="avatar-badge" aria-hidden>
-                {currentUserAvatarUrl ? <img src={currentUserAvatarUrl} alt="" /> : currentUserInitials}
-              </span>
+              <ChevronLeftIcon fontSize="small" />
             </button>
+            <button
+              type="button"
+              className="icon-button"
+              title="Jump to current period"
+              onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
+            >
+              <CalendarMonthIcon fontSize="small" />
+            </button>
+            <button
+              type="button"
+              className="icon-button"
+              title="Next two-week period"
+              onClick={() => setPeriodStart((current) => addDays(current, 14))}
+            >
+              <ChevronRightIcon fontSize="small" />
+            </button>
+          </div>
+
+          <div className="pill-group view-switcher" role="group" aria-label="View switcher">
+            <button type="button" className="active" aria-pressed="true">
+              2 Weeks
+            </button>
+            <button type="button" disabled title="Month view is coming soon">
+              Month
+            </button>
+          </div>
+        </div>
+
+        <div className="header-meta">
+          <button
+            type="button"
+            className="icon-button"
+            onClick={() => onOpenSettings("settings")}
+            title="Open settings"
+            aria-label="Open settings"
+          >
+            <SettingsIcon fontSize="small" />
+          </button>
+
+          <div className="avatar-menu-wrapper" ref={avatarMenuRef}>
+            <button
+              type="button"
+              className="icon-button user-avatar-button"
+              onClick={() => setIsAvatarMenuOpen((current) => !current)}
+              title={`${currentUserLabel} · Open account menu`}
+              aria-label={`${currentUserLabel} · Open account menu`}
+              aria-expanded={isAvatarMenuOpen}
+              aria-haspopup="menu"
+            >
+              {currentUserInitials}
+            </button>
+
             {isAvatarMenuOpen ? (
               <AvatarContextMenu
                 currentUserLabel={currentUserLabel}
@@ -207,12 +259,12 @@ export function DashboardPage({
                 currentUserInitials={currentUserInitials}
                 currentUserAvatarUrl={currentUserAvatarUrl}
                 onProfileClick={() => {
-                  onOpenSettings("profile");
                   setIsAvatarMenuOpen(false);
+                  onOpenSettings("profile");
                 }}
                 onHouseholdsClick={() => {
-                  onOpenSettings("households");
                   setIsAvatarMenuOpen(false);
+                  onOpenSettings("households");
                 }}
                 onLogoutClick={() => {
                   setIsAvatarMenuOpen(false);
@@ -225,95 +277,66 @@ export function DashboardPage({
       </header>
 
       <main className="dashboard-main">
-        <section className="calendar-card">
-          <div className="calendar-toolbar">
-            <div>
-              <p className="toolbar-label">Current period</p>
-              <h2>{formatPeriodRange(periodStart, DEMO_LOCALE)}</h2>
-            </div>
-            <div className="toolbar-actions">
-              <button type="button" className="icon-button" aria-label="Previous period" onClick={() => setPeriodStart(addDays(periodStart, -14))}>
-                <ChevronLeftIcon fontSize="small" />
-              </button>
-              <button type="button" className="icon-button" aria-label="Next period" onClick={() => setPeriodStart(addDays(periodStart, 14))}>
-                <ChevronRightIcon fontSize="small" />
-              </button>
-            </div>
-          </div>
-
-          <div className="calendar-grid-wrapper">
+        <section className="calendar-card" aria-label="Two week family calendar">
+          <div className="calendar-scroll">
             <table className="calendar-grid">
               <thead>
                 <tr>
-                  <th scope="col" className="sticky-col time-col">
-                    <span>Time</span>
+                  <th className="day-column-header">DAY</th>
+                  {visibleMembers.map((member) => (
+                    <th key={member.id}>
+                      <div className="member-header">
+                        <span className="avatar" style={{ backgroundColor: member.avatarColor }}>
+                          {member.firstName.charAt(0)}
+                        </span>
+                        <span>{member.firstName}</span>
+                      </div>
+                    </th>
+                  ))}
+                  <th>
+                    <div className="member-header">
+                      <span className="avatar avatar-birthday">
+                        <CakeRoundedIcon fontSize="small" />
+                      </span>
+                      <span>Birthdays</span>
+                    </div>
                   </th>
-                  {days.map((day) => {
-                    const dayKey = toIsoDate(day);
-                    const isToday = day.toDateString() === now.toDateString();
-                    return (
-                      <th key={dayKey} scope="col" className={isToday ? "today-col" : ""}>
-                        <span className="weekday">{getWeekdayAbbreviation(day, DEMO_LOCALE)}</span>
-                        <span>{getDayLabel(day, DEMO_LOCALE)}</span>
-                      </th>
-                    );
-                  })}
                 </tr>
               </thead>
               <tbody>
-                <tr className="birthday-row">
-                  <th scope="row" className="sticky-col time-col">
-                    <span className="time-label">
-                      <CakeRoundedIcon fontSize="small" />
-                      Birthdays
-                    </span>
-                  </th>
-                  {days.map((day) => {
-                    const dayKey = toIsoDate(day);
-                    const birthdayEvents = birthdayEventsByDate.get(dayKey) ?? [];
-                    return (
-                      <td key={`birthday-${dayKey}`} className={birthdayEvents.length ? "birthday-day-cell has-birthday" : "birthday-day-cell"}>
-                        {birthdayEvents.length ? (
-                          <ul className="birthday-event-list">
-                            {birthdayEvents.map((event) => (
-                              <li key={event.id} className="birthday-event-item" title={formatBirthdayLabel(event)}>
-                                <CakeRoundedIcon fontSize="inherit" />
-                                <span>{formatBirthdayLabel(event)}</span>
-                              </li>
-                            ))}
-                          </ul>
-                        ) : (
-                          <span className="birthday-empty">—</span>
-                        )}
+                {days.map((day) => {
+                  const isoDate = toIsoDate(day);
+                  const isToday = isoDate === todayIso;
+                  const isWeekend = day.getDay() === 0 || day.getDay() === 6;
+                  const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
+
+                  return (
+                    <tr
+                      key={isoDate}
+                      className={`${isToday ? "today-row" : ""} ${!isToday && isWeekend ? "weekend-row" : ""}`.trim()}
+                    >
+                      <td className="day-cell">
+                        <div className="weekday-label-wrap">
+                          <span className="weekday-label">{getWeekdayAbbreviation(day, DEMO_LOCALE)}</span>
+                          {isToday && <span className="today-pill">Today</span>}
+                        </div>
+                        <strong>{getDayLabel(day, DEMO_LOCALE)}</strong>
                       </td>
-                    );
-                  })}
-                </tr>
-                {visibleMembers.map((member) => (
-                  <tr key={member.id}>
-                    <th scope="row" className="sticky-col member-col">
-                      <span className="member-avatar" style={{ backgroundColor: member.avatarColor }}>
-                        {member.firstName.charAt(0)}
-                      </span>
-                      <div>
-                        <strong>{member.firstName}</strong>
-                        {member.role ? <small>{member.role}</small> : null}
-                      </div>
-                    </th>
-                    {days.map((day) => (
-                      <td key={`${member.id}-${toIsoDate(day)}`}>
-                        <button
-                          type="button"
-                          className="slot-button"
-                          disabled
-                          title={`Add event for ${member.firstName} on ${day.toLocaleDateString(DEMO_LOCALE)}`}
-                        >
-                          <CalendarMonthIcon fontSize="small" />
-                        </button>
+
+                      {visibleMembers.map((member) => (
+                        <td key={`${isoDate}-${member.id}`} className="event-cell" />
+                      ))}
+
+                      <td className="birthday-cell">
+                        {birthdayEntries.map((entry) => (
+                          <span className="birthday-item" key={entry.id}>
+                            {formatBirthdayLabel(entry)}
+                          </span>
+                        ))}
                       </td>
-                    ))}
-                  </tr>
-                ))}
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           </div>
