@@ -111,7 +111,12 @@ export function AgentChat() {
                   sx: { height: "100%" },
                 },
                 conversationRoot: {
-                  sx: { height: "100%" },
+                  sx: {
+                    height: "100%",
+                    background: "var(--dialog-surface)",
+                    color: "var(--text-primary)",
+                    overflow: "hidden",
+                  },
                 },
                 conversationHeader: {
                   className: "agent-chat-conversation-header",
@@ -123,7 +128,13 @@ export function AgentChat() {
                   sx: { color: "var(--text-secondary)" },
                 },
                 messageList: {
-                  sx: { px: "1.25rem", py: "1.2rem", background: "transparent" },
+                  sx: {
+                    px: "1.25rem",
+                    py: "1.2rem",
+                    background: "var(--dialog-panel)",
+                    color: "var(--text-primary)",
+                    overflowX: "hidden",
+                  },
                 },
                 messageRoot: {
                   sx: { mb: "0.55rem" },
@@ -134,7 +145,7 @@ export function AgentChat() {
                 composerRoot: {
                   sx: {
                     borderTop: "1px solid var(--border)",
-                    background: "var(--surface-strong)",
+                    background: "var(--dialog-panel)",
                   },
                 },
                 composerInput: {
@@ -144,6 +155,7 @@ export function AgentChat() {
                     borderRadius: "999px",
                     border: "1px solid var(--border)",
                     background: "var(--dialog-field)",
+                    color: "var(--text-primary)",
                   },
                 },
               }}

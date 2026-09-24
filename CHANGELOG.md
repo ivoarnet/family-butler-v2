@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Refined Agent Chat dark-mode styling so conversation surfaces, typography, and composer input consistently use existing dialog theme tokens, with overflow handling for long message lines.
 - Implemented a visual-only **Agent Chat** dashboard experience with a dedicated chat floating action button and fullscreen modern chat window, extracted into `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/agentic/components/AgentChat.tsx`, now rendered with **MUI X Chat** (`@mui/x-chat`) components.
 - Added updated Agent Chat UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-agent-chat-fullscreen.png`.
 - Added agentic feature architecture documentation as a separate documentation set under `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic`, covering:

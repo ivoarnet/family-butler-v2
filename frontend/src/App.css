@@ -878,6 +878,7 @@ body,
 .mui-agent-chat-box {
   width: 100%;
   height: 100%;
+  color: var(--text-primary);
 }
 
 .mui-agent-chat-box .MuiChatConversation-root {
@@ -899,6 +900,39 @@ body,
 .mui-agent-chat-box .agent-chat-message-content {
   border-radius: 1rem;
   border: 1px solid var(--border);
+  max-width: min(100%, 44rem);
+  overflow-wrap: anywhere;
+  color: var(--text-primary);
+}
+
+.mui-agent-chat-box .MuiChatMessageList-root,
+.mui-agent-chat-box .MuiChatMessageRow-root,
+.mui-agent-chat-box .MuiChatMessage-root {
+  overflow-x: hidden;
+}
+
+.mui-agent-chat-box .MuiChatMessageAuthorLabel-root,
+.mui-agent-chat-box .MuiChatMessageMeta-root,
+.mui-agent-chat-box .MuiChatConversationTitle-root {
+  color: var(--text-primary);
+}
+
+.mui-agent-chat-box .MuiChatConversationSubtitle-root {
+  color: var(--text-secondary);
+}
+
+.mui-agent-chat-box .MuiChatComposerTextArea-root {
+  color: var(--text-primary);
+}
+
+.mui-agent-chat-box .MuiChatComposerTextArea-input {
+  color: var(--text-primary);
+  caret-color: var(--text-primary);
+}
+
+.mui-agent-chat-box .MuiChatComposerTextArea-input::placeholder {
+  color: var(--text-secondary);
+  opacity: 0.95;
 }
 
 .mui-agent-chat-box .MuiChatMessageContent-root[data-message-role="user"] {
