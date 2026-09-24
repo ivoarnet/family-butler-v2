@@ -248,7 +248,7 @@ export function EventDialog({
                   required
                   type="time"
                   label="Begin"
-                  slotProps={{ inputLabel: { shrink: true } }}
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
                   value={formState.startTime}
                   error={Boolean(timeErrorMessage)}
                   helperText={timeErrorMessage ?? " "}
@@ -258,7 +258,7 @@ export function EventDialog({
                   required
                   type="time"
                   label="End"
-                  slotProps={{ inputLabel: { shrink: true } }}
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
                   value={formState.endTime}
                   error={Boolean(timeErrorMessage)}
                   helperText={timeErrorMessage ?? " "}

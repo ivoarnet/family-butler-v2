@@ -88,6 +88,26 @@ const cleanOptionalInt = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
+const normalizeTime24Hour = (value) => {
+  const cleaned = cleanOptionalText(value);
+  if (!cleaned) {
+    return null;
+  }
+  const match = cleaned.match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) {
+    return null;
+  }
+  return `${match[1]}:${match[2]}`;
+};
+
+const isFiveMinuteStepTime = (value) => {
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) {
+    return false;
+  }
+  return Number.parseInt(match[2], 10) % 5 === 0;
+};
+
 const parseIncomingMembers = (members) => {
   if (!Array.isArray(members)) {
     return [];
@@ -182,10 +202,13 @@ const parseIncomingEvents = (events) => {
       }
 
       const allDay = event.allDay !== false;
-      const startTime = cleanOptionalText(event.startTime);
-      const endTime = cleanOptionalText(event.endTime);
+      const startTime = normalizeTime24Hour(event.startTime);
+      const endTime = normalizeTime24Hour(event.endTime);
       if (!allDay && (!startTime || !endTime)) {
-        throw new Error("event startTime and endTime are required for non all-day events");
+        throw new Error("event startTime and endTime are required in 24-hour HH:MM format for non all-day events");
+      }
+      if (!allDay && startTime && endTime && (!isFiveMinuteStepTime(startTime) || !isFiveMinuteStepTime(endTime))) {
+        throw new Error("event startTime and endTime must use 5-minute steps");
       }
       if (!allDay && startTime && endTime && startTime >= endTime) {
         throw new Error("event time range is invalid");

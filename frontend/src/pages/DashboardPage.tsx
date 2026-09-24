@@ -120,13 +120,32 @@ const buildEventFormState = (date: string): EventDialogFormState => ({
   notes: "",
 });
 
+const normalizeTime24Hour = (value: string | undefined): string => {
+  if (!value) {
+    return "";
+  }
+  const match = value.trim().match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) {
+    return "";
+  }
+  return `${match[1]}:${match[2]}`;
+};
+
+const isFiveMinuteStepTime = (value: string): boolean => {
+  const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
+  if (!match) {
+    return false;
+  }
+  return Number.parseInt(match[2], 10) % 5 === 0;
+};
+
 const buildEventFormStateFromEvent = (event: HouseholdEvent): EventDialogFormState => ({
   title: event.title,
   memberIds: [...event.memberIds],
   date: event.date,
   allDay: event.allDay,
-  startTime: event.startTime ?? "",
-  endTime: event.endTime ?? "",
+  startTime: normalizeTime24Hour(event.startTime),
+  endTime: normalizeTime24Hour(event.endTime),
   eventTypeId: event.eventTypeId ?? "",
   repeatRule: event.repeatRule ?? "",
   location: event.location ?? "",
@@ -188,10 +207,12 @@ const formatEventTimeLabel = (event: HouseholdEvent): string => {
   if (event.allDay) {
     return "All day";
   }
-  if (event.startTime && event.endTime) {
-    return `${event.startTime}-${event.endTime}`;
+  const start = normalizeTime24Hour(event.startTime);
+  const end = normalizeTime24Hour(event.endTime);
+  if (start && end) {
+    return `${start}-${end}`;
   }
-  return event.startTime || event.endTime || "";
+  return start || end || "";
 };
 
 export function DashboardPage({
@@ -345,7 +366,10 @@ export function DashboardPage({
 
     const startTime = eventFormState.startTime.trim();
     const endTime = eventFormState.endTime.trim();
-    if (!eventFormState.allDay && (!startTime || !endTime || startTime >= endTime)) {
+    if (
+      !eventFormState.allDay &&
+      (!startTime || !endTime || !isFiveMinuteStepTime(startTime) || !isFiveMinuteStepTime(endTime) || startTime >= endTime)
+    ) {
       return;
     }
 
@@ -379,6 +403,8 @@ export function DashboardPage({
     eventFormSubmitted && !eventFormState.allDay
       ? !eventFormState.startTime.trim() || !eventFormState.endTime.trim()
         ? "Begin and end time are required for non all-day events."
+        : !isFiveMinuteStepTime(eventFormState.startTime.trim()) || !isFiveMinuteStepTime(eventFormState.endTime.trim())
+          ? "Use 24-hour HH:MM time with 5-minute steps."
         : eventFormState.startTime >= eventFormState.endTime
           ? "Begin time must be before end time."
           : null

@@ -78,6 +78,17 @@ const normalizeEventTypes = (eventTypes: EventType[]): EventType[] =>
       sortOrder: index,
     }));
 
+const normalizeTime24Hour = (value: string | undefined): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const match = value.trim().match(/^([01]\d|2[0-3]):([0-5]\d)(?::[0-5]\d)?$/);
+  if (!match) {
+    return undefined;
+  }
+  return `${match[1]}:${match[2]}`;
+};
+
 const normalizeEvents = (events: HouseholdEvent[]): HouseholdEvent[] =>
   events
     .filter((event) => event && typeof event.title === "string" && event.title.trim())
@@ -87,8 +98,8 @@ const normalizeEvents = (events: HouseholdEvent[]): HouseholdEvent[] =>
       date: event.date,
       memberIds: Array.isArray(event.memberIds) ? [...new Set(event.memberIds.filter((memberId) => typeof memberId === "string" && memberId))] : [],
       allDay: event.allDay !== false,
-      startTime: event.allDay ? undefined : event.startTime?.trim() || undefined,
-      endTime: event.allDay ? undefined : event.endTime?.trim() || undefined,
+      startTime: event.allDay ? undefined : normalizeTime24Hour(event.startTime),
+      endTime: event.allDay ? undefined : normalizeTime24Hour(event.endTime),
       eventTypeId: event.eventTypeId?.trim() || undefined,
       repeatRule: event.repeatRule?.trim() || undefined,
       location: event.location?.trim() || undefined,
