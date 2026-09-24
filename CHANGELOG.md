@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Improved dark-mode picker contrast in the event dialog: MobileTimePicker text/icons now render with light foreground, and the date picker indicator icon is styled to remain light/visible in dark mode.
 - Switched event start/end inputs to MUI X `MobileTimePicker` with 24-hour display (`ampm={false}`), minute-only views, and 5-minute steps to align with common European time entry.
 - Optimized dashboard calendar event cards: extracted a dedicated card component, expanded cards to full column width, added AvatarGroup display for assigned members, and enabled click-through to event view details with transition into edit mode.
 - Added event card/view flow UI reference image URL: `https://github.com/user-attachments/assets/a8556876-a8e4-4aa3-bfb0-1bb7f6d414e9`.

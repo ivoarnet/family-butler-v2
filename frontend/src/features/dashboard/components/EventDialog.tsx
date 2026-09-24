@@ -133,6 +133,38 @@ export function EventDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const titleId = "event-dialog-title";
   const descriptionId = "event-dialog-description";
+  const timePickerSlotProps = {
+    textField: {
+      error: Boolean(timeErrorMessage),
+      helperText: timeErrorMessage ?? " ",
+      fullWidth: true,
+      sx: {
+        "& .MuiInputBase-input": {
+          color: "var(--text-primary)",
+        },
+        "& .MuiSvgIcon-root": {
+          color: "var(--text-primary)",
+        },
+      },
+    },
+    mobilePaper: {
+      sx: {
+        background: "var(--dialog-surface)",
+        color: "var(--text-primary)",
+        border: "1px solid var(--dialog-border)",
+      },
+    },
+    layout: {
+      sx: {
+        "& .MuiTypography-root": {
+          color: "var(--text-primary)",
+        },
+        "& .MuiClockNumber-root, & .MuiClockPointer-thumb, & .MuiClock-pin, & .MuiPickersArrowSwitcher-button .MuiSvgIcon-root, & .MuiButton-root, & .MuiIconButton-root .MuiSvgIcon-root": {
+          color: "var(--text-primary)",
+        },
+      },
+    },
+  } as const;
 
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs}>
@@ -271,13 +303,7 @@ export function EventDialog({
                     label="Begin"
                     value={parseTimeValue(formState.startTime)}
                     onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
-                    slotProps={{
-                      textField: {
-                        error: Boolean(timeErrorMessage),
-                        helperText: timeErrorMessage ?? " ",
-                        fullWidth: true,
-                      },
-                    }}
+                    slotProps={timePickerSlotProps}
                   />
                 </FormControl>
                 <FormControl error={Boolean(timeErrorMessage)}>
@@ -289,13 +315,7 @@ export function EventDialog({
                     label="End"
                     value={parseTimeValue(formState.endTime)}
                     onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
-                    slotProps={{
-                      textField: {
-                        error: Boolean(timeErrorMessage),
-                        helperText: timeErrorMessage ?? " ",
-                        fullWidth: true,
-                      },
-                    }}
+                    slotProps={timePickerSlotProps}
                   />
                 </FormControl>
               </TimeSection>

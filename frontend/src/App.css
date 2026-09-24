@@ -23,6 +23,7 @@
   --action-gradient-end: #9a7dff;
   --menu-surface: rgba(255, 255, 255, 0.5);
   --menu-backdrop-blur: 52px;
+  --date-picker-indicator-filter: none;
 }
 
 :root[data-theme="dark"] {
@@ -50,6 +51,7 @@
   --action-gradient-end: #9a7dff;
   --menu-surface: rgba(20, 24, 35, 0.52);
   --menu-backdrop-blur: 52px;
+  --date-picker-indicator-filter: brightness(0) invert(0.88);
 }
 
 * {
