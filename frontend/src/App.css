@@ -527,6 +527,7 @@ body,
 .calendar-grid {
   width: 100%;
   border-collapse: collapse;
+  table-layout: fixed;
 }
 
 .settings-table {
@@ -644,6 +645,11 @@ body,
   color: var(--text-secondary);
 }
 
+.birthday-column-header,
+.birthday-cell {
+  width: 11rem;
+}
+
 .member-header {
   display: inline-flex;
   align-items: center;
@@ -726,10 +732,6 @@ body,
   font-weight: 700;
 }
 
-.birthday-cell {
-  min-width: 11rem;
-}
-
 .birthday-item {
   display: block;
   width: fit-content;
@@ -743,7 +745,7 @@ body,
 }
 
 .event-cell {
-  min-width: 11rem;
+  min-width: 0;
   padding: 0.55rem 0.5rem !important;
 }
 
@@ -753,6 +755,9 @@ body,
 
 .event-item-title {
   font-size: 0.83rem;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .event-cell small {

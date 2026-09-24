@@ -493,7 +493,7 @@ export function DashboardPage({
                 <tr>
                   <th className="day-column-header">DAY</th>
                   {visibleMembers.map((member) => (
-                    <th key={member.id}>
+                    <th key={member.id} className="member-column-header">
                       <div className="member-header">
                         <span className="avatar" style={{ backgroundColor: member.avatarColor }}>
                           {member.firstName.charAt(0)}
@@ -502,7 +502,7 @@ export function DashboardPage({
                       </div>
                     </th>
                   ))}
-                  <th>
+                  <th className="birthday-column-header">
                     <div className="member-header">
                       <span className="avatar avatar-birthday">
                         <CakeRoundedIcon fontSize="small" />
