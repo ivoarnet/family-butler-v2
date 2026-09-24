@@ -1,4 +1,4 @@
-import { Contact, EventType, FamilyMember, HouseholdEvent, MemberAvatarColor } from "../../types/family";
+import { Contact, DayConfiguration, EventType, FamilyMember, HouseholdEvent, MemberAvatarColor } from "../../types/family";
 
 export type ThemeMode = "light" | "dark";
 
@@ -9,6 +9,7 @@ export interface HouseholdData {
   contacts: Contact[];
   eventTypes: EventType[];
   events: HouseholdEvent[];
+  dayConfigurations: DayConfiguration[];
 }
 
 export interface HouseholdSummary {

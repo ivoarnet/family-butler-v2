@@ -46,7 +46,15 @@ const normalizeEvent = (event) => ({
   notes: event.notes ?? undefined,
 });
 
-const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [] }) => ({
+const normalizeDayConfiguration = (dayConfiguration) => ({
+  id: dayConfiguration.id,
+  category: dayConfiguration.category,
+  startDate: dayConfiguration.startDate,
+  endDate: dayConfiguration.endDate,
+  label: dayConfiguration.label ?? undefined,
+});
+
+const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [], dayConfigurations = [] }) => ({
   householdId: household.id,
   householdName: household.name,
   familyMembers: members
@@ -56,6 +64,10 @@ const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [],
   contacts: contacts.map(normalizeContact),
   eventTypes: eventTypes.slice().sort((a, b) => a.sortOrder - b.sortOrder).map(normalizeEventType),
   events: events.map(normalizeEvent),
+  dayConfigurations: dayConfigurations
+    .slice()
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate))
+    .map(normalizeDayConfiguration),
 });
 
 const normalizeHouseholdSummary = (household) => ({
@@ -238,6 +250,46 @@ const parseIncomingEvents = (events) => {
     });
 };
 
+const DAY_CONFIGURATION_CATEGORIES = new Set(["school_off", "bank_holiday", "bridge_day"]);
+
+const parseIncomingDayConfigurations = (dayConfigurations) => {
+  if (!Array.isArray(dayConfigurations)) {
+    return [];
+  }
+
+  return dayConfigurations
+    .filter((dayConfiguration) => dayConfiguration && typeof dayConfiguration === "object")
+    .map((dayConfiguration) => {
+      const category = cleanOptionalText(dayConfiguration.category);
+      if (!category || !DAY_CONFIGURATION_CATEGORIES.has(category)) {
+        throw new Error("day configuration category is invalid");
+      }
+
+      const startDate = cleanOptionalText(dayConfiguration.startDate);
+      if (!startDate || !/^\d{4}-\d{2}-\d{2}$/.test(startDate)) {
+        throw new Error("day configuration startDate is required");
+      }
+
+      const endDate = cleanOptionalText(dayConfiguration.endDate);
+      if (!endDate || !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        throw new Error("day configuration endDate is required");
+      }
+
+      if (endDate < startDate) {
+        throw new Error("day configuration endDate must be on or after startDate");
+      }
+
+      const requestedId = typeof dayConfiguration.id === "string" && dayConfiguration.id ? dayConfiguration.id : null;
+      return {
+        id: requestedId || randomUUID(),
+        category,
+        startDate,
+        endDate,
+        label: cleanOptionalText(dayConfiguration.label),
+      };
+    });
+};
+
 const assertMemberIdsAuthorized = async (householdId, existingMemberIds, requestedMembers) => {
   const idsToValidate = [...new Set(requestedMembers.map((member) => member.id).filter((memberId) => !existingMemberIds.has(memberId)))];
   const ownershipChecks = await Promise.all(idsToValidate.map((memberId) => db.getMemberHouseholdId(memberId)));
@@ -267,6 +319,23 @@ const assertEventTypeIdsAuthorized = async (householdId, existingEventTypeIds, r
   ownershipChecks.forEach((ownerHouseholdId, index) => {
     if (ownerHouseholdId && ownerHouseholdId !== householdId) {
       throw new Error(`event type id is not authorized for this household: ${idsToValidate[index]}`);
+    }
+  });
+};
+
+const assertDayConfigurationIdsAuthorized = async (householdId, existingDayConfigurationIds, requestedDayConfigurations) => {
+  const idsToValidate = [
+    ...new Set(
+      requestedDayConfigurations
+        .map((dayConfiguration) => dayConfiguration.id)
+        .filter((dayConfigurationId) => !existingDayConfigurationIds.has(dayConfigurationId))
+    ),
+  ];
+  const ownershipChecks = await Promise.all(idsToValidate.map((dayConfigurationId) => db.getDayConfigurationHouseholdId(dayConfigurationId)));
+
+  ownershipChecks.forEach((ownerHouseholdId, index) => {
+    if (ownerHouseholdId && ownerHouseholdId !== householdId) {
+      throw new Error(`day configuration id is not authorized for this household: ${idsToValidate[index]}`);
     }
   });
 };
@@ -365,13 +434,16 @@ module.exports = async function households(context, req) {
       const existingMemberIds = new Set(existingHousehold.members.map((member) => member.id));
       const existingContactIds = new Set(existingHousehold.contacts.map((contact) => contact.id));
       const existingEventTypeIds = new Set((existingHousehold.eventTypes ?? []).map((eventType) => eventType.id));
+      const existingDayConfigurationIds = new Set((existingHousehold.dayConfigurations ?? []).map((dayConfiguration) => dayConfiguration.id));
       const members = parseIncomingMembers(httpRequest.body?.familyMembers);
       const contacts = parseIncomingContacts(httpRequest.body?.contacts);
       const eventTypes = parseIncomingEventTypes(httpRequest.body?.eventTypes);
       const events = parseIncomingEvents(httpRequest.body?.events);
+      const dayConfigurations = parseIncomingDayConfigurations(httpRequest.body?.dayConfigurations);
       await assertMemberIdsAuthorized(householdId, existingMemberIds, members);
       await assertContactIdsAuthorized(householdId, existingContactIds, contacts);
       await assertEventTypeIdsAuthorized(householdId, existingEventTypeIds, eventTypes);
+      await assertDayConfigurationIdsAuthorized(householdId, existingDayConfigurationIds, dayConfigurations);
 
       const requestedMemberIds = new Set(members.map((member) => member.id));
       const requestedEventTypeIds = new Set(eventTypes.map((eventType) => eventType.id));
@@ -391,6 +463,7 @@ module.exports = async function households(context, req) {
       await db.replaceContacts(householdId, contacts);
       await db.replaceEventTypes(householdId, eventTypes);
       await db.replaceEvents(householdId, events);
+      await db.replaceDayConfigurations(householdId, dayConfigurations);
 
       const household = await getHouseholdOrThrow(householdId, authenticatedUserId);
 
@@ -409,6 +482,8 @@ module.exports = async function households(context, req) {
     context.log.error("households handler failed", error);
     const message = error instanceof Error ? error.message : "Internal server error";
     const status = message.includes("required")
+      || message.includes("invalid")
+      || message.includes("must be on or after")
       ? 400
       : message.includes("already exists")
       ? 409
