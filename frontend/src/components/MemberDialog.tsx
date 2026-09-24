@@ -1,4 +1,5 @@
 import { FormEvent } from "react";
+import CloseIcon from "@mui/icons-material/Close";
 import {
   Box,
   Button,
@@ -142,7 +143,7 @@ export function MemberDialog({
             aria-label="Close member dialog"
             sx={{ minWidth: "auto", color: "var(--text-primary)", borderRadius: "999px" }}
           >
-            ✕
+            <CloseIcon fontSize="small" />
           </Button>
         </DialogHeader>
 
