@@ -12,12 +12,12 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { Session, User } from "@supabase/supabase-js";
+import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./components/auth/AuthScreen";
 import { ContactDialog } from "./components/ContactDialog";
 import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
-import { hasSupabaseAuthEnv, supabaseClient } from "./lib/supabaseClient";
+import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
@@ -237,6 +237,26 @@ const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> 
   }
 
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, household.householdId);
+};
+
+const readRuntimeAuthConfig = async (): Promise<{ supabaseUrl: string; supabasePublishableKey: string } | null> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth-config`);
+  if (!response.ok) {
+    throw new Error(await parseResponseError(response, "Failed to load auth configuration"));
+  }
+
+  const payload = (await response.json()) as {
+    supabaseUrl?: unknown;
+    supabasePublishableKey?: unknown;
+  };
+  const supabaseUrl = typeof payload.supabaseUrl === "string" ? payload.supabaseUrl.trim() : "";
+  const supabasePublishableKey = typeof payload.supabasePublishableKey === "string" ? payload.supabasePublishableKey.trim() : "";
+
+  if (!supabaseUrl || !supabasePublishableKey) {
+    return null;
+  }
+
+  return { supabaseUrl, supabasePublishableKey };
 };
 
 const getWeekdayAbbreviation = (date: Date, locale: string): string => {
@@ -1173,8 +1193,9 @@ type FailedAction = { type: "initialLoad" } | { type: "switch"; householdId: str
 
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [authClient, setAuthClient] = useState<SupabaseClient | null>(null);
   const [authSession, setAuthSession] = useState<Session | null>(null);
-  const [authReady, setAuthReady] = useState(!hasSupabaseAuthEnv);
+  const [authReady, setAuthReady] = useState(false);
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
@@ -1195,46 +1216,73 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
-    const client = supabaseClient;
-    if (!client) {
-      return;
-    }
-
     let active = true;
+    let unsubscribe: (() => void) | null = null;
 
-    const bootstrapSession = async () => {
-      const { data, error } = await client.auth.getSession();
-      if (!active) {
-        return;
+    const bootstrapAuth = async () => {
+      try {
+        let config = getBuildTimeSupabaseAuthConfig();
+        if (!config) {
+          config = await readRuntimeAuthConfig();
+        }
+
+        if (!config) {
+          setAuthError(
+            "Authentication setup required. Configure either frontend VITE auth variables at build time or Azure app settings for runtime auth configuration."
+          );
+          return;
+        }
+
+        const client = createSupabaseClient(config);
+        if (!active) {
+          return;
+        }
+        setAuthClient(client);
+
+        const {
+          data: { subscription },
+        } = client.auth.onAuthStateChange((_event, session) => {
+          if (!active) {
+            return;
+          }
+          setAuthSession(session);
+          setAuthError(null);
+        });
+        unsubscribe = () => subscription.unsubscribe();
+
+        const { data, error } = await client.auth.getSession();
+        if (!active) {
+          return;
+        }
+        if (error) {
+          setAuthError(error.message);
+        } else {
+          setAuthSession(data.session);
+        }
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setAuthError(error instanceof Error ? error.message : "Could not initialize authentication.");
+      } finally {
+        if (active) {
+          setAuthReady(true);
+        }
       }
-      if (error) {
-        setAuthError(error.message);
-      } else {
-        setAuthSession(data.session);
-      }
-      setAuthReady(true);
     };
 
-    void bootstrapSession();
-
-    const {
-      data: { subscription },
-    } = client.auth.onAuthStateChange((_event, session) => {
-      if (!active) {
-        return;
-      }
-      setAuthSession(session);
-      setAuthError(null);
-    });
+    void bootstrapAuth();
 
     return () => {
       active = false;
-      subscription.unsubscribe();
+      if (unsubscribe) {
+        unsubscribe();
+      }
     };
   }, []);
 
   useEffect(() => {
-    if (hasSupabaseAuthEnv && !authSession?.user?.id) {
+    if (!authSession?.user?.id) {
       setInitialLoadComplete(false);
       return;
     }
@@ -1414,14 +1462,15 @@ export function App() {
   const currentUserInitials = useMemo(() => getUserInitials(currentUserLabel), [currentUserLabel]);
 
   const signIn = async (email: string, password: string) => {
-    if (!supabaseClient) {
+    if (!authClient) {
+      setAuthError("Authentication client is not configured.");
       return;
     }
     setAuthPending(true);
     setAuthError(null);
     setAuthInfo(null);
 
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    const { error } = await authClient.auth.signInWithPassword({ email, password });
     if (error) {
       setAuthError(error.message);
     }
@@ -1429,14 +1478,15 @@ export function App() {
   };
 
   const register = async (email: string, password: string, fullName: string) => {
-    if (!supabaseClient) {
+    if (!authClient) {
+      setAuthError("Authentication client is not configured.");
       return;
     }
     setAuthPending(true);
     setAuthError(null);
     setAuthInfo(null);
 
-    const { data, error } = await supabaseClient.auth.signUp({
+    const { data, error } = await authClient.auth.signUp({
       email,
       password,
       options: {
@@ -1458,38 +1508,35 @@ export function App() {
   };
 
   const signOut = async () => {
-    if (!supabaseClient) {
+    if (!authClient) {
+      setAuthError("Authentication client is not configured.");
       return;
     }
 
-    const { error } = await supabaseClient.auth.signOut();
+    const { error } = await authClient.auth.signOut();
     if (error) {
       setAuthError(error.message);
     }
   };
-
-  if (!hasSupabaseAuthEnv) {
-    return (
-      <div className="dashboard-page">
-        <main className="dashboard-main">
-          <section className="calendar-card">
-            <h2>Authentication setup required</h2>
-            <p>Set frontend environment variables to enable Supabase Auth:</p>
-            <ul>
-              <li>VITE_SUPABASE_URL</li>
-              <li>VITE_SUPABASE_PUBLISHABLE_KEY</li>
-            </ul>
-          </section>
-        </main>
-      </div>
-    );
-  }
 
   if (!authReady) {
     return (
       <div className="dashboard-page">
         <main className="dashboard-main">
           <section className="calendar-card">Checking authentication…</section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!authClient) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">
+            <h2>Authentication setup required</h2>
+            <p>{authError ?? "Set Supabase auth environment variables to continue."}</p>
+          </section>
         </main>
       </div>
     );

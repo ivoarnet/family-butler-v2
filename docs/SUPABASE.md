@@ -25,10 +25,11 @@ Recommended architecture:
 Set app settings:
 
 - `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
 - `DEFAULT_HOLIDAY_REGION` (optional, defaults to `CH`)
 
-### Frontend (required for auth UI)
+### Frontend build-time vars (optional when using runtime auth config endpoint)
 
 - `VITE_SUPABASE_URL`
 - `VITE_SUPABASE_PUBLISHABLE_KEY`

@@ -7,6 +7,7 @@
 - Updated the dashboard header to show the logged-in user avatar badge (initials) with sign-out action instead of a login entry point.
 - Updated Supabase auth environment setup docs (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/.env.example`, `/home/runner/work/family-butler-v2/family-butler-v2/README.md`, `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`).
 - Added auth UI reference image URL for issue alignment: `https://github.com/user-attachments/assets/a37f8281-eace-43de-8611-258b5928fd0a`.
+- Added runtime auth-config fallback (`GET /api/auth-config`) so deployed frontend auth can initialize from Azure app settings when build-time `VITE_*` values are not embedded.
 - Replaced Household Setting with a first-class Households workspace section, including household creation, selected-state badge, and one-click household switching.
 - Updated household creation to use a dedicated dialog consistent with the member/contact create flows.
 - Added active household context loading/retry behavior so household members and contact lists reload when switching households.
