@@ -8,10 +8,11 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
+import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../features/settings/components/DayConfigurationDialog";
 import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
 import { HouseholdDialog } from "../features/settings/components/HouseholdDialog";
 import { MemberDialog } from "../features/settings/components/MemberDialog";
-import { Contact, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
+import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
@@ -29,6 +30,11 @@ const MEMBER_COLOR_LABELS: Record<string, string> = {
   "#7c3aed": "Purple",
 };
 const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
+const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }> = [
+  { value: "school_off", label: "School off", defaultMarker: "SH" },
+  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH" },
+  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD" },
+];
 
 const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
   if (typeof color !== "string") {
@@ -43,6 +49,8 @@ const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
 };
 
 const getMemberColorLabel = (color: MemberAvatarColor): string => MEMBER_COLOR_LABELS[color] ?? color;
+const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
+  DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
 
 const formatContactBirthday = (contact: Contact): string => {
   if (!contact.birthDay || !contact.birthMonth) {
@@ -74,6 +82,13 @@ const buildContactFormState = (contact?: Contact): ContactFormState => ({
 const buildEventTypeFormState = (eventType?: EventType): EventTypeDialogFormState => ({
   name: eventType?.name ?? "",
   icon: eventType?.icon ?? "",
+});
+
+const buildDayConfigurationFormState = (): DayConfigurationDialogFormState => ({
+  category: "school_off",
+  startDate: "",
+  endDate: "",
+  label: "",
 });
 
 const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
@@ -155,6 +170,10 @@ export function SettingsPage({
   const [editingEventTypeId, setEditingEventTypeId] = useState<string | null>(null);
   const [eventTypeFormState, setEventTypeFormState] = useState<EventTypeDialogFormState>(buildEventTypeFormState);
   const [eventTypeFormSubmitted, setEventTypeFormSubmitted] = useState(false);
+  const [dayConfigurationModalOpen, setDayConfigurationModalOpen] = useState(false);
+  const [editingDayConfigurationId, setEditingDayConfigurationId] = useState<string | null>(null);
+  const [dayConfigurationFormState, setDayConfigurationFormState] = useState<DayConfigurationDialogFormState>(buildDayConfigurationFormState);
+  const [dayConfigurationFormSubmitted, setDayConfigurationFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [profileFirstName, setProfileFirstName] = useState(initialProfileFirstName);
   const [profileLastName, setProfileLastName] = useState(initialProfileLastName);
@@ -501,6 +520,99 @@ export function SettingsPage({
   };
 
   const eventTypeNameError = eventTypeFormSubmitted && !eventTypeFormState.name.trim();
+  const dayConfigurationStartDateError = dayConfigurationFormSubmitted && !dayConfigurationFormState.startDate;
+  const dayConfigurationEndDateError = dayConfigurationFormSubmitted && !dayConfigurationFormState.endDate;
+  const dayConfigurationRangeError =
+    dayConfigurationFormSubmitted &&
+    Boolean(
+      dayConfigurationFormState.startDate &&
+        dayConfigurationFormState.endDate &&
+        dayConfigurationFormState.endDate < dayConfigurationFormState.startDate
+    );
+
+  const resetDayConfigurationForm = () => {
+    setDayConfigurationFormState(buildDayConfigurationFormState());
+    setDayConfigurationFormSubmitted(false);
+    setEditingDayConfigurationId(null);
+  };
+
+  const openAddDayConfiguration = () => {
+    resetDayConfigurationForm();
+    setDayConfigurationModalOpen(true);
+  };
+
+  const openEditDayConfiguration = (dayConfigurationId: string) => {
+    const dayConfiguration = householdData.dayConfigurations.find((item) => item.id === dayConfigurationId);
+    if (!dayConfiguration) {
+      return;
+    }
+
+    setEditingDayConfigurationId(dayConfigurationId);
+    setDayConfigurationFormSubmitted(false);
+    setDayConfigurationFormState({
+      category: dayConfiguration.category,
+      startDate: dayConfiguration.startDate,
+      endDate: dayConfiguration.endDate,
+      label: dayConfiguration.label ?? "",
+    });
+    setDayConfigurationModalOpen(true);
+  };
+
+  const closeDayConfigurationModal = () => {
+    setDayConfigurationModalOpen(false);
+    resetDayConfigurationForm();
+  };
+
+  const submitDayConfiguration = (event: FormEvent) => {
+    event.preventDefault();
+    setDayConfigurationFormSubmitted(true);
+
+    if (
+      !dayConfigurationFormState.startDate ||
+      !dayConfigurationFormState.endDate ||
+      dayConfigurationFormState.endDate < dayConfigurationFormState.startDate
+    ) {
+      return;
+    }
+
+    setHouseholdData((current) => ({
+      ...current,
+      dayConfigurations: editingDayConfigurationId
+        ? current.dayConfigurations.map((existingDayConfiguration) =>
+            existingDayConfiguration.id === editingDayConfigurationId
+              ? {
+                  ...existingDayConfiguration,
+                  category: dayConfigurationFormState.category,
+                  startDate: dayConfigurationFormState.startDate,
+                  endDate: dayConfigurationFormState.endDate,
+                  label: dayConfigurationFormState.label.trim() || undefined,
+                }
+              : existingDayConfiguration
+          )
+        : [
+            ...current.dayConfigurations,
+            {
+              id: crypto.randomUUID(),
+              category: dayConfigurationFormState.category,
+              startDate: dayConfigurationFormState.startDate,
+              endDate: dayConfigurationFormState.endDate,
+              label: dayConfigurationFormState.label.trim() || undefined,
+            },
+          ],
+    }));
+    setDayConfigurationModalOpen(false);
+    resetDayConfigurationForm();
+  };
+
+  const deleteDayConfiguration = (dayConfigurationId: string) => {
+    if (!window.confirm("Delete this day configuration?")) {
+      return;
+    }
+    setHouseholdData((current) => ({
+      ...current,
+      dayConfigurations: current.dayConfigurations.filter((dayConfiguration) => dayConfiguration.id !== dayConfigurationId),
+    }));
+  };
 
   const goBack = () => {
     if (window.history.length > 1) {
@@ -955,6 +1067,83 @@ export function SettingsPage({
             onClose={closeEventTypeModal}
             onSubmit={submitEventType}
             onFormStateChange={(updater) => setEventTypeFormState((current) => updater(current))}
+          />
+        </section>
+        ) : null}
+
+        {showSettingsWorkspace ? (
+        <section className="settings-card">
+          <div className="section-toolbar">
+            <h2>Special Days</h2>
+            <button type="button" className="primary-pill no-wrap-button" onClick={openAddDayConfiguration} disabled={!canEditActiveHousehold}>
+              + Special day
+            </button>
+          </div>
+
+          {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to configure special days.</div> : null}
+
+          <div className="table-scroll">
+            <table className="settings-table" aria-label="Special Days">
+              <thead>
+                <tr>
+                  <th>Category</th>
+                  <th>Date range</th>
+                  <th>Marker</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {(canEditActiveHousehold ? [...householdData.dayConfigurations] : [])
+                  .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate))
+                  .map((dayConfiguration) => (
+                    <tr key={dayConfiguration.id}>
+                      <td>{getDayConfigurationLabel(dayConfiguration.category)}</td>
+                      <td>
+                        {dayConfiguration.startDate}
+                        {dayConfiguration.endDate !== dayConfiguration.startDate ? ` → ${dayConfiguration.endDate}` : ""}
+                      </td>
+                      <td>
+                        {dayConfiguration.label ||
+                          DAY_CONFIGURATION_OPTIONS.find((option) => option.value === dayConfiguration.category)?.defaultMarker ||
+                          "—"}
+                      </td>
+                      <td>
+                        <div className="icon-actions">
+                          <button
+                            type="button"
+                            className="icon-button compact-icon-button"
+                            title="Edit day configuration"
+                            onClick={() => openEditDayConfiguration(dayConfiguration.id)}
+                          >
+                            <EditOutlinedIcon fontSize="small" />
+                          </button>
+                          <button
+                            type="button"
+                            className="icon-button compact-icon-button"
+                            title="Delete day configuration"
+                            onClick={() => deleteDayConfiguration(dayConfiguration.id)}
+                          >
+                            <DeleteOutlinedIcon fontSize="small" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+
+          <DayConfigurationDialog
+            open={dayConfigurationModalOpen}
+            editing={Boolean(editingDayConfigurationId)}
+            formState={dayConfigurationFormState}
+            categoryOptions={DAY_CONFIGURATION_OPTIONS}
+            startDateError={dayConfigurationStartDateError}
+            endDateError={dayConfigurationEndDateError}
+            rangeError={dayConfigurationRangeError}
+            onClose={closeDayConfigurationModal}
+            onSubmit={submitDayConfiguration}
+            onFormStateChange={(updater) => setDayConfigurationFormState((current) => updater(current))}
           />
         </section>
         ) : null}

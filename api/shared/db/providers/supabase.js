@@ -6,6 +6,7 @@ const TABLES = {
   contacts: "contacts",
   eventTypes: "event_types",
   events: "events",
+  dayConfigurations: "day_configurations",
   tasks: "tasks",
 };
 
@@ -73,6 +74,15 @@ const mapEvent = (row) => ({
   repeatRule: row.repeat_rule,
   location: row.location,
   notes: row.notes,
+});
+
+const mapDayConfiguration = (row) => ({
+  id: row.id,
+  householdId: row.household_id,
+  category: row.category,
+  startDate: row.start_date,
+  endDate: row.end_date,
+  label: row.label,
 });
 
 const parseErrorMessage = async (response) => {
@@ -231,6 +241,19 @@ module.exports = function createSupabaseProvider() {
       return row && typeof row.household_id === "string" ? row.household_id : null;
     },
 
+    async getDayConfigurationHouseholdId(dayConfigurationId) {
+      const rows = await request(TABLES.dayConfigurations, {
+        params: {
+          select: "household_id",
+          id: `eq.${dayConfigurationId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
     async ensureHousehold(householdId, householdName, holidayRegion, userId) {
       await request(TABLES.households, {
         method: "POST",
@@ -248,7 +271,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async getHouseholdWithRelations(householdId, userId) {
-      const [households, members, contacts, eventTypes, events] = await Promise.all([
+      const [households, members, contacts, eventTypes, events, dayConfigurations] = await Promise.all([
         request(TABLES.households, {
           params: {
             select: "id,name,holiday_region",
@@ -283,6 +306,13 @@ module.exports = function createSupabaseProvider() {
             order: "event_date.asc",
           },
         }),
+        request(TABLES.dayConfigurations, {
+          params: {
+            select: "id,household_id,category,start_date,end_date,label",
+            household_id: `eq.${householdId}`,
+            order: "start_date.asc",
+          },
+        }),
       ]);
 
       const household = Array.isArray(households) ? households[0] : null;
@@ -296,6 +326,7 @@ module.exports = function createSupabaseProvider() {
         contacts: Array.isArray(contacts) ? contacts.map(mapContact) : [],
         eventTypes: Array.isArray(eventTypes) ? eventTypes.map(mapEventType) : [],
         events: Array.isArray(events) ? events.map(mapEvent) : [],
+        dayConfigurations: Array.isArray(dayConfigurations) ? dayConfigurations.map(mapDayConfiguration) : [],
       };
     },
 
@@ -471,6 +502,49 @@ module.exports = function createSupabaseProvider() {
       }));
 
       await request(TABLES.events, {
+        method: "POST",
+        params: { on_conflict: "id" },
+        headers: {
+          Prefer: "resolution=merge-duplicates,return=minimal",
+        },
+        body: payload,
+      });
+    },
+
+    async replaceDayConfigurations(householdId, dayConfigurations) {
+      const dayConfigurationIds = dayConfigurations.map((dayConfiguration) => dayConfiguration.id);
+
+      if (dayConfigurationIds.length > 0) {
+        await request(TABLES.dayConfigurations, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+            id: `not.in.${formatInList(dayConfigurationIds)}`,
+          },
+        });
+      } else {
+        await request(TABLES.dayConfigurations, {
+          method: "DELETE",
+          params: {
+            household_id: `eq.${householdId}`,
+          },
+        });
+      }
+
+      if (dayConfigurationIds.length === 0) {
+        return;
+      }
+
+      const payload = dayConfigurations.map((dayConfiguration) => ({
+        id: dayConfiguration.id,
+        household_id: householdId,
+        category: dayConfiguration.category,
+        start_date: dayConfiguration.startDate,
+        end_date: dayConfiguration.endDate,
+        label: dayConfiguration.label,
+      }));
+
+      await request(TABLES.dayConfigurations, {
         method: "POST",
         params: { on_conflict: "id" },
         headers: {

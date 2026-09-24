@@ -9,7 +9,7 @@ import { EventDialog, EventDialogFormState } from "../features/dashboard/compone
 import { EventViewDialog } from "../features/dashboard/components/EventViewDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, HouseholdEvent } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent } from "../types/family";
 import type { Dispatch, SetStateAction } from "react";
 
 interface SpecialEvent {
@@ -20,7 +20,16 @@ interface SpecialEvent {
   birthYear?: number;
 }
 
+interface DayCellDecorations {
+  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string }>;
+}
+
 const DEMO_LOCALE = "de-CH";
+const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; className: string }> = {
+  school_off: { defaultMarker: "SH", className: "school-off" },
+  bank_holiday: { defaultMarker: "BH", className: "bank-holiday" },
+  bridge_day: { defaultMarker: "BD", className: "bridge-day" },
+};
 
 const addDays = (date: Date, days: number): Date => {
   const copy = new Date(date);
@@ -105,6 +114,14 @@ const buildBirthdayEvents = (contacts: Contact[], periodStart: Date): SpecialEve
   }
 
   return birthdayEvents;
+};
+
+const getDayConfigurationMarker = (dayConfiguration: DayConfiguration): string => {
+  const customMarker = dayConfiguration.label?.trim().toUpperCase();
+  if (customMarker) {
+    return customMarker.slice(0, 4);
+  }
+  return DAY_CONFIGURATION_META[dayConfiguration.category].defaultMarker;
 };
 
 const buildEventFormState = (date: string): EventDialogFormState => ({
@@ -263,6 +280,51 @@ export function DashboardPage({
       });
     return grouped;
   }, [specialEvents]);
+
+  const dayDecorationsByDate = useMemo(() => {
+    const grouped = new Map<string, DayCellDecorations>();
+    if (days.length === 0) {
+      return grouped;
+    }
+
+    const dayIsoValues = days.map((day) => toIsoDate(day));
+    const firstIso = dayIsoValues[0];
+    const lastIso = dayIsoValues[dayIsoValues.length - 1];
+    const sortedDayConfigurations = [...householdData.dayConfigurations]
+      .filter(
+        (dayConfiguration) =>
+          /^\d{4}-\d{2}-\d{2}$/.test(dayConfiguration.startDate) &&
+          /^\d{4}-\d{2}-\d{2}$/.test(dayConfiguration.endDate) &&
+          dayConfiguration.endDate >= dayConfiguration.startDate
+      )
+      .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
+
+    const dayIndexByIso = new Map(dayIsoValues.map((iso, index) => [iso, index]));
+
+    sortedDayConfigurations.forEach((dayConfiguration) => {
+      const marker = getDayConfigurationMarker(dayConfiguration);
+      if (dayConfiguration.endDate < firstIso || dayConfiguration.startDate > lastIso) {
+        return;
+      }
+
+      const clampedStartIso = dayConfiguration.startDate < firstIso ? firstIso : dayConfiguration.startDate;
+      const clampedEndIso = dayConfiguration.endDate > lastIso ? lastIso : dayConfiguration.endDate;
+      const startIndex = dayIndexByIso.get(clampedStartIso);
+      const endIndex = dayIndexByIso.get(clampedEndIso);
+      if (startIndex === undefined || endIndex === undefined || startIndex > endIndex) {
+        return;
+      }
+
+      for (let index = startIndex; index <= endIndex; index += 1) {
+        const isoDate = dayIsoValues[index];
+        const entry = grouped.get(isoDate) ?? { corners: [] };
+        entry.corners.push({ id: `${dayConfiguration.id}-${isoDate}`, category: dayConfiguration.category, marker });
+        grouped.set(isoDate, entry);
+      }
+    });
+
+    return grouped;
+  }, [days, householdData.dayConfigurations]);
 
   const eventTypeById = useMemo(() => {
     const entries = householdData.eventTypes.map((eventType) => [eventType.id, eventType] as const);
@@ -544,6 +606,7 @@ export function DashboardPage({
                   const isToday = isoDate === todayIso;
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
+                  const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
 
                   return (
                     <tr
@@ -551,6 +614,16 @@ export function DashboardPage({
                       className={`${isToday ? "today-row" : ""} ${!isToday && isWeekend ? "weekend-row" : ""}`.trim()}
                     >
                       <td className="day-cell">
+                        {dayDecorations.corners.map((corner, index) => (
+                          <span
+                            key={corner.id}
+                            className={`day-special-corner ${DAY_CONFIGURATION_META[corner.category].className}`}
+                            style={{ top: `${0.3 + index * 1.1}rem` }}
+                            title={corner.marker}
+                          >
+                            {corner.marker}
+                          </span>
+                        ))}
                         <div className="weekday-label-wrap">
                           <span className="weekday-label">{getWeekdayAbbreviation(day, DEMO_LOCALE)}</span>
                           {isToday && <span className="today-pill">Today</span>}

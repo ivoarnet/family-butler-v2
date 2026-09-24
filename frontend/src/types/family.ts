@@ -43,3 +43,13 @@ export interface HouseholdEvent {
   location?: string;
   notes?: string;
 }
+
+export type DayConfigurationCategory = "school_off" | "bank_holiday" | "bridge_day";
+
+export interface DayConfiguration {
+  id: string;
+  category: DayConfigurationCategory;
+  startDate: string;
+  endDate: string;
+  label?: string;
+}

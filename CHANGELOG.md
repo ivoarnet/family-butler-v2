@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Added household **Day configuration** support for special days (`School off`, `Bank holiday`, `Bridge day`) with Supabase-backed persistence, settings management UI, and dashboard day-column decorations for single-day corner markers and multi-day bands.
+- Updated day-configuration visuals so multi-day periods now render per-day corner markers (instead of bands), with category-specific colors for `school_off`, `bank_holiday`, and `bridge_day`.
+- Added day-configuration UI reference image URL: `https://github.com/user-attachments/assets/bfb620bf-9a81-4074-9db1-86f6bed77451`.
 - Improved dark-mode picker contrast in the event dialog: MobileTimePicker text/icons now render with light foreground, and the date picker indicator icon is styled to remain light/visible in dark mode.
 - Switched event start/end inputs to MUI X `MobileTimePicker` with 24-hour display (`ampm={false}`), minute-only views, and 5-minute steps to align with common European time entry.
 - Optimized dashboard calendar event cards: extracted a dedicated card component, expanded cards to full column width, added AvatarGroup display for assigned members, and enabled click-through to event view details with transition into edit mode.

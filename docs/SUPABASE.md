@@ -109,6 +109,18 @@ create table if not exists public.events (
   updated_at timestamptz not null default now()
 );
 
+create table if not exists public.day_configurations (
+  id uuid primary key,
+  household_id uuid not null references public.households(id) on delete cascade,
+  category text not null check (category in ('school_off', 'bank_holiday', 'bridge_day')),
+  start_date date not null,
+  end_date date not null,
+  label text,
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now(),
+  check (end_date >= start_date)
+);
+
 create index if not exists idx_household_members_household_sort_order
   on public.household_members (household_id, sort_order);
 
@@ -123,6 +135,9 @@ create index if not exists idx_event_types_household_sort
 
 create index if not exists idx_events_household_date
   on public.events (household_id, event_date);
+
+create index if not exists idx_day_configurations_household_dates
+  on public.day_configurations (household_id, start_date, end_date);
 ```
 
 If your `households` table already exists, run this migration before deploying:

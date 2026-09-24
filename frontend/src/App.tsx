@@ -5,7 +5,7 @@ import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, The
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
-import { Contact, EventType, FamilyMember, HouseholdEvent, MemberAvatarColor } from "./types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent, MemberAvatarColor } from "./types/family";
 
 const THEME_STORAGE_KEY = "family-butler-theme";
 const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
@@ -44,6 +44,7 @@ const defaultHouseholdData: HouseholdData = {
   contacts: [],
   eventTypes: [],
   events: [],
+  dayConfigurations: [],
 };
 
 const getThemeFromSystem = (): ThemeMode =>
@@ -106,6 +107,26 @@ const normalizeEvents = (events: HouseholdEvent[]): HouseholdEvent[] =>
       notes: event.notes?.trim() || undefined,
     }));
 
+const DAY_CONFIGURATION_CATEGORIES = new Set<DayConfigurationCategory>(["school_off", "bank_holiday", "bridge_day"]);
+
+const normalizeDayConfigurations = (dayConfigurations: DayConfiguration[]): DayConfiguration[] =>
+  dayConfigurations
+    .filter((dayConfiguration) => dayConfiguration && DAY_CONFIGURATION_CATEGORIES.has(dayConfiguration.category))
+    .filter(
+      (dayConfiguration) =>
+        /^\d{4}-\d{2}-\d{2}$/.test(dayConfiguration.startDate) &&
+        /^\d{4}-\d{2}-\d{2}$/.test(dayConfiguration.endDate) &&
+        dayConfiguration.endDate >= dayConfiguration.startDate
+    )
+    .map((dayConfiguration) => ({
+      id: dayConfiguration.id,
+      category: dayConfiguration.category,
+      startDate: dayConfiguration.startDate,
+      endDate: dayConfiguration.endDate,
+      label: dayConfiguration.label?.trim() || undefined,
+    }))
+    .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate));
+
 const getInitialHouseholdData = (): HouseholdData => ({ ...defaultHouseholdData });
 
 const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): HouseholdData => {
@@ -119,6 +140,9 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
     contacts: Array.isArray(payload.contacts) ? (payload.contacts.filter(Boolean) as Contact[]) : fallback.contacts,
     eventTypes: Array.isArray(payload.eventTypes) ? normalizeEventTypes(payload.eventTypes.filter(Boolean) as EventType[]) : fallback.eventTypes,
     events: Array.isArray(payload.events) ? normalizeEvents(payload.events.filter(Boolean) as HouseholdEvent[]) : fallback.events,
+    dayConfigurations: Array.isArray(payload.dayConfigurations)
+      ? normalizeDayConfigurations(payload.dayConfigurations.filter(Boolean) as DayConfiguration[])
+      : fallback.dayConfigurations,
   };
 };
 
@@ -199,6 +223,7 @@ const writeHousehold = async (accessToken: string, household: HouseholdData): Pr
       contacts: household.contacts,
       eventTypes: normalizeEventTypes(household.eventTypes),
       events: normalizeEvents(household.events),
+      dayConfigurations: normalizeDayConfigurations(household.dayConfigurations),
     }),
   });
 

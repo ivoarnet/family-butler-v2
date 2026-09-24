@@ -708,6 +708,38 @@ body,
   white-space: nowrap;
 }
 
+.day-cell {
+  position: relative;
+  overflow: hidden;
+  padding-right: 2.8rem !important;
+}
+
+.day-special-corner {
+  position: absolute;
+  right: -1.1rem;
+  z-index: 2;
+  width: 3.3rem;
+  transform: rotate(45deg);
+  text-align: center;
+  color: #fff;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  padding: 0.1rem 0;
+}
+
+.school-off {
+  background: #3b82f6;
+}
+
+.bank-holiday {
+  background: #8b5cf6;
+}
+
+.bridge-day {
+  background: #ef6c51;
+}
+
 .weekday-label-wrap {
   display: flex;
   align-items: center;
