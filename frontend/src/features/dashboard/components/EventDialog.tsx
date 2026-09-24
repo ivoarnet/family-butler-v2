@@ -2,6 +2,11 @@ import { FormEvent } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import { Box, Button, FormControl, FormControlLabel, MenuItem, Switch, Typography, useMediaQuery } from "@mui/material";
 import { alpha, styled, useTheme } from "@mui/material/styles";
+import dayjs, { Dayjs } from "dayjs";
+import customParseFormat from "dayjs/plugin/customParseFormat";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker";
 import {
   DialogActionsBar,
   DialogContentPanel,
@@ -15,6 +20,8 @@ import {
   GradientButton,
 } from "../../../shared/ui/GlassFormDialog";
 import { EventType, FamilyMember } from "../../../types/family";
+
+dayjs.extend(customParseFormat);
 
 const EventDetailsSection = styled(Box)(({ theme }) => ({
   display: "grid",
@@ -70,12 +77,15 @@ const MemberAvatar = styled("span")<{ $color: string }>(({ $color }) => ({
   fontSize: "0.75rem",
 }));
 
-const TIME_OPTIONS = Array.from({ length: 24 * 12 }, (_, index) => {
-  const totalMinutes = index * 5;
-  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
-  const minutes = String(totalMinutes % 60).padStart(2, "0");
-  return `${hours}:${minutes}`;
-});
+const parseTimeValue = (value: string): Dayjs | null => {
+  if (!value) {
+    return null;
+  }
+  const parsed = dayjs(value, "HH:mm", true);
+  return parsed.isValid() ? parsed : null;
+};
+
+const formatTimeValue = (value: Dayjs | null): string => (value ? value.format("HH:mm") : "");
 
 export interface EventDialogFormState {
   title: string;
@@ -125,8 +135,9 @@ export function EventDialog({
   const descriptionId = "event-dialog-description";
 
   return (
-    <GlassDialog open={open} onClose={onClose} aria-labelledby={titleId} aria-describedby={descriptionId} fullScreen={fullScreen}>
-      <Box component="form" onSubmit={onSubmit} noValidate>
+    <LocalizationProvider dateAdapter={AdapterDayjs}>
+      <GlassDialog open={open} onClose={onClose} aria-labelledby={titleId} aria-describedby={descriptionId} fullScreen={fullScreen}>
+        <Box component="form" onSubmit={onSubmit} noValidate>
         <DialogHeader>
           <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
             {editing ? "Edit event" : "Add event"}
@@ -252,40 +263,40 @@ export function EventDialog({
             {!formState.allDay ? (
               <TimeSection>
                 <FormControl error={Boolean(timeErrorMessage)}>
-                  <FormSelect
-                    displayEmpty
-                    value={formState.startTime}
-                    onChange={(event) => onFormStateChange((current) => ({ ...current, startTime: String(event.target.value) }))}
-                    inputProps={{ "aria-label": "Begin time" }}
-                  >
-                    <MenuItem value="">Begin</MenuItem>
-                    {TIME_OPTIONS.map((time) => (
-                      <MenuItem key={`begin-${time}`} value={time}>
-                        {time}
-                      </MenuItem>
-                    ))}
-                  </FormSelect>
-                  <Typography variant="caption" sx={{ color: Boolean(timeErrorMessage) ? theme.palette.error.main : "var(--dialog-soft-text)", marginLeft: 0.25 }}>
-                    {timeErrorMessage ?? " "}
-                  </Typography>
+                  <MobileTimePicker
+                    ampm={false}
+                    views={["hours", "minutes"]}
+                    minutesStep={5}
+                    format="HH:mm"
+                    label="Begin"
+                    value={parseTimeValue(formState.startTime)}
+                    onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
+                    slotProps={{
+                      textField: {
+                        error: Boolean(timeErrorMessage),
+                        helperText: timeErrorMessage ?? " ",
+                        fullWidth: true,
+                      },
+                    }}
+                  />
                 </FormControl>
                 <FormControl error={Boolean(timeErrorMessage)}>
-                  <FormSelect
-                    displayEmpty
-                    value={formState.endTime}
-                    onChange={(event) => onFormStateChange((current) => ({ ...current, endTime: String(event.target.value) }))}
-                    inputProps={{ "aria-label": "End time" }}
-                  >
-                    <MenuItem value="">End</MenuItem>
-                    {TIME_OPTIONS.map((time) => (
-                      <MenuItem key={`end-${time}`} value={time}>
-                        {time}
-                      </MenuItem>
-                    ))}
-                  </FormSelect>
-                  <Typography variant="caption" sx={{ color: Boolean(timeErrorMessage) ? theme.palette.error.main : "var(--dialog-soft-text)", marginLeft: 0.25 }}>
-                    {timeErrorMessage ?? " "}
-                  </Typography>
+                  <MobileTimePicker
+                    ampm={false}
+                    views={["hours", "minutes"]}
+                    minutesStep={5}
+                    format="HH:mm"
+                    label="End"
+                    value={parseTimeValue(formState.endTime)}
+                    onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
+                    slotProps={{
+                      textField: {
+                        error: Boolean(timeErrorMessage),
+                        helperText: timeErrorMessage ?? " ",
+                        fullWidth: true,
+                      },
+                    }}
+                  />
                 </FormControl>
               </TimeSection>
             ) : null}
@@ -329,7 +340,8 @@ export function EventDialog({
             {editing ? "Save event" : "Add event"}
           </GradientButton>
         </DialogActionsBar>
-      </Box>
-    </GlassDialog>
+        </Box>
+      </GlassDialog>
+    </LocalizationProvider>
   );
 }
