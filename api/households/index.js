@@ -64,7 +64,7 @@ const cleanOptionalInt = (value) => {
   return Number.isNaN(parsed) ? null : parsed;
 };
 
-const parseIncomingMembers = (members, allowedMemberIds) => {
+const parseIncomingMembers = (members) => {
   if (!Array.isArray(members)) {
     return [];
   }
@@ -78,10 +78,6 @@ const parseIncomingMembers = (members, allowedMemberIds) => {
       }
 
       const requestedId = typeof member.id === "string" && member.id ? member.id : null;
-      if (requestedId && !allowedMemberIds.has(requestedId)) {
-        throw new Error("member id is not authorized for this household");
-      }
-
       return {
         id: requestedId || randomUUID(),
         firstName,
@@ -93,7 +89,7 @@ const parseIncomingMembers = (members, allowedMemberIds) => {
     });
 };
 
-const parseIncomingContacts = (contacts, allowedContactIds) => {
+const parseIncomingContacts = (contacts) => {
   if (!Array.isArray(contacts)) {
     return [];
   }
@@ -107,10 +103,6 @@ const parseIncomingContacts = (contacts, allowedContactIds) => {
       }
 
       const requestedId = typeof contact.id === "string" && contact.id ? contact.id : null;
-      if (requestedId && !allowedContactIds.has(requestedId)) {
-        throw new Error("contact id is not authorized for this household");
-      }
-
       return {
         id: requestedId || randomUUID(),
         firstName,
@@ -122,6 +114,28 @@ const parseIncomingContacts = (contacts, allowedContactIds) => {
         mobilePhone: cleanOptionalText(contact.mobilePhone),
       };
     });
+};
+
+const assertMemberIdsAuthorized = async (householdId, existingMemberIds, requestedMembers) => {
+  const idsToValidate = [...new Set(requestedMembers.map((member) => member.id).filter((memberId) => !existingMemberIds.has(memberId)))];
+  const ownershipChecks = await Promise.all(idsToValidate.map((memberId) => db.getMemberHouseholdId(memberId)));
+
+  ownershipChecks.forEach((ownerHouseholdId, index) => {
+    if (ownerHouseholdId && ownerHouseholdId !== householdId) {
+      throw new Error(`member id is not authorized for this household: ${idsToValidate[index]}`);
+    }
+  });
+};
+
+const assertContactIdsAuthorized = async (householdId, existingContactIds, requestedContacts) => {
+  const idsToValidate = [...new Set(requestedContacts.map((contact) => contact.id).filter((contactId) => !existingContactIds.has(contactId)))];
+  const ownershipChecks = await Promise.all(idsToValidate.map((contactId) => db.getContactHouseholdId(contactId)));
+
+  ownershipChecks.forEach((ownerHouseholdId, index) => {
+    if (ownerHouseholdId && ownerHouseholdId !== householdId) {
+      throw new Error(`contact id is not authorized for this household: ${idsToValidate[index]}`);
+    }
+  });
 };
 
 module.exports = async function households(context, req) {
@@ -208,8 +222,10 @@ module.exports = async function households(context, req) {
       const householdName = requestedName || existingHousehold.household.name || DEFAULT_HOUSEHOLD_NAME;
       const existingMemberIds = new Set(existingHousehold.members.map((member) => member.id));
       const existingContactIds = new Set(existingHousehold.contacts.map((contact) => contact.id));
-      const members = parseIncomingMembers(httpRequest.body?.familyMembers, existingMemberIds);
-      const contacts = parseIncomingContacts(httpRequest.body?.contacts, existingContactIds);
+      const members = parseIncomingMembers(httpRequest.body?.familyMembers);
+      const contacts = parseIncomingContacts(httpRequest.body?.contacts);
+      await assertMemberIdsAuthorized(householdId, existingMemberIds, members);
+      await assertContactIdsAuthorized(householdId, existingContactIds, contacts);
 
       await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
       await db.replaceMembers(householdId, members);

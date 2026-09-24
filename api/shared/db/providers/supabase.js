@@ -165,6 +165,32 @@ module.exports = function createSupabaseProvider() {
       return mapHousehold(row);
     },
 
+    async getMemberHouseholdId(memberId) {
+      const rows = await request(TABLES.members, {
+        params: {
+          select: "household_id",
+          id: `eq.${memberId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
+    async getContactHouseholdId(contactId) {
+      const rows = await request(TABLES.contacts, {
+        params: {
+          select: "household_id",
+          id: `eq.${contactId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
     async ensureHousehold(householdId, householdName, holidayRegion) {
       await request(TABLES.households, {
         method: "POST",
