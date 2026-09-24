@@ -864,7 +864,7 @@ body,
 }
 
 .agent-chat-panel {
-  width: min(900px, calc(100vw - 2rem));
+  width: 100%;
   height: min(78vh, 760px);
   max-height: calc(100vh - 2rem);
   display: grid;
@@ -872,6 +872,7 @@ body,
   background: var(--dialog-surface);
   border-radius: 20px;
   overflow: hidden;
+  box-sizing: border-box;
 }
 
 .agent-chat-header {
@@ -941,6 +942,14 @@ body,
   padding: 0.85rem 1.2rem 1rem;
   border-top: 1px solid var(--dialog-border);
   background: var(--dialog-panel);
+}
+
+.agent-chat-composer > * {
+  min-width: 0;
+}
+
+.agent-chat-composer .MuiFormControl-root {
+  min-width: 0;
 }
 
 .agent-chat-composer .MuiInputBase-root {
@@ -1038,7 +1047,6 @@ body,
   }
 
   .agent-chat-panel {
-    width: calc(100vw - 2rem);
     height: calc(100vh - 2rem);
   }
 }
