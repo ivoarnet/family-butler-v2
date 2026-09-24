@@ -1,12 +1,10 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-import ChatRoundedIcon from "@mui/icons-material/ChatRounded";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
-import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import SettingsIcon from "@mui/icons-material/Settings";
+import { AgentChatFeature } from "../features/dashboard/components/AgentChatFeature";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
 import { EventViewDialog } from "../features/dashboard/components/EventViewDialog";
@@ -258,7 +256,6 @@ export function DashboardPage({
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
-  const [isAgentChatOpen, setIsAgentChatOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
   const [viewingEventId, setViewingEventId] = useState<string | null>(null);
   const [eventFormState, setEventFormState] = useState<EventDialogFormState>(() => buildEventFormState(toIsoDate(new Date())));
@@ -390,27 +387,6 @@ export function DashboardPage({
       window.removeEventListener("keydown", handleEscape);
     };
   }, [isAvatarMenuOpen]);
-
-  useEffect(() => {
-    if (!isAgentChatOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsAgentChatOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isAgentChatOpen]);
 
   const openEventDialog = () => {
     setEditingEventId(null);
@@ -698,66 +674,11 @@ export function DashboardPage({
       </main>
 
       <div className="fab-stack">
-        <button
-          type="button"
-          className="fab icon-fab chat-fab"
-          onClick={() => setIsAgentChatOpen(true)}
-          title="Open Agent Chat"
-          aria-label="Open Agent Chat"
-        >
-          <ChatRoundedIcon fontSize="small" />
-        </button>
+        <AgentChatFeature />
         <button type="button" className="fab" onClick={openEventDialog} title="Create event">
           + Event
         </button>
       </div>
-
-      {isAgentChatOpen ? (
-        <section className="agent-chat-overlay" aria-label="Agent Chat">
-          <div className="agent-chat-panel" role="dialog" aria-modal="true" aria-label="Agent Chat window">
-            <header className="agent-chat-header">
-              <div className="agent-chat-title-wrap">
-                <span className="agent-chat-icon-badge" aria-hidden>
-                  <ChatRoundedIcon fontSize="small" />
-                </span>
-                <div>
-                  <h2>Agent Chat</h2>
-                  <p>Plan, ask, and get help for family coordination.</p>
-                </div>
-              </div>
-              <button
-                type="button"
-                className="icon-button"
-                onClick={() => setIsAgentChatOpen(false)}
-                title="Close Agent Chat"
-                aria-label="Close Agent Chat"
-              >
-                <CloseRoundedIcon fontSize="small" />
-              </button>
-            </header>
-            <div className="agent-chat-messages" aria-live="polite">
-              <article className="agent-chat-message agent">
-                <p>Hi! I’m your Family Butler Agent. I can help draft routines, reminders, and weekly plans.</p>
-              </article>
-              <article className="agent-chat-message user">
-                <p>Create a school-week evening routine for Lena and Max.</p>
-              </article>
-              <article className="agent-chat-message agent">
-                <p>
-                  Great idea. I can draft a weekday plan with dinner, prep for tomorrow, and bedtime. Start by choosing the days
-                  you want covered.
-                </p>
-              </article>
-            </div>
-            <form className="agent-chat-composer" onSubmit={(event) => event.preventDefault()}>
-              <input type="text" placeholder="Message Family Butler Agent…" aria-label="Message Agent Chat" />
-              <button type="submit" className="icon-button" aria-label="Send message" title="Send message">
-                <SendRoundedIcon fontSize="small" />
-              </button>
-            </form>
-          </div>
-        </section>
-      ) : null}
 
       <EventDialog
         open={isEventDialogOpen}
