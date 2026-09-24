@@ -1078,9 +1078,6 @@ function SettingsPage({
                   <tr key={contact.id}>
                     <td>
                       <div className="member-header">
-                        <span className="avatar avatar-birthday">
-                          <CakeRoundedIcon fontSize="small" />
-                        </span>
                         <span>{`${contact.firstName}${contact.lastName ? ` ${contact.lastName}` : ""}`}</span>
                       </div>
                     </td>
