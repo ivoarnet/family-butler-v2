@@ -12,7 +12,7 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
-} from "./GlassFormDialog";
+} from "../../../shared/ui/GlassFormDialog";
 
 const HouseholdDetailsSection = styled(Box)(({ theme }) => ({
   display: "grid",

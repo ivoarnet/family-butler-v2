@@ -15,6 +15,10 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 .
 ├── api
 ├── frontend
+│   └── src
+│       ├── pages
+│       ├── features
+│       └── shared
 ├── docs
 └── .github/workflows
 ```
@@ -62,6 +66,8 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 
 - `npm run dev` - Run frontend and backend in parallel
 - `npm run build` - Build backend and frontend
+- `npm run storybook --workspace frontend` - Run Storybook locally
+- `npm run build-storybook --workspace frontend` - Build Storybook static output
 
 ## API Runtime (Azure Functions)
 
