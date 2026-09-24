@@ -4,7 +4,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { AgentChatFeature } from "../features/dashboard/components/AgentChatFeature";
+import { AgentChat } from "../features/dashboard/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
 import { EventViewDialog } from "../features/dashboard/components/EventViewDialog";
@@ -674,7 +674,7 @@ export function DashboardPage({
       </main>
 
       <div className="fab-stack">
-        <AgentChatFeature />
+        <AgentChat />
         <button type="button" className="fab" onClick={openEventDialog} title="Create event">
           + Event
         </button>

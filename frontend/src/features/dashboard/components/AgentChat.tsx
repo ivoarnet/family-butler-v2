@@ -47,7 +47,7 @@ const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
   },
 ];
 
-export function AgentChatFeature() {
+export function AgentChat() {
   const [isAgentChatOpen, setIsAgentChatOpen] = useState(false);
   const chatAdapter = useMemo(
     () =>
