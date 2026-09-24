@@ -520,6 +520,11 @@ body,
   margin: 0;
 }
 
+.settings-tabs {
+  display: flex;
+  justify-content: center;
+}
+
 .table-scroll,
 .calendar-scroll {
   overflow-x: auto;
@@ -570,9 +575,18 @@ body,
   color: var(--text-secondary);
 }
 
+.settings-table th.actions-column,
+.settings-table td.actions-cell {
+  text-align: right;
+}
+
 .icon-actions {
   display: flex;
   gap: 0.3rem;
+}
+
+.settings-table td.actions-cell .icon-actions {
+  justify-content: flex-end;
 }
 
 .compact-icon-button {

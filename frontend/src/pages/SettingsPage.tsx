@@ -7,6 +7,7 @@ import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
+import { Tab, Tabs } from "@mui/material";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
 import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../features/settings/components/DayConfigurationDialog";
 import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
@@ -30,6 +31,7 @@ const MEMBER_COLOR_LABELS: Record<string, string> = {
   "#7c3aed": "Purple",
 };
 const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
+type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
 const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }> = [
   { value: "school_off", label: "School off", defaultMarker: "SH" },
   { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH" },
@@ -180,6 +182,7 @@ export function SettingsPage({
   const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profileSaveInfo, setProfileSaveInfo] = useState<string | null>(null);
+  const [settingsWorkspaceTab, setSettingsWorkspaceTab] = useState<SettingsWorkspaceTab>("members");
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -653,23 +656,39 @@ export function SettingsPage({
 
       <main className="settings-main">
         {mode === "profile" ? (
-          <section className="settings-card">
-            <div className="section-toolbar">
-              <h2>My account</h2>
-              <div className="pill-group view-switcher" role="tablist" aria-label="Profile sections">
-                <button type="button" className={settingsSection === "profile" ? "active" : ""} onClick={() => setSettingsSection("profile")}>
-                  My profile
-                </button>
-                <button
-                  type="button"
-                  className={settingsSection === "households" ? "active" : ""}
-                  onClick={() => setSettingsSection("households")}
-                >
-                  My households
-                </button>
-              </div>
-            </div>
-          </section>
+          <div className="settings-tabs">
+            <Tabs
+              value={settingsSection}
+              onChange={(_, value) => setSettingsSection(value as SettingsSection)}
+              aria-label="Profile sections"
+              centered
+              textColor="inherit"
+              indicatorColor="secondary"
+              sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}
+            >
+              <Tab value="profile" label="My profile" />
+              <Tab value="households" label="My households" />
+            </Tabs>
+          </div>
+        ) : null}
+
+        {showSettingsWorkspace ? (
+          <div className="settings-tabs">
+            <Tabs
+              value={settingsWorkspaceTab}
+              onChange={(_, value) => setSettingsWorkspaceTab(value as SettingsWorkspaceTab)}
+              aria-label="Settings sections"
+              centered
+              textColor="inherit"
+              indicatorColor="secondary"
+              sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}
+            >
+              <Tab value="members" label="Members" />
+              <Tab value="contacts" label="Contacts" />
+              <Tab value="events" label="Events" />
+              <Tab value="calendar" label="Calendar" />
+            </Tabs>
+          </div>
         ) : null}
 
         {showProfileWorkspace ? (
@@ -748,7 +767,7 @@ export function SettingsPage({
                   <tr>
                     <th>Name</th>
                     <th>Status</th>
-                    <th>Action</th>
+                    <th className="actions-column">Action</th>
                   </tr>
                 </thead>
                 <tbody>
@@ -758,7 +777,7 @@ export function SettingsPage({
                       <tr key={household.id} className={isSelected ? "selected-household-row" : ""}>
                         <td>{household.name}</td>
                         <td>{isSelected ? <span className="selected-pill">Selected</span> : "—"}</td>
-                        <td>
+                        <td className="actions-cell">
                           <button
                             type="button"
                             className="primary-pill"
@@ -809,7 +828,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "members" ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Household Members</h2>
@@ -828,7 +847,7 @@ export function SettingsPage({
                   <th>Order</th>
                   <th>Visible</th>
                   <th>Color</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -896,7 +915,7 @@ export function SettingsPage({
                         ))}
                       </select>
                     </td>
-                    <td>
+                    <td className="actions-cell">
                       <button type="button" className="icon-button compact-icon-button" onClick={() => openEditMember(member)}>
                         <EditOutlinedIcon fontSize="small" />
                       </button>
@@ -923,7 +942,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "contacts" ? (
         <section className="settings-card">
           <div className="section-toolbar responsive-toolbar">
             <h2>Contact List</h2>
@@ -955,7 +974,7 @@ export function SettingsPage({
                   <th>Name</th>
                   <th>Birthday</th>
                   <th>Mobile Phone</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -968,7 +987,7 @@ export function SettingsPage({
                     </td>
                     <td>{formatContactBirthday(contact)}</td>
                     <td>{contact.mobilePhone ?? "—"}</td>
-                    <td>
+                    <td className="actions-cell">
                       <div className="icon-actions">
                         <button
                           type="button"
@@ -1008,7 +1027,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "events" ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Event types</h2>
@@ -1025,7 +1044,7 @@ export function SettingsPage({
                 <tr>
                   <th>Name</th>
                   <th>Icon</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1033,7 +1052,7 @@ export function SettingsPage({
                   <tr key={eventType.id}>
                     <td>{eventType.name}</td>
                     <td>{eventType.icon ?? "—"}</td>
-                    <td>
+                    <td className="actions-cell">
                       <div className="icon-actions">
                         <button
                           type="button"
@@ -1071,7 +1090,7 @@ export function SettingsPage({
         </section>
         ) : null}
 
-        {showSettingsWorkspace ? (
+        {showSettingsWorkspace && settingsWorkspaceTab === "calendar" ? (
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Special Days</h2>
@@ -1089,7 +1108,7 @@ export function SettingsPage({
                   <th>Category</th>
                   <th>Date range</th>
                   <th>Marker</th>
-                  <th>Actions</th>
+                  <th className="actions-column">Actions</th>
                 </tr>
               </thead>
               <tbody>
@@ -1107,7 +1126,7 @@ export function SettingsPage({
                           DAY_CONFIGURATION_OPTIONS.find((option) => option.value === dayConfiguration.category)?.defaultMarker ||
                           "—"}
                       </td>
-                      <td>
+                      <td className="actions-cell">
                         <div className="icon-actions">
                           <button
                             type="button"
