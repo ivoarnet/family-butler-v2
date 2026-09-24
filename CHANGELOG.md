@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Grouped Settings workspace grids into four tabs (**Members**, **Contacts**, **Events**, **Calendar**) and right-aligned every grid Actions column in the last table column for consistent controls.
+- Grouped Settings workspace grids into four tabs (**Members**, **Contacts**, **Events**, **Calendar**) using MUI `Tabs`, and right-aligned every grid Actions column in the last table column for consistent controls.
 - Added household **Day configuration** support for special days (`School off`, `Bank holiday`, `Bridge day`) with Supabase-backed persistence, settings management UI, and dashboard day-column decorations for single-day corner markers and multi-day bands.
 - Updated day-configuration visuals so multi-day periods now render per-day corner markers (instead of bands), with category-specific colors for `school_off`, `bank_holiday`, and `bridge_day`.
 - Added day-configuration UI reference image URL: `https://github.com/user-attachments/assets/bfb620bf-9a81-4074-9db1-86f6bed77451`.

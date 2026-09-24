@@ -7,6 +7,7 @@ import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
+import { Tab, Tabs } from "@mui/material";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
 import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../features/settings/components/DayConfigurationDialog";
 import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
@@ -678,28 +679,18 @@ export function SettingsPage({
           <section className="settings-card">
             <div className="section-toolbar">
               <h2>Settings</h2>
-              <div className="pill-group view-switcher" role="tablist" aria-label="Settings sections">
-                <button type="button" className={settingsWorkspaceTab === "members" ? "active" : ""} onClick={() => setSettingsWorkspaceTab("members")}>
-                  Members
-                </button>
-                <button
-                  type="button"
-                  className={settingsWorkspaceTab === "contacts" ? "active" : ""}
-                  onClick={() => setSettingsWorkspaceTab("contacts")}
-                >
-                  Contacts
-                </button>
-                <button type="button" className={settingsWorkspaceTab === "events" ? "active" : ""} onClick={() => setSettingsWorkspaceTab("events")}>
-                  Events
-                </button>
-                <button
-                  type="button"
-                  className={settingsWorkspaceTab === "calendar" ? "active" : ""}
-                  onClick={() => setSettingsWorkspaceTab("calendar")}
-                >
-                  Calendar
-                </button>
-              </div>
+              <Tabs
+                value={settingsWorkspaceTab}
+                onChange={(_, value) => setSettingsWorkspaceTab(value as SettingsWorkspaceTab)}
+                aria-label="Settings sections"
+                variant="scrollable"
+                scrollButtons="auto"
+              >
+                <Tab value="members" label="Members" />
+                <Tab value="contacts" label="Contacts" />
+                <Tab value="events" label="Events" />
+                <Tab value="calendar" label="Calendar" />
+              </Tabs>
             </div>
           </section>
         ) : null}
