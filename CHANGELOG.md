@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Added agentic feature architecture documentation as a separate documentation set under `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic`, covering:
+  - chat architecture (text + PDF/image uploads),
+  - MCP server architecture and tool boundaries,
+  - infrastructure/runtime setup guidance for Azure Static Web Apps + Azure Functions,
+  - and a framework recommendation note evaluating `eve.dev`.
 - Grouped Settings workspace grids into four tabs (**Members**, **Contacts**, **Events**, **Calendar**) using MUI `Tabs`, and right-aligned every grid Actions column in the last table column for consistent controls.
 - Added household **Day configuration** support for special days (`School off`, `Bank holiday`, `Bridge day`) with Supabase-backed persistence, settings management UI, and dashboard day-column decorations for single-day corner markers and multi-day bands.
 - Updated day-configuration visuals so multi-day periods now render per-day corner markers (instead of bands), with category-specific colors for `school_off`, `bank_holiday`, and `bridge_day`.
