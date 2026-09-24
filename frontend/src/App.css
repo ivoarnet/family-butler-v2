@@ -525,18 +525,6 @@ body,
   justify-content: center;
 }
 
-:root[data-theme="dark"] .settings-tabs .MuiTab-root {
-  color: rgba(243, 245, 255, 0.78);
-}
-
-:root[data-theme="dark"] .settings-tabs .MuiTab-root.Mui-selected {
-  color: #f3f5ff;
-}
-
-:root[data-theme="dark"] .settings-tabs .MuiTabs-indicator {
-  background-color: #f3f5ff;
-}
-
 .table-scroll,
 .calendar-scroll {
   overflow-x: auto;

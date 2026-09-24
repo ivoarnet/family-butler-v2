@@ -682,6 +682,9 @@ export function SettingsPage({
               onChange={(_, value) => setSettingsWorkspaceTab(value as SettingsWorkspaceTab)}
               aria-label="Settings sections"
               centered
+              textColor="inherit"
+              indicatorColor="secondary"
+              sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}
             >
               <Tab value="members" label="Members" />
               <Tab value="contacts" label="Contacts" />
