@@ -236,10 +236,6 @@ body,
   gap: 0.6rem;
 }
 
-.household-create-controls {
-  margin-bottom: 0.75rem;
-}
-
 .inline-controls input,
 .toolbar-controls input,
 .settings-card input,

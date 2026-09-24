@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Replaced Household Setting with a first-class Households workspace section, including household creation, selected-state badge, and one-click household switching.
+- Updated household creation to use a dedicated dialog consistent with the member/contact create flows.
 - Added active household context loading/retry behavior so household members and contact lists reload when switching households.
 - Added household API workspace endpoints for listing and creating households: `GET /api/households` and `POST /api/households`.
 - Hardened household-scoped writes by rejecting member/contact IDs that are not already part of the active household.

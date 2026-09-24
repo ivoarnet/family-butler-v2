@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { ContactDialog } from "./components/ContactDialog";
+import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
@@ -540,6 +541,7 @@ function SettingsPage({
   const [newHouseholdName, setNewHouseholdName] = useState("");
   const [createHouseholdSubmitted, setCreateHouseholdSubmitted] = useState(false);
   const [createHouseholdError, setCreateHouseholdError] = useState<string | null>(null);
+  const [householdModalOpen, setHouseholdModalOpen] = useState(false);
   const [memberFormState, setMemberFormState] = useState<MemberFormState>(buildMemberFormState);
   const [contactFormState, setContactFormState] = useState<ContactFormState>(buildContactFormState);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
@@ -570,7 +572,23 @@ function SettingsPage({
 
   const createHouseholdNameError = createHouseholdSubmitted && !newHouseholdName.trim();
 
-  const submitCreateHousehold = async (event: FormEvent) => {
+  const openAddHousehold = () => {
+    setCreateHouseholdSubmitted(false);
+    setCreateHouseholdError(null);
+    setNewHouseholdName("");
+    setHouseholdModalOpen(true);
+  };
+
+  const closeAddHousehold = () => {
+    if (isCreatingHousehold) {
+      return;
+    }
+    setHouseholdModalOpen(false);
+    setCreateHouseholdSubmitted(false);
+    setCreateHouseholdError(null);
+  };
+
+  const submitCreateHousehold = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateHouseholdSubmitted(true);
     const trimmedName = newHouseholdName.trim();
@@ -587,6 +605,7 @@ function SettingsPage({
     setCreateHouseholdError(null);
     setCreateHouseholdSubmitted(false);
     setNewHouseholdName("");
+    setHouseholdModalOpen(false);
   };
 
   const openAddMember = () => {
@@ -810,26 +829,10 @@ function SettingsPage({
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Households</h2>
-          </div>
-
-          <form className="inline-controls household-create-controls" onSubmit={submitCreateHousehold}>
-            <input
-              aria-label="Household name"
-              type="text"
-              value={newHouseholdName}
-              onChange={(event) => {
-                setNewHouseholdName(event.target.value);
-                setCreateHouseholdError(null);
-              }}
-              placeholder="Enter household name"
-              disabled={isCreatingHousehold || isContextLoading}
-            />
-            <button type="submit" className="primary-pill no-wrap-button" disabled={isCreatingHousehold || isContextLoading}>
-              {isCreatingHousehold ? "Creating…" : "Create household"}
+            <button type="button" className="primary-pill no-wrap-button" onClick={openAddHousehold} disabled={isCreatingHousehold || isContextLoading}>
+              Create household
             </button>
-          </form>
-          {createHouseholdNameError ? <p role="alert">Household name is required.</p> : null}
-          {createHouseholdError ? <p role="alert">{createHouseholdError}</p> : null}
+          </div>
 
           {households.length === 0 ? (
             <div className="coming-soon-card">
@@ -887,6 +890,20 @@ function SettingsPage({
               <strong>Loading selected household…</strong>
             </div>
           ) : null}
+
+          <HouseholdDialog
+            open={householdModalOpen}
+            householdName={newHouseholdName}
+            householdNameError={createHouseholdNameError}
+            requestError={createHouseholdError}
+            isSubmitting={isCreatingHousehold}
+            onClose={closeAddHousehold}
+            onSubmit={submitCreateHousehold}
+            onHouseholdNameChange={(value) => {
+              setNewHouseholdName(value);
+              setCreateHouseholdError(null);
+            }}
+          />
         </section>
 
         <section className="settings-card">
