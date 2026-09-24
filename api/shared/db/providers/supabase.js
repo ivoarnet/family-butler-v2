@@ -130,22 +130,23 @@ module.exports = function createSupabaseProvider() {
   };
 
   return {
-    async listHouseholds() {
+    async listHouseholds(userId) {
       const households = await request(TABLES.households, {
         params: {
           select: "id,name",
+          created_by_user_id: `eq.${userId}`,
           order: "created_at.asc",
         },
       });
       return Array.isArray(households) ? households.map(mapHouseholdSummary) : [];
     },
 
-    async createHousehold(householdName, holidayRegion) {
+    async createHousehold(householdName, holidayRegion, userId) {
       const householdId = randomUUID();
       const data = await request(TABLES.households, {
         method: "POST",
         params: {
-          select: "id,name,holiday_region",
+          select: "id,name,holiday_region,created_by_user_id",
         },
         headers: {
           Prefer: "return=representation",
@@ -154,6 +155,7 @@ module.exports = function createSupabaseProvider() {
           id: householdId,
           name: householdName,
           holiday_region: holidayRegion,
+          created_by_user_id: userId,
         },
       });
 
@@ -191,7 +193,7 @@ module.exports = function createSupabaseProvider() {
       return row && typeof row.household_id === "string" ? row.household_id : null;
     },
 
-    async ensureHousehold(householdId, householdName, holidayRegion) {
+    async ensureHousehold(householdId, householdName, holidayRegion, userId) {
       await request(TABLES.households, {
         method: "POST",
         params: { on_conflict: "id" },
@@ -202,16 +204,18 @@ module.exports = function createSupabaseProvider() {
           id: householdId,
           name: householdName,
           holiday_region: holidayRegion,
+          created_by_user_id: userId,
         },
       });
     },
 
-    async getHouseholdWithRelations(householdId) {
+    async getHouseholdWithRelations(householdId, userId) {
       const [households, members, contacts] = await Promise.all([
         request(TABLES.households, {
           params: {
             select: "id,name,holiday_region",
             id: `eq.${householdId}`,
+            created_by_user_id: `eq.${userId}`,
           },
         }),
         request(TABLES.members, {

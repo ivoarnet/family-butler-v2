@@ -94,8 +94,21 @@ const parseResponseError = async (response: Response, fallback: string): Promise
   return fallback;
 };
 
-const readHouseholds = async (): Promise<HouseholdSummary[]> => {
-  const response = await fetch(`${API_BASE_URL}/api/households`);
+const createRequestHeaders = (accessToken: string, includeJsonContentType = false): HeadersInit => {
+  const headers: Record<string, string> = {
+    Authorization: ["Bearer", accessToken].join(" "),
+    "x-supabase-auth-token": accessToken,
+  };
+  if (includeJsonContentType) {
+    headers["Content-Type"] = "application/json";
+  }
+  return headers;
+};
+
+const readHouseholds = async (accessToken: string): Promise<HouseholdSummary[]> => {
+  const response = await fetch(`${API_BASE_URL}/api/households`, {
+    headers: createRequestHeaders(accessToken),
+  });
   if (!response.ok) {
     throw new Error(await parseResponseError(response, "Failed to load households"));
   }
@@ -104,18 +117,20 @@ const readHouseholds = async (): Promise<HouseholdSummary[]> => {
   return Array.isArray(payload.households) ? payload.households.filter(Boolean) : [];
 };
 
-const readHousehold = async (householdId: string): Promise<HouseholdData> => {
-  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`);
+const readHousehold = async (accessToken: string, householdId: string): Promise<HouseholdData> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`, {
+    headers: createRequestHeaders(accessToken),
+  });
   if (!response.ok) {
     throw new Error(await parseResponseError(response, "Failed to load household data"));
   }
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, householdId);
 };
 
-const createHousehold = async (householdName: string): Promise<HouseholdData> => {
+const createHousehold = async (accessToken: string, householdName: string): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: createRequestHeaders(accessToken, true),
     body: JSON.stringify({ householdName }),
   });
 
@@ -131,10 +146,10 @@ const createHousehold = async (householdName: string): Promise<HouseholdData> =>
   return toHouseholdData(payload, payload.householdId);
 };
 
-const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> => {
+const writeHousehold = async (accessToken: string, household: HouseholdData): Promise<HouseholdData> => {
   const response = await fetch(`${API_BASE_URL}/api/households/${household.householdId}`, {
     method: "PUT",
-    headers: { "Content-Type": "application/json" },
+    headers: createRequestHeaders(accessToken, true),
     body: JSON.stringify({
       householdName: household.householdName,
       familyMembers: normalizeFamilyMembers(household.familyMembers),
@@ -306,17 +321,18 @@ export function App() {
   }, []);
 
   useEffect(() => {
-    if (!authSession?.user?.id) {
+    if (!authSession?.user?.id || !authSession.access_token) {
       setInitialLoadComplete(false);
       return;
     }
 
     let cancelled = false;
+    const accessToken = authSession.access_token;
 
     const loadInitialHouseholdContext = async () => {
       try {
         setIsContextLoading(true);
-        const loadedHouseholds = await readHouseholds();
+        const loadedHouseholds = await readHouseholds(accessToken);
         if (cancelled) {
           return;
         }
@@ -336,7 +352,7 @@ export function App() {
           storedActiveHousehold && loadedHouseholds.some((household) => household.id === storedActiveHousehold)
             ? storedActiveHousehold
             : loadedHouseholds[0].id;
-        const loadedHousehold = await readHousehold(preferredHouseholdId);
+        const loadedHousehold = await readHousehold(accessToken, preferredHouseholdId);
         if (cancelled) {
           return;
         }
@@ -364,7 +380,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [authSession?.user?.id]);
+  }, [authSession?.user?.id, authSession?.access_token]);
 
   useEffect(() => {
     if (!initialLoadComplete || !activeHouseholdId || isContextLoading) {
@@ -375,8 +391,11 @@ export function App() {
 
     const persistHouseholdData = async () => {
       try {
+        if (!authSession?.access_token) {
+          throw new Error("You need to sign in again.");
+        }
         setIsSaving(true);
-        const persisted = await writeHousehold(householdData);
+        const persisted = await writeHousehold(authSession.access_token, householdData);
         if (cancelled) {
           return;
         }
@@ -405,7 +424,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [activeHouseholdId, householdData, initialLoadComplete, isContextLoading]);
+  }, [activeHouseholdId, authSession?.access_token, householdData, initialLoadComplete, isContextLoading]);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
@@ -419,8 +438,11 @@ export function App() {
     }
 
     try {
+      if (!authSession?.access_token) {
+        throw new Error("You need to sign in again.");
+      }
       setIsContextLoading(true);
-      const loaded = await readHousehold(householdId);
+      const loaded = await readHousehold(authSession.access_token, householdId);
       setHouseholdData(loaded);
       setActiveHouseholdId(householdId);
       window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, householdId);
@@ -436,8 +458,11 @@ export function App() {
 
   const createAndSelectHousehold = async (householdName: string): Promise<{ ok: boolean; error?: string }> => {
     try {
+      if (!authSession?.access_token) {
+        throw new Error("You need to sign in again.");
+      }
       setIsCreatingHousehold(true);
-      const created = await createHousehold(householdName);
+      const created = await createHousehold(authSession.access_token, householdName);
       setHouseholds((current) => [...current, { id: created.householdId, name: created.householdName }]);
       setHouseholdData(created);
       setActiveHouseholdId(created.householdId);

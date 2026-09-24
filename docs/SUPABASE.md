@@ -43,6 +43,7 @@ create table if not exists public.households (
   id uuid primary key,
   name text not null,
   holiday_region text not null default 'CH',
+  created_by_user_id uuid not null references auth.users(id),
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
@@ -85,6 +86,28 @@ create index if not exists idx_household_members_household_sort_order
 
 create index if not exists idx_contacts_household_name
   on public.contacts (household_id, first_name, last_name);
+
+create index if not exists idx_households_created_by_user
+  on public.households (created_by_user_id, created_at);
+```
+
+If your `households` table already exists, run this migration before deploying:
+
+```sql
+alter table public.households
+  add column if not exists created_by_user_id uuid references auth.users(id);
+
+-- Backfill this value with the correct owner user id for each existing household before enforcing NOT NULL.
+-- Example:
+-- update public.households
+-- set created_by_user_id = 'YOUR_AUTH_USER_UUID'
+-- where id = 'YOUR_HOUSEHOLD_UUID';
+
+alter table public.households
+  alter column created_by_user_id set not null;
+
+create index if not exists idx_households_created_by_user
+  on public.households (created_by_user_id, created_at);
 ```
 
 ## 5) Seed an initial household

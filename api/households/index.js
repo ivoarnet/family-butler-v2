@@ -1,5 +1,6 @@
 const { randomUUID } = require("crypto");
 const db = require("../shared/db");
+const { getAuthenticatedUserId } = require("../shared/auth");
 
 const DEFAULT_HOUSEHOLD_NAME = "Family Butler";
 const DEFAULT_HOLIDAY_REGION = process.env.DEFAULT_HOLIDAY_REGION || "CH";
@@ -39,8 +40,8 @@ const normalizeHouseholdSummary = (household) => ({
   name: household.name,
 });
 
-const getHouseholdOrThrow = async (householdId) => {
-  const household = await db.getHouseholdWithRelations(householdId);
+const getHouseholdOrThrow = async (householdId, userId) => {
+  const household = await db.getHouseholdWithRelations(householdId, userId);
   if (!household) {
     throw new Error("household not found");
   }
@@ -147,11 +148,20 @@ module.exports = async function households(context, req) {
       throw new Error("request context is missing");
     }
 
+    const authenticatedUserId = await getAuthenticatedUserId(httpRequest.headers);
+    if (!authenticatedUserId) {
+      context.res = {
+        status: 401,
+        body: { error: "authentication required" },
+      };
+      return;
+    }
+
     const method = typeof httpRequest.method === "string" ? httpRequest.method.toUpperCase() : "";
 
     if (method === "GET") {
       if (!householdId) {
-        const households = await db.listHouseholds();
+        const households = await db.listHouseholds(authenticatedUserId);
         context.res = {
           status: 200,
           body: {
@@ -161,7 +171,7 @@ module.exports = async function households(context, req) {
         return;
       }
 
-      const household = await getHouseholdOrThrow(householdId);
+      const household = await getHouseholdOrThrow(householdId, authenticatedUserId);
 
       context.res = {
         status: 200,
@@ -188,7 +198,7 @@ module.exports = async function households(context, req) {
         return;
       }
 
-      const existingHouseholds = await db.listHouseholds();
+      const existingHouseholds = await db.listHouseholds(authenticatedUserId);
       const duplicate = existingHouseholds.some((household) => household.name.trim().toLowerCase() === householdName.toLowerCase());
       if (duplicate) {
         context.res = {
@@ -198,8 +208,8 @@ module.exports = async function households(context, req) {
         return;
       }
 
-      const createdHousehold = await db.createHousehold(householdName, DEFAULT_HOLIDAY_REGION);
-      const created = await getHouseholdOrThrow(createdHousehold.id);
+      const createdHousehold = await db.createHousehold(householdName, DEFAULT_HOLIDAY_REGION, authenticatedUserId);
+      const created = await getHouseholdOrThrow(createdHousehold.id, authenticatedUserId);
 
       context.res = {
         status: 201,
@@ -217,7 +227,7 @@ module.exports = async function households(context, req) {
         return;
       }
 
-      const existingHousehold = await getHouseholdOrThrow(householdId);
+      const existingHousehold = await getHouseholdOrThrow(householdId, authenticatedUserId);
       const requestedName = cleanOptionalText(httpRequest.body?.householdName);
       const householdName = requestedName || existingHousehold.household.name || DEFAULT_HOUSEHOLD_NAME;
       const existingMemberIds = new Set(existingHousehold.members.map((member) => member.id));
@@ -227,11 +237,11 @@ module.exports = async function households(context, req) {
       await assertMemberIdsAuthorized(householdId, existingMemberIds, members);
       await assertContactIdsAuthorized(householdId, existingContactIds, contacts);
 
-      await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION);
+      await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION, authenticatedUserId);
       await db.replaceMembers(householdId, members);
       await db.replaceContacts(householdId, contacts);
 
-      const household = await getHouseholdOrThrow(householdId);
+      const household = await getHouseholdOrThrow(householdId, authenticatedUserId);
 
       context.res = {
         status: 200,
