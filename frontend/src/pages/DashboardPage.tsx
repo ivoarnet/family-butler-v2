@@ -4,7 +4,9 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
+import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
+import { EventViewDialog } from "../features/dashboard/components/EventViewDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
 import { Contact, HouseholdEvent } from "../types/family";
@@ -118,6 +120,19 @@ const buildEventFormState = (date: string): EventDialogFormState => ({
   notes: "",
 });
 
+const buildEventFormStateFromEvent = (event: HouseholdEvent): EventDialogFormState => ({
+  title: event.title,
+  memberIds: [...event.memberIds],
+  date: event.date,
+  allDay: event.allDay,
+  startTime: event.startTime ?? "",
+  endTime: event.endTime ?? "",
+  eventTypeId: event.eventTypeId ?? "",
+  repeatRule: event.repeatRule ?? "",
+  location: event.location ?? "",
+  notes: event.notes ?? "",
+});
+
 const parseDateOnly = (value: string): Date | null => {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) {
     return null;
@@ -202,6 +217,8 @@ export function DashboardPage({
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
+  const [editingEventId, setEditingEventId] = useState<string | null>(null);
+  const [viewingEventId, setViewingEventId] = useState<string | null>(null);
   const [eventFormState, setEventFormState] = useState<EventDialogFormState>(() => buildEventFormState(toIsoDate(new Date())));
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
@@ -230,6 +247,10 @@ export function DashboardPage({
     const entries = householdData.eventTypes.map((eventType) => [eventType.id, eventType] as const);
     return new Map(entries);
   }, [householdData.eventTypes]);
+  const memberById = useMemo(() => {
+    const entries = orderedMembers.map((member) => [member.id, member] as const);
+    return new Map(entries);
+  }, [orderedMembers]);
 
   const eventsByDateAndMember = useMemo(() => {
     const grouped = new Map<string, HouseholdEvent[]>();
@@ -250,6 +271,8 @@ export function DashboardPage({
     }
     return grouped;
   }, [days, householdData.events]);
+
+  const viewingEvent = useMemo(() => householdData.events.find((event) => event.id === viewingEventId) ?? null, [householdData.events, viewingEventId]);
 
   useEffect(() => {
     const interval = window.setInterval(() => setNow(new Date()), 30000);
@@ -282,6 +305,8 @@ export function DashboardPage({
   }, [isAvatarMenuOpen]);
 
   const openEventDialog = () => {
+    setEditingEventId(null);
+    setViewingEventId(null);
     setEventFormSubmitted(false);
     setEventFormState(buildEventFormState(toIsoDate(new Date())));
     setIsEventDialogOpen(true);
@@ -289,7 +314,24 @@ export function DashboardPage({
 
   const closeEventDialog = () => {
     setIsEventDialogOpen(false);
+    setEditingEventId(null);
     setEventFormSubmitted(false);
+  };
+
+  const openEventViewDialog = (eventId: string) => {
+    setViewingEventId(eventId);
+  };
+
+  const closeEventViewDialog = () => {
+    setViewingEventId(null);
+  };
+
+  const openEditEventDialog = (eventToEdit: HouseholdEvent) => {
+    setViewingEventId(null);
+    setEditingEventId(eventToEdit.id);
+    setEventFormSubmitted(false);
+    setEventFormState(buildEventFormStateFromEvent(eventToEdit));
+    setIsEventDialogOpen(true);
   };
 
   const submitEvent = (event: FormEvent<HTMLFormElement>) => {
@@ -307,8 +349,8 @@ export function DashboardPage({
       return;
     }
 
-    const newEvent: HouseholdEvent = {
-      id: crypto.randomUUID(),
+    const preparedEvent: HouseholdEvent = {
+      id: editingEventId ?? crypto.randomUUID(),
       title,
       date,
       memberIds: eventFormState.memberIds,
@@ -323,7 +365,9 @@ export function DashboardPage({
 
     setHouseholdData((current) => ({
       ...current,
-      events: [...current.events, newEvent],
+      events: editingEventId
+        ? current.events.map((existingEvent) => (existingEvent.id === editingEventId ? preparedEvent : existingEvent))
+        : [...current.events, preparedEvent],
     }));
     closeEventDialog();
   };
@@ -494,14 +538,19 @@ export function DashboardPage({
                           <td key={`${isoDate}-${member.id}`} className="event-cell">
                             {entries.map((entry) => {
                               const eventType = entry.eventTypeId ? eventTypeById.get(entry.eventTypeId) : null;
+                              const assignedMembers = entry.memberIds
+                                .map((memberId) => memberById.get(memberId))
+                                .filter((member): member is NonNullable<typeof member> => Boolean(member));
+                              const eventTypeLabel = eventType ? `${eventType.icon ? `${eventType.icon} ` : ""}${eventType.name}` : null;
                               return (
-                                <span className="event-item" key={`${entry.id}-${member.id}`}>
-                                  <strong>
-                                    {eventType?.icon ? `${eventType.icon} ` : ""}
-                                    {entry.title}
-                                  </strong>
-                                  <small>{formatEventTimeLabel(entry)}</small>
-                                </span>
+                                <CalendarEventCard
+                                  key={`${entry.id}-${member.id}`}
+                                  event={entry}
+                                  eventTypeLabel={eventTypeLabel}
+                                  timeLabel={formatEventTimeLabel(entry)}
+                                  members={assignedMembers}
+                                  onClick={() => openEventViewDialog(entry.id)}
+                                />
                               );
                             })}
                           </td>
@@ -530,6 +579,7 @@ export function DashboardPage({
 
       <EventDialog
         open={isEventDialogOpen}
+        editing={Boolean(editingEventId)}
         members={orderedMembers}
         eventTypes={householdData.eventTypes}
         formState={eventFormState}
@@ -540,6 +590,20 @@ export function DashboardPage({
         onClose={closeEventDialog}
         onSubmit={submitEvent}
         onFormStateChange={(updater) => setEventFormState((current) => updater(current))}
+      />
+
+      <EventViewDialog
+        open={Boolean(viewingEvent)}
+        event={viewingEvent}
+        eventType={viewingEvent?.eventTypeId ? (eventTypeById.get(viewingEvent.eventTypeId) ?? null) : null}
+        members={orderedMembers}
+        timeLabel={viewingEvent ? formatEventTimeLabel(viewingEvent) : ""}
+        onClose={closeEventViewDialog}
+        onEdit={() => {
+          if (viewingEvent) {
+            openEditEventDialog(viewingEvent);
+          }
+        }}
       />
     </div>
   );

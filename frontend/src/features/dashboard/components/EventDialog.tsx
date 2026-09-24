@@ -85,6 +85,7 @@ export interface EventDialogFormState {
 
 interface EventDialogProps {
   open: boolean;
+  editing: boolean;
   members: FamilyMember[];
   eventTypes: EventType[];
   formState: EventDialogFormState;
@@ -99,6 +100,7 @@ interface EventDialogProps {
 
 export function EventDialog({
   open,
+  editing,
   members,
   eventTypes,
   formState,
@@ -120,7 +122,7 @@ export function EventDialog({
       <Box component="form" onSubmit={onSubmit} noValidate>
         <DialogHeader>
           <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-            Add event
+            {editing ? "Edit event" : "Add event"}
           </Typography>
           <Button type="button" onClick={onClose} aria-label="Close event dialog" sx={{ minWidth: "auto", color: "var(--text-primary)", borderRadius: "999px" }}>
             <CloseIcon fontSize="small" />
@@ -301,7 +303,7 @@ export function EventDialog({
             Cancel
           </Button>
           <GradientButton type="submit" variant="contained" disableElevation>
-            Add event
+            {editing ? "Save event" : "Add event"}
           </GradientButton>
         </DialogActionsBar>
       </Box>

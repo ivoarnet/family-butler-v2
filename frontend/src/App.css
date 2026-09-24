@@ -744,26 +744,39 @@ body,
 
 .event-cell {
   min-width: 11rem;
+  padding: 0.55rem 0.5rem !important;
 }
 
-.event-item {
-  display: grid;
-  gap: 0.15rem;
-  width: fit-content;
+.event-cell > button {
   margin-bottom: 0.3rem;
-  padding: 0.25rem 0.6rem;
-  border-radius: 0.7rem;
-  border: 1px solid rgba(127, 139, 255, 0.35);
-  background: rgba(127, 139, 255, 0.16);
 }
 
-.event-item strong {
+.event-item-title {
   font-size: 0.83rem;
 }
 
-.event-item small {
+.event-cell small {
   color: var(--text-secondary);
   font-size: 0.73rem;
+}
+
+.event-cell .MuiAvatarGroup-root {
+  width: fit-content;
+}
+
+.event-cell .MuiAvatar-root {
+  border: 1px solid rgba(8, 12, 24, 0.35);
+}
+
+.event-cell .MuiAvatarGroup-avatar {
+  font-weight: 700;
+}
+
+.event-cell button {
+  display: grid;
+  gap: 0.15rem;
+  width: 100%;
+  margin-bottom: 0.3rem;
 }
 
 .fab {
