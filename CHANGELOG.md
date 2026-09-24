@@ -41,4 +41,5 @@
   - **Profile** page for personal details and household list/selection/creation
   - **Settings** page for selected-household data only (members and contacts)
 - Extracted the avatar context menu into `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/components/AvatarContextMenu.tsx` and increased menu backdrop blur to better match the glass header feel.
+- Tuned avatar menu glass styling for a more visible blur effect by using a more transparent menu surface plus stronger `saturate + blur` backdrop filtering.
 - Added avatar menu visualization reference for issue alignment: `https://github.com/user-attachments/assets/a68ea3ad-d064-4f7e-a47d-742c973d40ba`.

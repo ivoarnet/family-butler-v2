@@ -21,6 +21,8 @@
   --dialog-backdrop: rgba(12, 18, 32, 0.45);
   --action-gradient-start: #7f8bff;
   --action-gradient-end: #9a7dff;
+  --menu-surface: rgba(255, 255, 255, 0.5);
+  --menu-backdrop-blur: 52px;
 }
 
 :root[data-theme="dark"] {
@@ -46,6 +48,8 @@
   --dialog-backdrop: rgba(7, 10, 18, 0.58);
   --action-gradient-start: #7f8bff;
   --action-gradient-end: #9a7dff;
+  --menu-surface: rgba(20, 24, 35, 0.52);
+  --menu-backdrop-blur: 52px;
 }
 
 * {
@@ -305,9 +309,9 @@ body,
   padding: 0.85rem;
   border-radius: 0.95rem;
   border: 1px solid var(--border);
-  background: var(--surface);
-  backdrop-filter: blur(34px);
-  -webkit-backdrop-filter: blur(34px);
+  background: var(--menu-surface);
+  backdrop-filter: saturate(160%) blur(var(--menu-backdrop-blur));
+  -webkit-backdrop-filter: saturate(160%) blur(var(--menu-backdrop-blur));
   box-shadow: var(--shadow);
   display: grid;
   gap: 0.7rem;
