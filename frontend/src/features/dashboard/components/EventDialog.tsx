@@ -70,6 +70,13 @@ const MemberAvatar = styled("span")<{ $color: string }>(({ $color }) => ({
   fontSize: "0.75rem",
 }));
 
+const TIME_OPTIONS = Array.from({ length: 24 * 12 }, (_, index) => {
+  const totalMinutes = index * 5;
+  const hours = String(Math.floor(totalMinutes / 60)).padStart(2, "0");
+  const minutes = String(totalMinutes % 60).padStart(2, "0");
+  return `${hours}:${minutes}`;
+});
+
 export interface EventDialogFormState {
   title: string;
   memberIds: string[];
@@ -244,26 +251,42 @@ export function EventDialog({
             />
             {!formState.allDay ? (
               <TimeSection>
-                <FormField
-                  required
-                  type="time"
-                  label="Begin"
-                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                  value={formState.startTime}
-                  error={Boolean(timeErrorMessage)}
-                  helperText={timeErrorMessage ?? " "}
-                  onChange={(event) => onFormStateChange((current) => ({ ...current, startTime: event.target.value }))}
-                />
-                <FormField
-                  required
-                  type="time"
-                  label="End"
-                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { step: 300 } }}
-                  value={formState.endTime}
-                  error={Boolean(timeErrorMessage)}
-                  helperText={timeErrorMessage ?? " "}
-                  onChange={(event) => onFormStateChange((current) => ({ ...current, endTime: event.target.value }))}
-                />
+                <FormControl error={Boolean(timeErrorMessage)}>
+                  <FormSelect
+                    displayEmpty
+                    value={formState.startTime}
+                    onChange={(event) => onFormStateChange((current) => ({ ...current, startTime: String(event.target.value) }))}
+                    inputProps={{ "aria-label": "Begin time" }}
+                  >
+                    <MenuItem value="">Begin</MenuItem>
+                    {TIME_OPTIONS.map((time) => (
+                      <MenuItem key={`begin-${time}`} value={time}>
+                        {time}
+                      </MenuItem>
+                    ))}
+                  </FormSelect>
+                  <Typography variant="caption" sx={{ color: Boolean(timeErrorMessage) ? theme.palette.error.main : "var(--dialog-soft-text)", marginLeft: 0.25 }}>
+                    {timeErrorMessage ?? " "}
+                  </Typography>
+                </FormControl>
+                <FormControl error={Boolean(timeErrorMessage)}>
+                  <FormSelect
+                    displayEmpty
+                    value={formState.endTime}
+                    onChange={(event) => onFormStateChange((current) => ({ ...current, endTime: String(event.target.value) }))}
+                    inputProps={{ "aria-label": "End time" }}
+                  >
+                    <MenuItem value="">End</MenuItem>
+                    {TIME_OPTIONS.map((time) => (
+                      <MenuItem key={`end-${time}`} value={time}>
+                        {time}
+                      </MenuItem>
+                    ))}
+                  </FormSelect>
+                  <Typography variant="caption" sx={{ color: Boolean(timeErrorMessage) ? theme.palette.error.main : "var(--dialog-soft-text)", marginLeft: 0.25 }}>
+                    {timeErrorMessage ?? " "}
+                  </Typography>
+                </FormControl>
               </TimeSection>
             ) : null}
             <FormField
