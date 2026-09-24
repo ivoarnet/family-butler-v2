@@ -8,6 +8,7 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
+import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../features/settings/components/DayConfigurationDialog";
 import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
 import { HouseholdDialog } from "../features/settings/components/HouseholdDialog";
 import { MemberDialog } from "../features/settings/components/MemberDialog";
@@ -81,6 +82,13 @@ const buildContactFormState = (contact?: Contact): ContactFormState => ({
 const buildEventTypeFormState = (eventType?: EventType): EventTypeDialogFormState => ({
   name: eventType?.name ?? "",
   icon: eventType?.icon ?? "",
+});
+
+const buildDayConfigurationFormState = (): DayConfigurationDialogFormState => ({
+  category: "school_off",
+  startDate: "",
+  endDate: "",
+  label: "",
 });
 
 const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
@@ -162,10 +170,8 @@ export function SettingsPage({
   const [editingEventTypeId, setEditingEventTypeId] = useState<string | null>(null);
   const [eventTypeFormState, setEventTypeFormState] = useState<EventTypeDialogFormState>(buildEventTypeFormState);
   const [eventTypeFormSubmitted, setEventTypeFormSubmitted] = useState(false);
-  const [dayConfigurationCategory, setDayConfigurationCategory] = useState<DayConfigurationCategory>("school_off");
-  const [dayConfigurationStartDate, setDayConfigurationStartDate] = useState("");
-  const [dayConfigurationEndDate, setDayConfigurationEndDate] = useState("");
-  const [dayConfigurationLabel, setDayConfigurationLabel] = useState("");
+  const [dayConfigurationModalOpen, setDayConfigurationModalOpen] = useState(false);
+  const [dayConfigurationFormState, setDayConfigurationFormState] = useState<DayConfigurationDialogFormState>(buildDayConfigurationFormState);
   const [dayConfigurationFormSubmitted, setDayConfigurationFormSubmitted] = useState(false);
   const [contactSearch, setContactSearch] = useState("");
   const [profileFirstName, setProfileFirstName] = useState(initialProfileFirstName);
@@ -513,17 +519,28 @@ export function SettingsPage({
   };
 
   const eventTypeNameError = eventTypeFormSubmitted && !eventTypeFormState.name.trim();
-  const dayConfigurationStartDateError = dayConfigurationFormSubmitted && !dayConfigurationStartDate;
-  const dayConfigurationEndDateError = dayConfigurationFormSubmitted && !dayConfigurationEndDate;
+  const dayConfigurationStartDateError = dayConfigurationFormSubmitted && !dayConfigurationFormState.startDate;
+  const dayConfigurationEndDateError = dayConfigurationFormSubmitted && !dayConfigurationFormState.endDate;
   const dayConfigurationRangeError =
     dayConfigurationFormSubmitted &&
-    Boolean(dayConfigurationStartDate && dayConfigurationEndDate && dayConfigurationEndDate < dayConfigurationStartDate);
+    Boolean(
+      dayConfigurationFormState.startDate &&
+        dayConfigurationFormState.endDate &&
+        dayConfigurationFormState.endDate < dayConfigurationFormState.startDate
+    );
 
   const resetDayConfigurationForm = () => {
-    setDayConfigurationCategory("school_off");
-    setDayConfigurationStartDate("");
-    setDayConfigurationEndDate("");
-    setDayConfigurationLabel("");
+    setDayConfigurationFormState(buildDayConfigurationFormState());
+    setDayConfigurationFormSubmitted(false);
+  };
+
+  const openAddDayConfiguration = () => {
+    resetDayConfigurationForm();
+    setDayConfigurationModalOpen(true);
+  };
+
+  const closeDayConfigurationModal = () => {
+    setDayConfigurationModalOpen(false);
     setDayConfigurationFormSubmitted(false);
   };
 
@@ -531,7 +548,11 @@ export function SettingsPage({
     event.preventDefault();
     setDayConfigurationFormSubmitted(true);
 
-    if (!dayConfigurationStartDate || !dayConfigurationEndDate || dayConfigurationEndDate < dayConfigurationStartDate) {
+    if (
+      !dayConfigurationFormState.startDate ||
+      !dayConfigurationFormState.endDate ||
+      dayConfigurationFormState.endDate < dayConfigurationFormState.startDate
+    ) {
       return;
     }
 
@@ -541,13 +562,14 @@ export function SettingsPage({
         ...current.dayConfigurations,
         {
           id: crypto.randomUUID(),
-          category: dayConfigurationCategory,
-          startDate: dayConfigurationStartDate,
-          endDate: dayConfigurationEndDate,
-          label: dayConfigurationLabel.trim() || undefined,
+          category: dayConfigurationFormState.category,
+          startDate: dayConfigurationFormState.startDate,
+          endDate: dayConfigurationFormState.endDate,
+          label: dayConfigurationFormState.label.trim() || undefined,
         },
       ],
     }));
+    setDayConfigurationModalOpen(false);
     resetDayConfigurationForm();
   };
 
@@ -1022,65 +1044,12 @@ export function SettingsPage({
         <section className="settings-card">
           <div className="section-toolbar">
             <h2>Day configuration</h2>
+            <button type="button" className="primary-pill no-wrap-button" onClick={openAddDayConfiguration} disabled={!canEditActiveHousehold}>
+              + Special day
+            </button>
           </div>
 
           {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to configure special days.</div> : null}
-
-          <form className="auth-form" onSubmit={submitDayConfiguration}>
-            <div className="edit-grid">
-              <label>
-                Category
-                <select
-                  value={dayConfigurationCategory}
-                  onChange={(event) => setDayConfigurationCategory(event.target.value as DayConfigurationCategory)}
-                  disabled={!canEditActiveHousehold}
-                >
-                  {DAY_CONFIGURATION_OPTIONS.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <label>
-                Start date
-                <input
-                  type="date"
-                  value={dayConfigurationStartDate}
-                  onChange={(event) => setDayConfigurationStartDate(event.target.value)}
-                  disabled={!canEditActiveHousehold}
-                />
-              </label>
-              <label>
-                End date
-                <input
-                  type="date"
-                  value={dayConfigurationEndDate}
-                  onChange={(event) => setDayConfigurationEndDate(event.target.value)}
-                  disabled={!canEditActiveHousehold}
-                />
-              </label>
-              <label>
-                Marker (optional)
-                <input
-                  type="text"
-                  value={dayConfigurationLabel}
-                  onChange={(event) => setDayConfigurationLabel(event.target.value)}
-                  placeholder={DAY_CONFIGURATION_OPTIONS.find((option) => option.value === dayConfigurationCategory)?.defaultMarker}
-                  maxLength={4}
-                  disabled={!canEditActiveHousehold}
-                />
-              </label>
-            </div>
-            {dayConfigurationStartDateError ? <div role="alert">Start date is required.</div> : null}
-            {dayConfigurationEndDateError ? <div role="alert">End date is required.</div> : null}
-            {dayConfigurationRangeError ? <div role="alert">End date must be on or after start date.</div> : null}
-            <div className="sheet-actions">
-              <button type="submit" disabled={!canEditActiveHousehold}>
-                + Special day
-              </button>
-            </div>
-          </form>
 
           <div className="table-scroll">
             <table className="settings-table" aria-label="Day configuration">
@@ -1108,20 +1077,34 @@ export function SettingsPage({
                           "—"}
                       </td>
                       <td>
-                        <button
-                          type="button"
-                          className="icon-button compact-icon-button"
-                          title="Delete day configuration"
-                          onClick={() => deleteDayConfiguration(dayConfiguration.id)}
-                        >
-                          <DeleteOutlinedIcon fontSize="small" />
-                        </button>
+                        <div className="icon-actions">
+                          <button
+                            type="button"
+                            className="icon-button compact-icon-button"
+                            title="Delete day configuration"
+                            onClick={() => deleteDayConfiguration(dayConfiguration.id)}
+                          >
+                            <DeleteOutlinedIcon fontSize="small" />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
               </tbody>
             </table>
           </div>
+
+          <DayConfigurationDialog
+            open={dayConfigurationModalOpen}
+            formState={dayConfigurationFormState}
+            categoryOptions={DAY_CONFIGURATION_OPTIONS}
+            startDateError={dayConfigurationStartDateError}
+            endDateError={dayConfigurationEndDateError}
+            rangeError={dayConfigurationRangeError}
+            onClose={closeDayConfigurationModal}
+            onSubmit={submitDayConfiguration}
+            onFormStateChange={(updater) => setDayConfigurationFormState((current) => updater(current))}
+          />
         </section>
         ) : null}
       </main>
