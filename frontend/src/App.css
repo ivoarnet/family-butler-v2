@@ -864,113 +864,97 @@ body,
 }
 
 .agent-chat-panel {
-  position: relative;
   width: min(900px, calc(100vw - 2rem));
   height: min(78vh, 760px);
   max-height: calc(100vh - 2rem);
-  background: transparent;
-}
-
-.agent-chat-close-button {
-  padding: 0.35rem;
-}
-
-.mui-agent-chat-box {
-  width: 100%;
-  height: 100%;
-  color: var(--text-primary);
+  display: grid;
+  grid-template-rows: auto 1fr auto;
   background: var(--dialog-surface);
   border-radius: 20px;
   overflow: hidden;
 }
 
-.mui-agent-chat-box .MuiChatConversation-root {
-  height: 100%;
-  background: var(--dialog-surface) !important;
+.agent-chat-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+  padding: 1rem 1.2rem;
+  border-bottom: 1px solid var(--dialog-border);
+  background: var(--dialog-panel);
 }
 
-.mui-agent-chat-box .agent-chat-conversation-header {
-  padding-right: 4.1rem;
-  border-bottom: 1px solid var(--border);
-  background: var(--dialog-panel) !important;
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
+.agent-chat-subtitle {
+  margin-top: 0.2rem;
+  color: var(--text-secondary);
 }
 
-.mui-agent-chat-box .MuiChatMessageContent-root[data-message-role="assistant"] {
-  background: rgba(127, 139, 255, 0.16) !important;
-}
-
-.mui-agent-chat-box .agent-chat-message-content {
-  border-radius: 1rem;
-  border: 1px solid var(--border);
-  max-width: min(100%, 36rem) !important;
-  overflow-wrap: anywhere !important;
-  word-break: break-word;
-  white-space: pre-wrap;
-  color: var(--text-primary);
-  background-clip: padding-box;
-}
-
-.mui-agent-chat-box .MuiChatMessageList-root,
-.mui-agent-chat-box .MuiChatMessageRow-root,
-.mui-agent-chat-box .MuiChatMessage-root {
+.agent-chat-message-list {
+  overflow-y: auto;
   overflow-x: hidden;
+  padding: 1rem 1.2rem;
+  background: var(--dialog-panel);
+  display: grid;
+  align-content: start;
+  gap: 0.85rem;
 }
 
-.mui-agent-chat-box .MuiChatMessageList-root {
-  background: var(--dialog-panel) !important;
+.agent-chat-message-row {
+  display: grid;
+  gap: 0.3rem;
+  max-width: min(100%, 36rem);
 }
 
-.mui-agent-chat-box .MuiChatMessageAuthorLabel-root,
-.mui-agent-chat-box .MuiChatMessageMeta-root,
-.mui-agent-chat-box .MuiChatConversationTitle-root {
-  color: var(--text-primary);
+.agent-chat-message-row.user {
+  justify-self: end;
 }
 
-.mui-agent-chat-box .MuiChatConversationSubtitle-root {
+.agent-chat-author {
+  font-size: 0.9rem;
   color: var(--text-secondary);
+  font-weight: 600;
 }
 
-.mui-agent-chat-box .MuiChatComposerTextArea-root {
+.agent-chat-bubble {
+  border-radius: 1rem;
+  border: 1px solid var(--dialog-border);
+  padding: 0.8rem 0.95rem;
   color: var(--text-primary);
+  overflow-wrap: anywhere;
+  white-space: pre-wrap;
+  line-height: 1.45;
 }
 
-.mui-agent-chat-box .MuiChatComposerTextArea-input {
-  width: 100%;
-  max-width: 100%;
-  color: var(--text-primary);
-  caret-color: var(--text-primary);
-  background: transparent;
+.agent-chat-bubble.assistant {
+  background: rgba(127, 139, 255, 0.14);
 }
 
-.mui-agent-chat-box .MuiChatComposerTextArea-input::placeholder {
-  color: var(--text-secondary);
-  opacity: 0.95;
+.agent-chat-bubble.user {
+  background: rgba(90, 108, 255, 0.24);
 }
 
-.mui-agent-chat-box .MuiChatMessageContent-root[data-message-role="user"] {
-  background: rgba(90, 108, 255, 0.28) !important;
+.agent-chat-composer {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+  padding: 0.85rem 1.2rem 1rem;
+  border-top: 1px solid var(--dialog-border);
+  background: var(--dialog-panel);
 }
 
-.mui-agent-chat-box .MuiChatComposer-root {
-  background: var(--dialog-panel) !important;
-  border-top: 1px solid var(--border);
+.agent-chat-composer .MuiInputBase-root {
+  border-radius: 999px;
 }
 
-.mui-agent-chat-box .MuiChatComposerTextArea-container {
-  background: var(--dialog-field) !important;
-  border: 1px solid var(--border) !important;
-  border-radius: 999px !important;
+.agent-chat-send-button {
+  border: 1px solid var(--dialog-border);
+  background: linear-gradient(90deg, var(--action-gradient-start) 0%, var(--action-gradient-end) 100%);
+  color: #fff;
 }
 
-.mui-agent-chat-box .MuiChatComposerSendButton-root {
-  color: var(--text-primary);
-}
-
-.mui-agent-chat-box .MuiChatMessageGroup-root,
-.mui-agent-chat-box .MuiChatMessageRow-root {
-  max-width: 100%;
+.agent-chat-send-button.Mui-disabled {
+  color: var(--dialog-soft-text);
 }
 
 @media (max-width: 1120px) {
