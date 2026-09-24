@@ -46,7 +46,12 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
    - `SUPABASE_URL`
    - `SUPABASE_SECRET_KEY`
 
-4. Start frontend + backend:
+4. Fill frontend auth env values in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/.env`:
+
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+5. Start frontend + backend:
 
    ```bash
    npm run dev
@@ -83,8 +88,9 @@ Set these app settings in Azure Static Web Apps:
 - `SUPABASE_URL`
 - `SUPABASE_SECRET_KEY`
 
-Optional (frontend-only use cases):
+Frontend env values:
 
-- `SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 No Infrastructure-as-Code is included by design.

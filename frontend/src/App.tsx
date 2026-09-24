@@ -12,9 +12,12 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import SettingsIcon from "@mui/icons-material/Settings";
+import { Session, User } from "@supabase/supabase-js";
+import { AuthScreen } from "./components/auth/AuthScreen";
 import { ContactDialog } from "./components/ContactDialog";
 import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
+import { hasSupabaseAuthEnv, supabaseClient } from "./lib/supabaseClient";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
@@ -322,16 +325,44 @@ const getBestAvailableColor = (members: FamilyMember[]): MemberAvatarColor => {
   return DEFAULT_MEMBER_COLOR;
 };
 
+const getUserDisplayName = (user: User): string => {
+  const metadataName = user.user_metadata?.full_name;
+  if (typeof metadataName === "string" && metadataName.trim()) {
+    return metadataName.trim();
+  }
+  return user.email?.trim() || "Signed in user";
+};
+
+const getUserInitials = (label: string): string => {
+  const parts = label
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return "U";
+  }
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+};
+
 function DashboardApp({
   theme,
   setTheme,
   householdData,
   onOpenSettings,
+  currentUserLabel,
+  currentUserInitials,
+  onSignOut,
 }: {
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
   onOpenSettings: () => void;
+  currentUserLabel: string;
+  currentUserInitials: string;
+  onSignOut: () => Promise<void>;
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
@@ -450,6 +481,18 @@ function DashboardApp({
             aria-label="Open settings"
           >
             <SettingsIcon fontSize="small" />
+          </button>
+
+          <button
+            type="button"
+            className="icon-button user-avatar-button"
+            onClick={() => {
+              void onSignOut();
+            }}
+            title={`${currentUserLabel} · Sign out`}
+            aria-label={`${currentUserLabel} · Sign out`}
+          >
+            {currentUserInitials}
           </button>
         </div>
       </header>
@@ -1130,6 +1173,11 @@ type FailedAction = { type: "initialLoad" } | { type: "switch"; householdId: str
 
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [authSession, setAuthSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(!hasSupabaseAuthEnv);
+  const [authPending, setAuthPending] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
   const [households, setHouseholds] = useState<HouseholdSummary[]>([]);
   const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
   const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
@@ -1147,6 +1195,50 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
+    const client = supabaseClient;
+    if (!client) {
+      return;
+    }
+
+    let active = true;
+
+    const bootstrapSession = async () => {
+      const { data, error } = await client.auth.getSession();
+      if (!active) {
+        return;
+      }
+      if (error) {
+        setAuthError(error.message);
+      } else {
+        setAuthSession(data.session);
+      }
+      setAuthReady(true);
+    };
+
+    void bootstrapSession();
+
+    const {
+      data: { subscription },
+    } = client.auth.onAuthStateChange((_event, session) => {
+      if (!active) {
+        return;
+      }
+      setAuthSession(session);
+      setAuthError(null);
+    });
+
+    return () => {
+      active = false;
+      subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (hasSupabaseAuthEnv && !authSession?.user?.id) {
+      setInitialLoadComplete(false);
+      return;
+    }
+
     let cancelled = false;
 
     const loadInitialHouseholdContext = async () => {
@@ -1200,7 +1292,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authSession?.user?.id]);
 
   useEffect(() => {
     if (!initialLoadComplete || !activeHouseholdId || isContextLoading) {
@@ -1317,6 +1409,98 @@ export function App() {
     setPathname(nextPathname);
   };
 
+  const currentUser = authSession?.user ?? null;
+  const currentUserLabel = useMemo(() => (currentUser ? getUserDisplayName(currentUser) : ""), [currentUser]);
+  const currentUserInitials = useMemo(() => getUserInitials(currentUserLabel), [currentUserLabel]);
+
+  const signIn = async (email: string, password: string) => {
+    if (!supabaseClient) {
+      return;
+    }
+    setAuthPending(true);
+    setAuthError(null);
+    setAuthInfo(null);
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthError(error.message);
+    }
+    setAuthPending(false);
+  };
+
+  const register = async (email: string, password: string, fullName: string) => {
+    if (!supabaseClient) {
+      return;
+    }
+    setAuthPending(true);
+    setAuthError(null);
+    setAuthInfo(null);
+
+    const { data, error } = await supabaseClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: fullName ? { full_name: fullName } : undefined,
+      },
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      setAuthPending(false);
+      return;
+    }
+
+    if (!data.session) {
+      setAuthInfo("Account created. Check your email to confirm your account before signing in.");
+    }
+
+    setAuthPending(false);
+  };
+
+  const signOut = async () => {
+    if (!supabaseClient) {
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signOut();
+    if (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  if (!hasSupabaseAuthEnv) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">
+            <h2>Authentication setup required</h2>
+            <p>Set frontend environment variables to enable Supabase Auth:</p>
+            <ul>
+              <li>VITE_SUPABASE_URL</li>
+              <li>VITE_SUPABASE_PUBLISHABLE_KEY</li>
+            </ul>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!authReady) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">Checking authentication…</section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!authSession) {
+    return (
+      <AuthScreen isSubmitting={authPending} errorMessage={authError} infoMessage={authInfo} onLogin={signIn} onRegister={register} />
+    );
+  }
+
   if (!initialLoadComplete || (isContextLoading && !activeHouseholdId && households.length > 0)) {
     return (
       <div className="dashboard-page">
@@ -1374,6 +1558,9 @@ export function App() {
         setTheme={setTheme}
         householdData={householdData}
         onOpenSettings={() => navigateTo("/settings")}
+        currentUserLabel={currentUserLabel}
+        currentUserInitials={currentUserInitials}
+        onSignOut={signOut}
       />
     </>
   );
