@@ -19,8 +19,8 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
-} from "./GlassFormDialog";
-import { MemberAvatarColor } from "../types/family";
+} from "../../../shared/ui/GlassFormDialog";
+import { MemberAvatarColor } from "../../../types/family";
 
 const AvatarPanel = styled(Box)(({ theme }) => ({
   display: "grid",

@@ -2,6 +2,10 @@
 
 ## Unreleased
 
+- Refactored frontend structure for scale: extracted `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages/DashboardPage.tsx` and `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages/SettingsPage.tsx` so `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/App.tsx` now focuses on app-level setup and route composition.
+- Reorganized UI modules into clear conventions: shared primitives in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/ui`, feature-specific settings dialogs in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/settings/components`, and shared app types in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/app/types.ts`.
+- Added Storybook configuration under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/.storybook` with frontend scripts (`storybook`, `build-storybook`) and shared component stories for `AvatarContextMenu` and glass form primitives.
+- Added updated Storybook screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/storybook-avatar-context-menu.png`.
 - Implemented Supabase email/password authentication in the frontend with session bootstrapping, login/register screens, and sign-out support.
 - Added a dedicated split auth layout component with glassmorphism styling and a teaser panel, reusing existing dialog field styling tokens/components.
 - Updated the dashboard header to show the logged-in user avatar badge (initials) with sign-out action instead of a login entry point.

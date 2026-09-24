@@ -6,3 +6,6 @@ npm-debug.log*
 coverage
 .DS_Store
 local.settings.json
+
+*storybook.log
+storybook-static

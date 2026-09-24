@@ -12,7 +12,7 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
-} from "./GlassFormDialog";
+} from "../../../shared/ui/GlassFormDialog";
 
 const ContactDetailsSection = styled(Box)(({ theme }) => ({
   display: "grid",
