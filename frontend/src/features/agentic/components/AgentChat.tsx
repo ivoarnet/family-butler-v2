@@ -1,8 +1,11 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import ChatRoundedIcon from "@mui/icons-material/ChatRounded";
 import CloseRoundedIcon from "@mui/icons-material/CloseRounded";
+import { Box, Button, useMediaQuery } from "@mui/material";
+import { useTheme } from "@mui/material/styles";
 import { ChatBox, createEchoAdapter } from "@mui/x-chat";
 import type { ChatConversation, ChatMessage, ChatUser } from "@mui/x-chat/headless";
+import { GlassDialog } from "../../../shared/ui/GlassFormDialog";
 
 const CHAT_MEMBERS: ChatUser[] = [
   { id: "user", displayName: "You", role: "user" },
@@ -49,6 +52,8 @@ const INITIAL_CHAT_MESSAGES: ChatMessage[] = [
 
 export function AgentChat() {
   const [isAgentChatOpen, setIsAgentChatOpen] = useState(false);
+  const theme = useTheme();
+  const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const chatAdapter = useMemo(
     () =>
       createEchoAdapter({
@@ -57,27 +62,6 @@ export function AgentChat() {
       }),
     []
   );
-
-  useEffect(() => {
-    if (!isAgentChatOpen) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
-
-    const handleEscape = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        setIsAgentChatOpen(false);
-      }
-    };
-
-    window.addEventListener("keydown", handleEscape);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleEscape);
-    };
-  }, [isAgentChatOpen]);
 
   return (
     <>
@@ -91,18 +75,23 @@ export function AgentChat() {
         <ChatRoundedIcon fontSize="small" />
       </button>
 
-      {isAgentChatOpen ? (
-        <section className="agent-chat-overlay" aria-label="Agent Chat">
-          <div className="agent-chat-panel" role="dialog" aria-modal="true" aria-label="Agent Chat window">
-            <button
-              type="button"
-              className="icon-button agent-chat-close-button"
-              onClick={() => setIsAgentChatOpen(false)}
-              title="Close Agent Chat"
-              aria-label="Close Agent Chat"
-            >
-              <CloseRoundedIcon fontSize="small" />
-            </button>
+      <GlassDialog
+        open={isAgentChatOpen}
+        onClose={() => setIsAgentChatOpen(false)}
+        fullScreen={fullScreen}
+        aria-label="Agent Chat window"
+      >
+        <Box className="agent-chat-panel">
+          <Button
+            type="button"
+            className="agent-chat-close-button"
+            onClick={() => setIsAgentChatOpen(false)}
+            title="Close Agent Chat"
+            aria-label="Close Agent Chat"
+            sx={{ minWidth: "auto", color: "var(--text-primary)", borderRadius: "999px", position: "absolute", top: "0.8rem", right: "0.9rem", zIndex: 4 }}
+          >
+            <CloseRoundedIcon fontSize="small" />
+          </Button>
             <ChatBox
               className="mui-agent-chat-box"
               adapter={chatAdapter}
@@ -159,9 +148,8 @@ export function AgentChat() {
                 },
               }}
             />
-          </div>
-        </section>
-      ) : null}
+        </Box>
+      </GlassDialog>
     </>
   );
 }
