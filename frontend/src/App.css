@@ -203,7 +203,7 @@ body,
   top: 0;
   z-index: 20;
   display: grid;
-  grid-template-columns: 1fr auto auto;
+  grid-template-columns: 1fr auto 1fr;
   align-items: center;
   gap: 1rem;
   padding: 1rem 1.25rem;
@@ -256,6 +256,14 @@ body,
   display: flex;
   align-items: center;
   gap: 0.9rem;
+}
+
+.header-controls {
+  justify-self: center;
+}
+
+.header-meta {
+  justify-self: end;
 }
 
 .pill-group {
@@ -410,21 +418,6 @@ body,
 .compact-icon-button:disabled {
   opacity: 0.45;
   cursor: not-allowed;
-}
-
-.live-clock {
-  text-align: right;
-}
-
-.live-clock strong {
-  display: block;
-  font-size: 2rem;
-  line-height: 1;
-}
-
-.live-clock span {
-  color: var(--text-secondary);
-  font-weight: 600;
 }
 
 .dashboard-main,
@@ -825,14 +818,6 @@ body,
   .inline-controls input,
   .inline-controls button {
     width: 100%;
-  }
-
-  .live-clock {
-    text-align: left;
-  }
-
-  .live-clock strong {
-    font-size: 1.5rem;
   }
 
   .header-branding h1 {
