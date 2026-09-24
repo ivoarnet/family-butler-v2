@@ -12,9 +12,12 @@ import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
 import SettingsIcon from "@mui/icons-material/Settings";
+import { Session, SupabaseClient, User } from "@supabase/supabase-js";
+import { AuthScreen } from "./components/auth/AuthScreen";
 import { ContactDialog } from "./components/ContactDialog";
 import { HouseholdDialog } from "./components/HouseholdDialog";
 import { MemberDialog } from "./components/MemberDialog";
+import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, FamilyMember, MemberAvatarColor } from "./types/family";
 
 type ThemeMode = "light" | "dark";
@@ -236,6 +239,26 @@ const writeHousehold = async (household: HouseholdData): Promise<HouseholdData> 
   return toHouseholdData((await response.json()) as Partial<HouseholdData>, household.householdId);
 };
 
+const readRuntimeAuthConfig = async (): Promise<{ supabaseUrl: string; supabasePublishableKey: string } | null> => {
+  const response = await fetch(`${API_BASE_URL}/api/auth-config`);
+  if (!response.ok) {
+    throw new Error(await parseResponseError(response, "Failed to load auth configuration"));
+  }
+
+  const payload = (await response.json()) as {
+    supabaseUrl?: unknown;
+    supabasePublishableKey?: unknown;
+  };
+  const supabaseUrl = typeof payload.supabaseUrl === "string" ? payload.supabaseUrl.trim() : "";
+  const supabasePublishableKey = typeof payload.supabasePublishableKey === "string" ? payload.supabasePublishableKey.trim() : "";
+
+  if (!supabaseUrl || !supabasePublishableKey) {
+    return null;
+  }
+
+  return { supabaseUrl, supabasePublishableKey };
+};
+
 const getWeekdayAbbreviation = (date: Date, locale: string): string => {
   const abbreviation = new Intl.DateTimeFormat(locale, { weekday: "short" }).format(date).replace(",", "");
   return abbreviation.endsWith(".") ? abbreviation.toUpperCase() : `${abbreviation.toUpperCase()}.`;
@@ -322,16 +345,44 @@ const getBestAvailableColor = (members: FamilyMember[]): MemberAvatarColor => {
   return DEFAULT_MEMBER_COLOR;
 };
 
+const getUserDisplayName = (user: User): string => {
+  const metadataName = user.user_metadata?.full_name;
+  if (typeof metadataName === "string" && metadataName.trim()) {
+    return metadataName.trim();
+  }
+  return user.email?.trim() || "Signed in user";
+};
+
+const getUserInitials = (label: string): string => {
+  const parts = label
+    .split(/\s+/)
+    .map((part) => part.trim())
+    .filter(Boolean);
+  if (parts.length === 0) {
+    return "U";
+  }
+  if (parts.length === 1) {
+    return parts[0].slice(0, 2).toUpperCase();
+  }
+  return `${parts[0][0] ?? ""}${parts[1][0] ?? ""}`.toUpperCase();
+};
+
 function DashboardApp({
   theme,
   setTheme,
   householdData,
   onOpenSettings,
+  currentUserLabel,
+  currentUserInitials,
+  onSignOut,
 }: {
   theme: ThemeMode;
   setTheme: React.Dispatch<React.SetStateAction<ThemeMode>>;
   householdData: HouseholdData;
   onOpenSettings: () => void;
+  currentUserLabel: string;
+  currentUserInitials: string;
+  onSignOut: () => Promise<void>;
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
@@ -450,6 +501,18 @@ function DashboardApp({
             aria-label="Open settings"
           >
             <SettingsIcon fontSize="small" />
+          </button>
+
+          <button
+            type="button"
+            className="icon-button user-avatar-button"
+            onClick={() => {
+              void onSignOut();
+            }}
+            title={`${currentUserLabel} · Sign out`}
+            aria-label={`${currentUserLabel} · Sign out`}
+          >
+            {currentUserInitials}
           </button>
         </div>
       </header>
@@ -1130,6 +1193,12 @@ type FailedAction = { type: "initialLoad" } | { type: "switch"; householdId: str
 
 export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
+  const [authClient, setAuthClient] = useState<SupabaseClient | null>(null);
+  const [authSession, setAuthSession] = useState<Session | null>(null);
+  const [authReady, setAuthReady] = useState(false);
+  const [authPending, setAuthPending] = useState(false);
+  const [authError, setAuthError] = useState<string | null>(null);
+  const [authInfo, setAuthInfo] = useState<string | null>(null);
   const [households, setHouseholds] = useState<HouseholdSummary[]>([]);
   const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
   const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
@@ -1147,6 +1216,77 @@ export function App() {
   }, [theme]);
 
   useEffect(() => {
+    let active = true;
+    let unsubscribe: (() => void) | null = null;
+
+    const bootstrapAuth = async () => {
+      try {
+        let config = getBuildTimeSupabaseAuthConfig();
+        if (!config) {
+          config = await readRuntimeAuthConfig();
+        }
+
+        if (!config) {
+          setAuthError(
+            "Authentication setup required. Configure either frontend VITE auth variables at build time or Azure app settings for runtime auth configuration."
+          );
+          return;
+        }
+
+        const client = createSupabaseClient(config);
+        if (!active) {
+          return;
+        }
+        setAuthClient(client);
+
+        const {
+          data: { subscription },
+        } = client.auth.onAuthStateChange((_event, session) => {
+          if (!active) {
+            return;
+          }
+          setAuthSession(session);
+          setAuthError(null);
+        });
+        unsubscribe = () => subscription.unsubscribe();
+
+        const { data, error } = await client.auth.getSession();
+        if (!active) {
+          return;
+        }
+        if (error) {
+          setAuthError(error.message);
+        } else {
+          setAuthSession(data.session);
+        }
+      } catch (error) {
+        if (!active) {
+          return;
+        }
+        setAuthError(error instanceof Error ? error.message : "Could not initialize authentication.");
+      } finally {
+        if (active) {
+          setAuthReady(true);
+        }
+      }
+    };
+
+    void bootstrapAuth();
+
+    return () => {
+      active = false;
+      if (unsubscribe) {
+        unsubscribe();
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!authSession?.user?.id) {
+      setInitialLoadComplete(false);
+      return;
+    }
+
     let cancelled = false;
 
     const loadInitialHouseholdContext = async () => {
@@ -1200,7 +1340,7 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authSession?.user?.id]);
 
   useEffect(() => {
     if (!initialLoadComplete || !activeHouseholdId || isContextLoading) {
@@ -1317,6 +1457,97 @@ export function App() {
     setPathname(nextPathname);
   };
 
+  const currentUser = authSession?.user ?? null;
+  const currentUserLabel = useMemo(() => (currentUser ? getUserDisplayName(currentUser) : ""), [currentUser]);
+  const currentUserInitials = useMemo(() => getUserInitials(currentUserLabel), [currentUserLabel]);
+
+  const signIn = async (email: string, password: string) => {
+    if (!authClient) {
+      setAuthError("Authentication client is not configured.");
+      return;
+    }
+    setAuthPending(true);
+    setAuthError(null);
+    setAuthInfo(null);
+
+    const { error } = await authClient.auth.signInWithPassword({ email, password });
+    if (error) {
+      setAuthError(error.message);
+    }
+    setAuthPending(false);
+  };
+
+  const register = async (email: string, password: string, fullName: string) => {
+    if (!authClient) {
+      setAuthError("Authentication client is not configured.");
+      return;
+    }
+    setAuthPending(true);
+    setAuthError(null);
+    setAuthInfo(null);
+
+    const { data, error } = await authClient.auth.signUp({
+      email,
+      password,
+      options: {
+        data: fullName ? { full_name: fullName } : undefined,
+      },
+    });
+
+    if (error) {
+      setAuthError(error.message);
+      setAuthPending(false);
+      return;
+    }
+
+    if (!data.session) {
+      setAuthInfo("Account created. Check your email to confirm your account before signing in.");
+    }
+
+    setAuthPending(false);
+  };
+
+  const signOut = async () => {
+    if (!authClient) {
+      setAuthError("Authentication client is not configured.");
+      return;
+    }
+
+    const { error } = await authClient.auth.signOut();
+    if (error) {
+      setAuthError(error.message);
+    }
+  };
+
+  if (!authReady) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">Checking authentication…</section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!authClient) {
+    return (
+      <div className="dashboard-page">
+        <main className="dashboard-main">
+          <section className="calendar-card">
+            <h2>Authentication setup required</h2>
+            <p>{authError ?? "Set Supabase auth environment variables to continue."}</p>
+          </section>
+        </main>
+      </div>
+    );
+  }
+
+  if (!authSession) {
+    return (
+      <AuthScreen isSubmitting={authPending} errorMessage={authError} infoMessage={authInfo} onLogin={signIn} onRegister={register} />
+    );
+  }
+
   if (!initialLoadComplete || (isContextLoading && !activeHouseholdId && households.length > 0)) {
     return (
       <div className="dashboard-page">
@@ -1374,6 +1605,9 @@ export function App() {
         setTheme={setTheme}
         householdData={householdData}
         onOpenSettings={() => navigateTo("/settings")}
+        currentUserLabel={currentUserLabel}
+        currentUserInitials={currentUserInitials}
+        onSignOut={signOut}
       />
     </>
   );

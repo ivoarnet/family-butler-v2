@@ -44,9 +44,15 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 3. Fill API env values in `/home/runner/work/family-butler-v2/family-butler-v2/api/.env`:
 
    - `SUPABASE_URL`
+   - `SUPABASE_PUBLISHABLE_KEY`
    - `SUPABASE_SECRET_KEY`
 
-4. Start frontend + backend:
+4. Fill frontend auth env values in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/.env`:
+
+   - `VITE_SUPABASE_URL`
+   - `VITE_SUPABASE_PUBLISHABLE_KEY`
+
+5. Start frontend + backend:
 
    ```bash
    npm run dev
@@ -62,6 +68,7 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households`, `POST /api/households`, `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/auth-config` → `GET /api/auth-config`
 
 Health diagnostics:
 
@@ -81,10 +88,12 @@ This repository includes an Azure Static Web Apps workflow under:
 Set these app settings in Azure Static Web Apps:
 
 - `SUPABASE_URL`
+- `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
 
-Optional (frontend-only use cases):
+Frontend build-time env values (optional if runtime auth config is provided by API):
 
-- `SUPABASE_PUBLISHABLE_KEY`
+- `VITE_SUPABASE_URL`
+- `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 No Infrastructure-as-Code is included by design.
