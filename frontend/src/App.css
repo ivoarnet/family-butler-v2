@@ -320,6 +320,20 @@ body,
   background: var(--row);
 }
 
+.settings-table tbody tr.selected-household-row {
+  background: rgba(127, 139, 255, 0.18);
+}
+
+.selected-pill {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 0.15rem 0.55rem;
+  background: rgba(127, 139, 255, 0.32);
+  border: 1px solid rgba(127, 139, 255, 0.45);
+  font-weight: 700;
+  font-size: 0.82rem;
+}
+
 .settings-table small {
   color: var(--text-secondary);
 }

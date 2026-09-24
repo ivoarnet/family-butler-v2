@@ -61,7 +61,7 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
-- `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households`, `POST /api/households`, `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
 
 Health diagnostics:
 

@@ -111,6 +111,8 @@ on conflict (id) do nothing;
 3. Start app: `npm run dev`
 4. Verify endpoints:
    - `GET /api/health?checks=1`
+   - `GET /api/households`
+   - `POST /api/households`
    - `GET /api/households/{householdId}`
    - `PUT /api/households/{householdId}`
 

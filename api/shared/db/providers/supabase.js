@@ -1,3 +1,5 @@
+const { randomUUID } = require("crypto");
+
 const TABLES = {
   households: "households",
   members: "household_members",
@@ -13,6 +15,11 @@ const mapHousehold = (row) => ({
   id: row.id,
   name: row.name,
   holidayRegion: row.holiday_region,
+});
+
+const mapHouseholdSummary = (row) => ({
+  id: row.id,
+  name: row.name,
 });
 
 const mapMember = (row) => ({
@@ -123,6 +130,67 @@ module.exports = function createSupabaseProvider() {
   };
 
   return {
+    async listHouseholds() {
+      const households = await request(TABLES.households, {
+        params: {
+          select: "id,name",
+          order: "created_at.asc",
+        },
+      });
+      return Array.isArray(households) ? households.map(mapHouseholdSummary) : [];
+    },
+
+    async createHousehold(householdName, holidayRegion) {
+      const householdId = randomUUID();
+      const data = await request(TABLES.households, {
+        method: "POST",
+        params: {
+          select: "id,name,holiday_region",
+        },
+        headers: {
+          Prefer: "return=representation",
+        },
+        body: {
+          id: householdId,
+          name: householdName,
+          holiday_region: holidayRegion,
+        },
+      });
+
+      const row = Array.isArray(data) ? data[0] : null;
+      if (!row) {
+        throw new Error("Failed to create household");
+      }
+
+      return mapHousehold(row);
+    },
+
+    async getMemberHouseholdId(memberId) {
+      const rows = await request(TABLES.members, {
+        params: {
+          select: "household_id",
+          id: `eq.${memberId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
+    async getContactHouseholdId(contactId) {
+      const rows = await request(TABLES.contacts, {
+        params: {
+          select: "household_id",
+          id: `eq.${contactId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
     async ensureHousehold(householdId, householdName, holidayRegion) {
       await request(TABLES.households, {
         method: "POST",
