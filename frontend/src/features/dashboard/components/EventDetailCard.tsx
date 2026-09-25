@@ -114,8 +114,6 @@ interface EventDetailCardProps {
 export function EventDetailCard({ event, eventType, members, onClose, onEdit }: EventDetailCardProps) {
   const assignedMembers = members.filter((member) => event.memberIds.includes(member.id));
   const eventTypeColor = eventType?.color ?? EVENT_TYPE_COLOR_FALLBACK;
-  const hasLocation = Boolean(event.location?.trim());
-  const hasNotes = Boolean(event.notes?.trim());
   const timeLabel = event.allDay ? "All day" : `${event.startTime ?? "—"} – ${event.endTime ?? "—"}`;
 
   return (
@@ -152,16 +150,14 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
             </Box>
           </DetailBlock>
 
-          {hasLocation ? (
-            <DetailBlock>
-              <DetailIconBadge aria-label="Location" title="Location">
-                <PlaceOutlinedIcon fontSize="small" titleAccess="Location" />
-              </DetailIconBadge>
-              <Box>
-                <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{event.location}</Typography>
-              </Box>
-            </DetailBlock>
-          ) : null}
+          <DetailBlock>
+            <DetailIconBadge aria-label="Location" title="Location">
+              <PlaceOutlinedIcon fontSize="small" titleAccess="Location" />
+            </DetailIconBadge>
+            <Box>
+              <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{event.location?.trim() || "—"}</Typography>
+            </Box>
+          </DetailBlock>
         </DetailList>
 
         <Stack direction="row" spacing={1.1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
@@ -177,14 +173,12 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
           </Typography>
         </Stack>
 
-        {hasNotes ? (
-          <Box>
-            <Label>Notes</Label>
-            <Typography variant="h5" sx={{ marginTop: "0.35rem", fontWeight: 500, maxWidth: "66ch", color: "var(--text-secondary)" }}>
-              {event.notes}
-            </Typography>
-          </Box>
-        ) : null}
+        <Box>
+          <Label>Notes</Label>
+          <Typography variant="h5" sx={{ marginTop: "0.35rem", fontWeight: 500, maxWidth: "66ch", color: "var(--text-secondary)" }}>
+            {event.notes?.trim() || "—"}
+          </Typography>
+        </Box>
       </CardInner>
 
       {eventType ? (
