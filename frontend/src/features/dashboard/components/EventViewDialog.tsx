@@ -1,28 +1,37 @@
 import CloseIcon from "@mui/icons-material/Close";
-import { Avatar, AvatarGroup, Box, Button, Typography, useMediaQuery } from "@mui/material";
-import { alpha, styled, useTheme } from "@mui/material/styles";
+import EditIcon from "@mui/icons-material/Edit";
+import { Avatar, AvatarGroup, Box, IconButton, Stack, Typography, useMediaQuery } from "@mui/material";
+import { styled, useTheme } from "@mui/material/styles";
 import {
-  DialogActionsBar,
   DialogContentPanel,
-  DialogDescription,
   DialogHeader,
-  FieldTitle,
   GlassDialog,
   GlassPanel,
-  GradientButton,
 } from "../../../shared/ui/GlassFormDialog";
 import { EventType, FamilyMember, HouseholdEvent } from "../../../types/family";
 
-const ReadonlyRow = styled(Box)({
+const DetailGrid = styled(Box)({
+  display: "grid",
+  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
+  gap: "0.8rem",
+  "@media (max-width: 720px)": {
+    gridTemplateColumns: "1fr",
+  },
+});
+
+const DetailCard = styled(Box)({
   border: "1px solid var(--dialog-border)",
   borderRadius: 12,
-  minHeight: 52,
-  padding: "0.75rem 0.9rem",
+  padding: "0.8rem 0.9rem",
   background: "var(--dialog-field)",
   color: "var(--text-primary)",
   display: "grid",
-  alignContent: "center",
-  gap: "0.2rem",
+  gap: "0.3rem",
+});
+
+const DetailLabel = styled("small")({
+  color: "var(--text-secondary)",
+  fontWeight: 600,
 });
 
 interface EventViewDialogProps {
@@ -51,80 +60,68 @@ export function EventViewDialog({ open, event, eventType, members, timeLabel, on
     <GlassDialog open={open} onClose={onClose} aria-labelledby={titleId} aria-describedby={descriptionId} fullScreen={fullScreen}>
       <Box>
         <DialogHeader>
-          <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-            Event details
-          </Typography>
-          <Button type="button" onClick={onClose} aria-label="Close event details dialog" sx={{ minWidth: "auto", color: "var(--text-primary)", borderRadius: "999px" }}>
-            <CloseIcon fontSize="small" />
-          </Button>
+          <Box>
+            <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
+              {event.title}
+            </Typography>
+            <Typography id={descriptionId} variant="body2" sx={{ color: "var(--text-secondary)" }}>
+              Event details
+            </Typography>
+          </Box>
+          <Stack direction="row" spacing={0.5}>
+            <IconButton onClick={onEdit} aria-label="Edit event" sx={{ color: "var(--text-primary)" }}>
+              <EditIcon fontSize="small" />
+            </IconButton>
+            <IconButton onClick={onClose} aria-label="Close event details dialog" sx={{ color: "var(--text-primary)" }}>
+              <CloseIcon fontSize="small" />
+            </IconButton>
+          </Stack>
         </DialogHeader>
 
         <DialogContentPanel>
-          <DialogDescription id={descriptionId} variant="body2">
-            View event details. Switch to edit mode to make changes.
-          </DialogDescription>
           <GlassPanel>
-            <FieldTitle variant="subtitle1">{event.title}</FieldTitle>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Date</small>
-              <span>{event.date}</span>
-            </ReadonlyRow>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Time</small>
-              <span>{timeLabel}</span>
-            </ReadonlyRow>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Type</small>
-              <span>{eventType ? `${eventType.icon ? `${eventType.icon} ` : ""}${eventType.name}` : "No type"}</span>
-            </ReadonlyRow>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Repeat</small>
-              <span>{event.repeatRule ? event.repeatRule : "Does not repeat"}</span>
-            </ReadonlyRow>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Family members</small>
-              <AvatarGroup max={6} sx={{ justifyContent: "flex-start", "& .MuiAvatar-root": { width: 24, height: 24, fontSize: "0.72rem" } }}>
-                {assignedMembers.map((member) => (
-                  <Avatar key={member.id} sx={{ bgcolor: member.avatarColor, color: "#fff" }}>
-                    {member.firstName.charAt(0)}
-                  </Avatar>
-                ))}
-              </AvatarGroup>
-            </ReadonlyRow>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Location</small>
-              <span>{event.location || "—"}</span>
-            </ReadonlyRow>
-            <ReadonlyRow>
-              <small style={{ color: "var(--text-secondary)" }}>Notes</small>
-              <span>{event.notes || "—"}</span>
-            </ReadonlyRow>
+            <DetailGrid>
+              <DetailCard>
+                <DetailLabel>Date</DetailLabel>
+                <span>{event.date}</span>
+              </DetailCard>
+              <DetailCard>
+                <DetailLabel>Time</DetailLabel>
+                <span>{timeLabel}</span>
+              </DetailCard>
+              <DetailCard>
+                <DetailLabel>Type</DetailLabel>
+                <span>{eventType ? `${eventType.icon ? `${eventType.icon} ` : ""}${eventType.name}` : "No type"}</span>
+              </DetailCard>
+              <DetailCard>
+                <DetailLabel>Repeat</DetailLabel>
+                <span>{event.repeatRule ? event.repeatRule : "Does not repeat"}</span>
+              </DetailCard>
+              <DetailCard>
+                <DetailLabel>Family members</DetailLabel>
+                {assignedMembers.length ? (
+                  <AvatarGroup max={6} sx={{ justifyContent: "flex-start", "& .MuiAvatar-root": { width: 24, height: 24, fontSize: "0.72rem" } }}>
+                    {assignedMembers.map((member) => (
+                      <Avatar key={member.id} sx={{ bgcolor: member.avatarColor, color: "#fff" }}>
+                        {member.firstName.charAt(0)}
+                      </Avatar>
+                    ))}
+                  </AvatarGroup>
+                ) : (
+                  <span>—</span>
+                )}
+              </DetailCard>
+              <DetailCard>
+                <DetailLabel>Location</DetailLabel>
+                <span>{event.location || "—"}</span>
+              </DetailCard>
+              <DetailCard sx={{ gridColumn: { md: "1 / -1" } }}>
+                <DetailLabel>Notes</DetailLabel>
+                <span>{event.notes || "—"}</span>
+              </DetailCard>
+            </DetailGrid>
           </GlassPanel>
         </DialogContentPanel>
-
-        <DialogActionsBar>
-          <Button
-            type="button"
-            onClick={onClose}
-            variant="outlined"
-            sx={{
-              borderRadius: "999px",
-              color: "var(--dialog-muted)",
-              borderColor: "var(--dialog-border)",
-              textTransform: "none",
-              minHeight: 42,
-              "&:hover": {
-                borderColor: "var(--accent-strong)",
-                background: alpha("#7f8bff", 0.12),
-              },
-            }}
-          >
-            Close
-          </Button>
-          <GradientButton type="button" variant="contained" disableElevation onClick={onEdit}>
-            Edit event
-          </GradientButton>
-        </DialogActionsBar>
       </Box>
     </GlassDialog>
   );
