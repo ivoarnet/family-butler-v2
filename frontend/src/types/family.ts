@@ -27,6 +27,7 @@ export interface EventType {
   id: string;
   name: string;
   icon?: string;
+  color?: string;
   sortOrder: number;
 }
 

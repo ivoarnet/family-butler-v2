@@ -86,6 +86,7 @@ create table if not exists public.event_types (
   household_id uuid not null references public.households(id) on delete cascade,
   name text not null,
   icon text,
+  color text,
   sort_order integer not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
@@ -157,6 +158,9 @@ alter table public.households
 
 create index if not exists idx_households_created_by_user
   on public.households (created_by_user_id, created_at);
+
+alter table public.event_types
+  add column if not exists color text;
 ```
 
 ## 5) Seed an initial household
