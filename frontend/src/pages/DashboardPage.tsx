@@ -435,6 +435,17 @@ export function DashboardPage({
     setIsEventDialogOpen(true);
   };
 
+  const deleteViewingEvent = () => {
+    if (!viewingEventId) {
+      return;
+    }
+    setHouseholdData((current) => ({
+      ...current,
+      events: current.events.filter((event) => event.id !== viewingEventId),
+    }));
+    closeEventViewDialog();
+  };
+
   const submitEvent = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setEventFormSubmitted(true);
@@ -726,6 +737,7 @@ export function DashboardPage({
             openEditEventDialog(viewingEvent);
           }
         }}
+        onDelete={deleteViewingEvent}
       />
     </div>
   );

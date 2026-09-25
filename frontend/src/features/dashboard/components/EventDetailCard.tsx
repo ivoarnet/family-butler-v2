@@ -1,6 +1,7 @@
 import CloseIcon from "@mui/icons-material/Close";
 import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
+import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
 import { Avatar, AvatarGroup, Box, IconButton, Stack, Typography } from "@mui/material";
@@ -109,9 +110,10 @@ interface EventDetailCardProps {
   members: FamilyMember[];
   onClose: () => void;
   onEdit: () => void;
+  onDelete: () => void;
 }
 
-export function EventDetailCard({ event, eventType, members, onClose, onEdit }: EventDetailCardProps) {
+export function EventDetailCard({ event, eventType, members, onClose, onEdit, onDelete }: EventDetailCardProps) {
   const assignedMembers = members.filter((member) => event.memberIds.includes(member.id));
   const eventTypeColor = eventType?.color ?? EVENT_TYPE_COLOR_FALLBACK;
   const timeLabel = event.allDay ? "All day" : `${event.startTime ?? "—"} – ${event.endTime ?? "—"}`;
@@ -127,6 +129,9 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
             </Typography>
           </Box>
           <Stack direction="row" spacing={0.7}>
+            <ActionButton onClick={onDelete} aria-label="Delete event">
+              <DeleteOutlinedIcon fontSize="small" sx={{ color: "error.main" }} />
+            </ActionButton>
             <ActionButton onClick={onEdit} aria-label="Edit event">
               <EditIcon fontSize="small" />
             </ActionButton>
