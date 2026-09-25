@@ -32,7 +32,7 @@
 - `features/<feature>/*` → feature-specific types/helpers/state that are not reused cross-feature.
 - `shared/ui` → reusable UI primitives used by multiple features.
 - `shared/family` → reusable family-domain helpers/constants shared across features/pages.
-- `pages` → top-level page composition.
+- `pages` → top-level page composition (`ProfilePage`, `SettingsPage`, `DashboardPage`).
 - `lib` → infrastructure clients/adapters (for example Supabase client setup).
 - `types` → app-wide type definitions.
 

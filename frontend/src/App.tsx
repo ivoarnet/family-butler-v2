@@ -3,6 +3,7 @@ import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./features/auth/components/AuthScreen";
 import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, ThemeMode } from "./features/app/types";
 import { DashboardPage } from "./pages/DashboardPage";
+import { ProfilePage } from "./pages/ProfilePage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent } from "./types/family";
@@ -804,8 +805,7 @@ export function App() {
   return pathname === "/profile" ? (
     <>
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
-      <SettingsPage
-        mode="profile"
+      <ProfilePage
         households={households}
         activeHouseholdId={activeHouseholdId}
         onSwitchHousehold={(householdId) => {

@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added an explicit `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages/ProfilePage.tsx` page component so profile routing now maps to a dedicated page module alongside `SettingsPage` and `DashboardPage`, while preserving existing behavior.
 - Clarified frontend module boundaries by moving auth UI from `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/components/auth/AuthScreen.tsx` to `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/auth/components/AuthScreen.tsx`, so component placement now follows the same feature-first convention as other domains.
 - Added an explicit frontend folder placement guide in `/home/runner/work/family-butler-v2/family-butler-v2/CONTRIBUTING.md`.
 - Performed a targeted architecture cleanup for member avatar color handling by extracting shared constants/normalization/labels into `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/family/memberAvatarColors.ts`, then reusing it in `App.tsx`, `SettingsPage.tsx`, and `MemberDialog.tsx` to remove duplicate implementations.

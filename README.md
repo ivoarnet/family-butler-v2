@@ -32,6 +32,7 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 - Frontend shared UI primitives are under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/ui`.
 - Shared member avatar color logic now lives in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/family/memberAvatarColors.ts` and is reused across app bootstrap/settings/dialog code.
 - Frontend feature UI is feature-first under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/<feature>/components` (for example auth screen under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/auth/components`).
+- Frontend has three top-level pages under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages`: `ProfilePage` (personal profile + households), `SettingsPage` (household settings), and `DashboardPage` (calendar view).
 
 ## Prerequisites
 
