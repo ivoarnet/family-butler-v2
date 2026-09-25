@@ -1,5 +1,6 @@
-import { FormEvent } from "react";
+import { FormEvent, type ElementType } from "react";
 import CloseIcon from "@mui/icons-material/Close";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { Box, Button, MenuItem, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
 import { DayConfigurationCategory } from "../../../types/family";
@@ -26,7 +27,7 @@ interface DayConfigurationDialogProps {
   open: boolean;
   editing: boolean;
   formState: DayConfigurationDialogFormState;
-  categoryOptions: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }>;
+  categoryOptions: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string; defaultIcon: ElementType<SvgIconProps> }>;
   startDateError: boolean;
   endDateError: boolean;
   rangeError: boolean;
@@ -112,7 +113,22 @@ export function DayConfigurationDialog({
               label="Marker (optional)"
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 4 } }}
               value={formState.label}
-              helperText={`Default marker: ${selectedCategory?.defaultMarker ?? "—"}`}
+              helperText={
+                selectedCategory ? (
+                  (() => {
+                    const SelectedCategoryIcon = selectedCategory.defaultIcon;
+                    return (
+                      <span className="day-configuration-marker">
+                        Default marker:
+                        <SelectedCategoryIcon className="day-configuration-marker-icon" fontSize="inherit" />
+                        {selectedCategory.defaultMarker}
+                      </span>
+                    );
+                  })()
+                ) : (
+                  "Default marker: —"
+                )
+              }
               onChange={(event) => onFormStateChange((current) => ({ ...current, label: event.target.value }))}
             />
           </GlassPanel>
