@@ -571,6 +571,20 @@ export function App() {
     window.location.reload();
   };
 
+  const refreshActiveHouseholdContext = async () => {
+    if (!authSession?.access_token || !activeHouseholdId) {
+      return;
+    }
+
+    try {
+      const loaded = await readHousehold(authSession.access_token, activeHouseholdId);
+      setHouseholdData(loaded);
+      setDataError(null);
+    } catch (error) {
+      setDataError(error instanceof Error ? error.message : "Could not refresh household data.");
+    }
+  };
+
   const navigateTo = (nextPathname: "/" | "/profile" | "/settings") => {
     if (window.location.pathname === nextPathname) {
       return;
@@ -876,6 +890,9 @@ export function App() {
         currentUserInitials={currentUserInitials}
         currentUserAvatarUrl={currentUserAvatarUrl}
         accessToken={authSession.access_token}
+        onAgentDataChanged={() => {
+          void refreshActiveHouseholdContext();
+        }}
         onSignOut={signOut}
       />
     </>
