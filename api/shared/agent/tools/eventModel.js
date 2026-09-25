@@ -74,7 +74,11 @@ const toEventMembersContext = (members) => {
   }
 
   const lines = availableMembers.map((member) => `- ${cleanString(member.firstName) || "(unnamed)"} | id=${cleanString(member.id) || "n/a"}`);
-  return ["Available household members (use these ids in memberIds):", ...lines].join("\n");
+  return [
+    "Available household members (use these ids in memberIds):",
+    ...lines,
+    "Important: memberIds must reference household members only, never contact ids.",
+  ].join("\n");
 };
 
 const toEventOutput = (event) => ({

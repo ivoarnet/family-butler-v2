@@ -125,8 +125,13 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
       }
 
       const members = Array.isArray(householdState.members) ? householdState.members : [];
+      const contacts = Array.isArray(householdState.contacts) ? householdState.contacts : [];
       const memberById = new Map(members.map((member) => [member.id, member]));
+      const contactIdSet = new Set(contacts.map((contact) => contact.id));
       for (const memberId of memberIds) {
+        if (contactIdSet.has(memberId)) {
+          throw toClientError(`event member id references a contact, not a household member: ${memberId}`);
+        }
         if (!memberById.has(memberId)) {
           throw toClientError(`event member id is not part of this household: ${memberId}`);
         }

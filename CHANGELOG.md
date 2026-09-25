@@ -15,6 +15,7 @@
 - Added duplicate-contact detection in `add_contact` and a confirmation flow (`confirmDuplicate`) so similar contacts (same birthday + similar name) require explicit confirmation before being written.
 - Added event agent tools `get_events`, `add_event`, and `update_event_details` so chat can search events, preview+confirm additions, and append/update event details while keeping household event types in context.
 - Extended event agent tools to include household-member context (tool descriptions + response payloads) so member selection during event add/update flows uses valid household member IDs.
+- Hardened event attendee validation to explicitly reject contact IDs in `memberIds`, ensuring event assignments only use household members.
 - Refreshed active household context when Agent Chat closes so records added by agent tools become visible immediately without a full page refresh.
 - Added server-side current-date/time grounding in agent instructions (UTC + timezone context) so relative date phrases like “tomorrow” and “next Wednesday” are resolved against a known current date before tool calls.
 - Updated dashboard event details from a read-only form layout to a card-style detail view with icon actions for **edit** and **close**, split into a reusable card view (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailCard.tsx`) and a dedicated dialog wrapper (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailDialog.tsx`).

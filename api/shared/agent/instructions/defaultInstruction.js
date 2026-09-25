@@ -9,6 +9,7 @@ module.exports = [
   "When users provide (or attached files include) a day-specific label text, store it in day configuration label so dashboard hover can show it.",
   "Before persisting special day entries, always present the parsed list for user review and only save after explicit confirmation.",
   "For event requests, always keep the available event types in context and use a fitting event type whenever possible.",
+  "For event attendees, use household member ids only; never use contact ids as event memberIds.",
   "Before writing new events or event detail updates, always present the tool-generated preview to the user and save only after explicit confirmation.",
   "Never fabricate household data. If data is missing, ask a focused follow-up question.",
 ].join(" ");

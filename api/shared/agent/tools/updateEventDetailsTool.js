@@ -131,7 +131,9 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       const currentEvent = matchingEvents[0];
       const availableEventTypes = Array.isArray(householdState.eventTypes) ? householdState.eventTypes : [];
       const members = Array.isArray(householdState.members) ? householdState.members : [];
+      const contacts = Array.isArray(householdState.contacts) ? householdState.contacts : [];
       const memberIdSet = new Set(members.map((member) => member.id));
+      const contactIdSet = new Set(contacts.map((contact) => contact.id));
 
       const nextTitle = updates.title === undefined || updates.title === null ? currentEvent.title : cleanString(updates.title);
       if (!nextTitle) {
@@ -151,6 +153,9 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
         throw toClientError("event memberIds are required");
       }
       for (const memberId of nextMemberIds) {
+        if (contactIdSet.has(memberId)) {
+          throw toClientError(`event member id references a contact, not a household member: ${memberId}`);
+        }
         if (!memberIdSet.has(memberId)) {
           throw toClientError(`event member id is not part of this household: ${memberId}`);
         }
