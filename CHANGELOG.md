@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added an agent-tooling guide (`/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_TOOLS_GUIDE.md`) documenting how to add new tools and best practices for robust tool development.
 - Connected Agent Chat to a new OpenAI-backed Azure Function endpoint (`POST /api/agent/chat`) with provider abstraction under `/api/shared/agent/providers`, authenticated requests, and PDF/image attachment validation.
 - Upgraded Agent Chat UI from a visual mock to a working chat flow that sends text plus drag-and-drop/file-picker PDF and image attachments to the backend.
 - Added updated Agent Chat attachment-flow screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/agent-chat-openai-attachments.png`.
