@@ -90,8 +90,8 @@ export function DayConfigurationDialog({
               {categoryOptions.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
                   <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
-                    {option.label}
                     <option.defaultIcon fontSize="small" />
+                    {option.label}
                   </Box>
                 </MenuItem>
               ))}
