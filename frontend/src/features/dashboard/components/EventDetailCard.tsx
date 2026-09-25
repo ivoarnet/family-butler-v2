@@ -76,11 +76,11 @@ const TimeInline = styled(Stack)({
 
 const CornerBand = styled(Box)<{ $color: string }>(({ $color }) => ({
   position: "absolute",
-  left: "-2rem",
-  top: "0.8rem",
+  right: "-2rem",
+  bottom: "0.8rem",
   width: "8.6rem",
   height: "1.85rem",
-  transform: "rotate(45deg)",
+  transform: "rotate(-45deg)",
   background: alpha($color, 0.36),
   borderTop: `1px solid ${alpha($color, 0.5)}`,
   borderBottom: `1px solid ${alpha($color, 0.5)}`,
