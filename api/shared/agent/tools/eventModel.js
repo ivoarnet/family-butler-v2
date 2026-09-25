@@ -57,6 +57,26 @@ const toEventTypesContext = (eventTypes) => {
   return ["Available event types:", ...lines].join("\n");
 };
 
+const toAvailableMembers = (members) =>
+  (Array.isArray(members) ? members : [])
+    .slice()
+    .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
+    .map((member) => ({
+      id: member.id,
+      firstName: member.firstName,
+      role: member.role ?? null,
+    }));
+
+const toEventMembersContext = (members) => {
+  const availableMembers = toAvailableMembers(members);
+  if (availableMembers.length === 0) {
+    return "Available household members: none configured for this household.";
+  }
+
+  const lines = availableMembers.map((member) => `- ${cleanString(member.firstName) || "(unnamed)"} | id=${cleanString(member.id) || "n/a"}`);
+  return ["Available household members (use these ids in memberIds):", ...lines].join("\n");
+};
+
 const toEventOutput = (event) => ({
   id: event.id,
   title: event.title,
@@ -78,5 +98,7 @@ module.exports = {
   isIsoDate,
   isFiveMinuteStepTime,
   toEventTypesContext,
+  toAvailableMembers,
+  toEventMembersContext,
   toEventOutput,
 };

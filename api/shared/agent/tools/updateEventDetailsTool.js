@@ -5,6 +5,8 @@ const {
   isIsoDate,
   isFiveMinuteStepTime,
   toEventTypesContext,
+  toEventMembersContext,
+  toAvailableMembers,
   toEventOutput,
 } = require("./eventModel");
 
@@ -43,6 +45,7 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
         "Before persisting, call with confirmUpdate=false (or omitted) to show a before/after preview, then call again with confirmUpdate=true after explicit confirmation.",
         "Always keep available event types in context when updating event type.",
         EVENT_MODEL_DESCRIPTION,
+        toEventMembersContext(householdState.members),
         toEventTypesContext(householdState.eventTypes),
       ].join("\n"),
       parameters: {
@@ -121,6 +124,7 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
           reason: "event_selection_required",
           message: "Multiple events match. Ask the user which one to update, then call update_event_details with eventId.",
           candidates: matchingEvents.map((event) => toEventOutput(event)),
+          availableMembers: toAvailableMembers(householdState.members),
         };
       }
 
@@ -202,6 +206,7 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
           reason: "confirm_before_update",
           before,
           after,
+          availableMembers: toAvailableMembers(members),
           message: "Review this event update with the user. If approved, call update_event_details again with confirmUpdate=true.",
         };
       }
@@ -213,6 +218,7 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       return {
         ok: true,
         event: after,
+        availableMembers: toAvailableMembers(members),
         message: `Event ${updatedEvent.title} has been updated.`,
       };
     },

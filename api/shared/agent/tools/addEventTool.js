@@ -1,5 +1,15 @@
 const { randomUUID } = require("crypto");
-const { EVENT_MODEL_DESCRIPTION, cleanString, normalizeTime24Hour, isIsoDate, isFiveMinuteStepTime, toEventTypesContext, toEventOutput } = require("./eventModel");
+const {
+  EVENT_MODEL_DESCRIPTION,
+  cleanString,
+  normalizeTime24Hour,
+  isIsoDate,
+  isFiveMinuteStepTime,
+  toEventTypesContext,
+  toEventMembersContext,
+  toAvailableMembers,
+  toEventOutput,
+} = require("./eventModel");
 
 const toNormalizedTokens = (value) =>
   cleanString(value)
@@ -61,6 +71,7 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         "Always choose a fitting event type when possible using available event types.",
         "Before persisting, call with confirmAdd=false (or omitted) to show a preview card payload, then call again with confirmAdd=true after explicit user confirmation.",
         EVENT_MODEL_DESCRIPTION,
+        toEventMembersContext(householdState.members),
         toEventTypesContext(householdState.eventTypes),
       ].join("\n"),
       parameters: {
@@ -180,6 +191,7 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
           confirmationRequired: true,
           reason: "confirm_before_add",
           previewCard,
+          availableMembers: toAvailableMembers(members),
           availableEventTypes: eventTypes.map((eventType) => ({
             id: eventType.id,
             name: eventType.name,
@@ -200,6 +212,7 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
       return {
         ok: true,
         event: previewCard,
+        availableMembers: toAvailableMembers(members),
         message: `Event ${event.title} has been added.`,
       };
     },

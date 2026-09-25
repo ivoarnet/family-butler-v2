@@ -1,4 +1,4 @@
-const { EVENT_MODEL_DESCRIPTION, cleanString, isIsoDate, toEventTypesContext, toEventOutput } = require("./eventModel");
+const { EVENT_MODEL_DESCRIPTION, cleanString, isIsoDate, toEventTypesContext, toEventMembersContext, toAvailableMembers, toEventOutput } = require("./eventModel");
 
 const normalizeForSearch = (value) => cleanString(value).toLowerCase();
 
@@ -11,6 +11,7 @@ module.exports = function createGetEventsTool({ householdState, toClientError })
         "Use this for event lookups, schedule questions, and before choosing an event to update.",
         "Always keep available event types in context when handling event requests.",
         EVENT_MODEL_DESCRIPTION,
+        toEventMembersContext(householdState.members),
         toEventTypesContext(householdState.eventTypes),
       ].join("\n"),
       parameters: {
@@ -112,6 +113,7 @@ module.exports = function createGetEventsTool({ householdState, toClientError })
         ok: true,
         count: filtered.length,
         events: filtered,
+        availableMembers: toAvailableMembers(members),
         availableEventTypes: eventTypes
           .slice()
           .sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
