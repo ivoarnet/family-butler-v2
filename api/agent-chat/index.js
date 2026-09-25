@@ -2,6 +2,7 @@ const { getAuthenticatedUserId } = require("../shared/auth");
 const agentProvider = require("../shared/agent/providers");
 const db = require("../shared/db");
 const createAgentTools = require("../shared/agent/tools");
+const defaultInstruction = require("../shared/agent/instructions/defaultInstruction");
 
 const PDF_MIME = "application/pdf";
 const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/heic"]);
@@ -123,6 +124,7 @@ module.exports = async function agentChat(context, req) {
       attachments,
       tools: agentTools.definitions,
       executeTool: (toolName, args) => agentTools.executeTool(toolName, args),
+      instruction: defaultInstruction,
     });
 
     context.res = {

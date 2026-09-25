@@ -74,7 +74,7 @@ module.exports = function createOpenAiProvider() {
       return true;
     },
 
-    async sendMessage({ message, attachments, tools = [], executeTool }) {
+    async sendMessage({ message, attachments, tools = [], executeTool, instruction }) {
       const hasImage = attachments.some((attachment) => attachment.kind === "image");
       const model = hasImage ? visionModel : chatModel;
 
@@ -117,6 +117,7 @@ module.exports = function createOpenAiProvider() {
             model,
             input: pendingInput,
             tools: tools.length > 0 ? toOpenAiTools(tools) : undefined,
+            instructions: cleanString(instruction) || undefined,
             previous_response_id: previousResponseId,
           }),
         });
