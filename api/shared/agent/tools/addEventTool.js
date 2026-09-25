@@ -17,6 +17,8 @@ const toNormalizedTokens = (value) =>
     .split(/[^\p{L}\p{N}]+/u)
     .filter((token) => token.length >= 3);
 
+const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
+
 const resolveEventTypeId = ({ eventTypeId, eventTypeHint, title, eventTypes }) => {
   if (!Array.isArray(eventTypes) || eventTypes.length === 0) {
     return null;
@@ -162,8 +164,10 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         throw toClientError("eventTypeId is not part of this household");
       }
 
+      const requestedId = cleanString(input.id);
+
       const event = {
-        id: cleanString(input.id) || randomUUID(),
+        id: isUuid(requestedId) ? requestedId : randomUUID(),
         title,
         date,
         memberIds,
