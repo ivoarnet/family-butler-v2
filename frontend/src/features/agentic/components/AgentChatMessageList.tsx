@@ -1,5 +1,5 @@
 import { useEffect, useRef } from "react";
-import ReactMarkdown from "react-markdown";
+import { renderMarkdown } from "@mui/x-chat/ChatMessage/renderMarkdown";
 import { AgentChatMessage } from "./AgentChat.types";
 
 export function AgentChatMessageList({ messages }: { messages: AgentChatMessage[] }) {
@@ -17,9 +17,7 @@ export function AgentChatMessageList({ messages }: { messages: AgentChatMessage[
       {messages.map((message) => (
         <article key={message.id} className={`agent-chat-message-row ${message.role}`}>
           <div className="agent-chat-author">{message.author}</div>
-          <div className={`agent-chat-bubble ${message.role}`}>
-            {message.role === "assistant" ? <ReactMarkdown>{message.text}</ReactMarkdown> : message.text}
-          </div>
+          <div className={`agent-chat-bubble ${message.role}`}>{message.role === "assistant" ? renderMarkdown(message.text) : message.text}</div>
         </article>
       ))}
     </div>
