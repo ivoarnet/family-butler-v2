@@ -1,4 +1,5 @@
 import CloseIcon from "@mui/icons-material/Close";
+import AccessTimeOutlinedIcon from "@mui/icons-material/AccessTimeOutlined";
 import CalendarTodayOutlinedIcon from "@mui/icons-material/CalendarTodayOutlined";
 import EditIcon from "@mui/icons-material/Edit";
 import PlaceOutlinedIcon from "@mui/icons-material/PlaceOutlined";
@@ -19,7 +20,7 @@ const CardRoot = styled(Box)({
 
 const CardInner = styled(Box)({
   display: "grid",
-  gap: "1.35rem",
+  gap: "1.2rem",
   padding: "1.65rem",
 });
 
@@ -37,20 +38,16 @@ const ActionButton = styled(IconButton)({
   borderRadius: 12,
 });
 
-const DetailGrid = styled(Box)({
+const DetailList = styled(Box)({
   display: "grid",
-  gridTemplateColumns: "repeat(2, minmax(0, 1fr))",
-  gap: "1rem",
-  "@media (max-width: 720px)": {
-    gridTemplateColumns: "1fr",
-  },
+  gap: "0.95rem",
 });
 
 const DetailBlock = styled(Box)({
   display: "grid",
   gridTemplateColumns: "2.6rem 1fr",
   gap: "0.8rem",
-  alignItems: "center",
+  alignItems: "start",
 });
 
 const DetailIconBadge = styled(Box)({
@@ -64,22 +61,6 @@ const DetailIconBadge = styled(Box)({
   color: "var(--text-primary)",
 });
 
-const TimeSplitCard = styled(Box)({
-  borderRadius: 14,
-  background: alpha("#ffffff", 0.05),
-  padding: "0.95rem 1rem",
-  display: "grid",
-  gridTemplateColumns: "1fr 1px 1fr",
-  gap: "0.9rem",
-  alignItems: "center",
-});
-
-const TimeDivider = styled("span")({
-  width: 1,
-  height: "100%",
-  background: "var(--dialog-border)",
-});
-
 const Label = styled("small")({
   color: "var(--text-secondary)",
   fontWeight: 700,
@@ -87,17 +68,25 @@ const Label = styled("small")({
   textTransform: "uppercase",
 });
 
-const CornerDecoration = styled(Box)<{ $color: string }>(({ $color }) => ({
+const TimeInline = styled(Stack)({
+  color: "var(--text-secondary)",
+  marginTop: "0.35rem",
+  fontSize: "0.95rem",
+});
+
+const CornerBand = styled(Box)<{ $color: string }>(({ $color }) => ({
   position: "absolute",
-  right: 0,
-  bottom: 0,
-  width: "7rem",
-  height: "7rem",
-  clipPath: "polygon(100% 0, 0 100%, 100% 100%)",
-  background: alpha($color, 0.45),
+  right: "-2rem",
+  bottom: "0.8rem",
+  width: "8.6rem",
+  height: "1.85rem",
+  transform: "rotate(-45deg)",
+  background: alpha($color, 0.36),
+  borderTop: `1px solid ${alpha($color, 0.5)}`,
+  borderBottom: `1px solid ${alpha($color, 0.5)}`,
   display: "inline-flex",
-  alignItems: "flex-end",
-  justifyContent: "flex-end",
+  alignItems: "center",
+  justifyContent: "center",
 }));
 
 const formatEventDate = (date: string): string => {
@@ -125,8 +114,9 @@ interface EventDetailCardProps {
 export function EventDetailCard({ event, eventType, members, onClose, onEdit }: EventDetailCardProps) {
   const assignedMembers = members.filter((member) => event.memberIds.includes(member.id));
   const eventTypeColor = eventType?.color ?? EVENT_TYPE_COLOR_FALLBACK;
-  const beginLabel = event.allDay ? "All day" : event.startTime ?? "—";
-  const endLabel = event.allDay ? "—" : event.endTime ?? "—";
+  const hasLocation = Boolean(event.location?.trim());
+  const hasNotes = Boolean(event.notes?.trim());
+  const timeLabel = event.allDay ? "All day" : `${event.startTime ?? "—"} – ${event.endTime ?? "—"}`;
 
   return (
     <CardRoot>
@@ -148,7 +138,7 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
           </Stack>
         </CardHeader>
 
-        <DetailGrid>
+        <DetailList>
           <DetailBlock>
             <DetailIconBadge>
               <CalendarTodayOutlinedIcon fontSize="small" />
@@ -156,30 +146,25 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
             <Box>
               <Label>Date</Label>
               <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{formatEventDate(event.date)}</Typography>
+              <TimeInline direction="row" spacing={0.6} sx={{ alignItems: "center" }}>
+                <AccessTimeOutlinedIcon sx={{ fontSize: "1rem" }} />
+                <span>{timeLabel}</span>
+              </TimeInline>
             </Box>
           </DetailBlock>
-          <DetailBlock>
-            <DetailIconBadge>
-              <PlaceOutlinedIcon fontSize="small" />
-            </DetailIconBadge>
-            <Box>
-              <Label>Location</Label>
-              <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{event.location || "—"}</Typography>
-            </Box>
-          </DetailBlock>
-        </DetailGrid>
 
-        <TimeSplitCard>
-          <Box>
-            <Label>Begins</Label>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>{beginLabel}</Typography>
-          </Box>
-          <TimeDivider />
-          <Box>
-            <Label>Ends</Label>
-            <Typography variant="h4" sx={{ fontWeight: 700 }}>{endLabel}</Typography>
-          </Box>
-        </TimeSplitCard>
+          {hasLocation ? (
+            <DetailBlock>
+              <DetailIconBadge>
+                <PlaceOutlinedIcon fontSize="small" />
+              </DetailIconBadge>
+              <Box>
+                <Label>Location</Label>
+                <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{event.location}</Typography>
+              </Box>
+            </DetailBlock>
+          ) : null}
+        </DetailList>
 
         <Stack direction="row" spacing={1.1} sx={{ alignItems: "center", flexWrap: "wrap" }}>
           <AvatarGroup max={6} sx={{ justifyContent: "flex-start", "& .MuiAvatar-root": { width: 36, height: 36, fontSize: "0.86rem" } }}>
@@ -194,38 +179,22 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
           </Typography>
         </Stack>
 
-        <Box>
-          <Label>Notes</Label>
-          <Typography variant="h5" sx={{ marginTop: "0.35rem", fontWeight: 500, maxWidth: "66ch", color: "var(--text-secondary)" }}>
-            {event.notes || "—"}
-          </Typography>
-        </Box>
-
-        <Box>
-          <Label>Type</Label>
-          <Typography variant="body1" sx={{ marginTop: "0.2rem" }}>
-            {eventType ? `${eventType.icon ? `${eventType.icon} ` : ""}${eventType.name}` : "No type"}
-          </Typography>
-          <Label style={{ marginTop: "0.7rem", display: "inline-block" }}>Repeat</Label>
-          <Typography variant="body1" sx={{ marginTop: "0.2rem" }}>{event.repeatRule || "Does not repeat"}</Typography>
-        </Box>
+        {hasNotes ? (
+          <Box>
+            <Label>Notes</Label>
+            <Typography variant="h5" sx={{ marginTop: "0.35rem", fontWeight: 500, maxWidth: "66ch", color: "var(--text-secondary)" }}>
+              {event.notes}
+            </Typography>
+          </Box>
+        ) : null}
       </CardInner>
 
       {eventType ? (
-        <CornerDecoration $color={eventTypeColor} aria-hidden>
-          <Typography
-            variant="h6"
-            sx={{
-              color: "#f8fbff",
-              fontWeight: 700,
-              marginRight: "0.6rem",
-              marginBottom: "0.4rem",
-              transform: "rotate(-45deg)",
-            }}
-          >
+        <CornerBand $color={eventTypeColor} aria-hidden>
+          <Typography variant="body2" sx={{ color: "#f8fbff", fontWeight: 700 }}>
             {eventType.icon || "•"}
           </Typography>
-        </CornerDecoration>
+        </CornerBand>
       ) : null}
     </CardRoot>
   );
