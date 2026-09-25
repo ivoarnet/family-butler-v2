@@ -1,11 +1,11 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
-import AltRouteRoundedIcon from "@mui/icons-material/AltRouteRounded";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded";
+import LooksIcon from "@mui/icons-material/Looks";
 import SettingsIcon from "@mui/icons-material/Settings";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
@@ -31,9 +31,9 @@ interface DayCellDecorations {
 
 const DEMO_LOCALE = "de-CH";
 const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: ElementType<SvgIconProps>; className: string }> = {
-  school_off: { defaultMarker: "SH", icon: SchoolRoundedIcon, className: "school-off" },
-  bank_holiday: { defaultMarker: "BH", icon: AccountBalanceRoundedIcon, className: "bank-holiday" },
-  bridge_day: { defaultMarker: "BD", icon: AltRouteRoundedIcon, className: "bridge-day" },
+  school_off: { defaultMarker: "SH", icon: BeachAccessIcon, className: "school-off" },
+  bank_holiday: { defaultMarker: "BH", icon: AccountBalanceIcon, className: "bank-holiday" },
+  bridge_day: { defaultMarker: "BD", icon: LooksIcon, className: "bridge-day" },
 };
 
 const addDays = (date: Date, days: number): Date => {
@@ -638,10 +638,10 @@ export function DashboardPage({
                             <span
                               key={corner.id}
                               className={`day-special-corner ${DAY_CONFIGURATION_META[corner.category].className}`}
-                              style={{ top: `${0.3 + index * 1.5}rem` }}
+                              style={{ top: `${0.3 + index * 2.05}rem` }}
                               title={corner.label ?? corner.marker}
                             >
-                              <CornerIcon className="day-special-corner-icon" fontSize="inherit" /> {corner.marker}
+                              <CornerIcon className="day-special-corner-icon" fontSize="inherit" />
                             </span>
                           );
                         })}

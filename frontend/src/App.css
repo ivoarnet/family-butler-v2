@@ -684,22 +684,25 @@ body,
 
 .day-special-corner {
   position: absolute;
-  right: -1.1rem;
+  right: -2.2rem;
   z-index: 2;
-  width: 3.3rem;
+  width: 6rem;
   transform: rotate(45deg);
   text-align: center;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   white-space: nowrap;
   color: #fff;
   font-size: 0.58rem;
   font-weight: 800;
   letter-spacing: 0.02em;
-  padding: 0.28rem 0;
+  padding: 0.42rem 0;
 }
 
 .day-special-corner-icon {
-  font-size: 0.72rem !important;
-  vertical-align: text-bottom;
+  font-size: 0.95rem !important;
+  vertical-align: middle;
 }
 
 .school-off {

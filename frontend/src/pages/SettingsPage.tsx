@@ -1,15 +1,15 @@
 import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type SetStateAction } from "react";
-import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
-import AltRouteRoundedIcon from "@mui/icons-material/AltRouteRounded";
+import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
+import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import DarkModeIcon from "@mui/icons-material/DarkMode";
 import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
-import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded";
+import LooksIcon from "@mui/icons-material/Looks";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { Tab, Tabs } from "@mui/material";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
@@ -30,9 +30,9 @@ const DAY_CONFIGURATION_OPTIONS: Array<{
   defaultMarker: string;
   defaultIcon: ElementType<SvgIconProps>;
 }> = [
-  { value: "school_off", label: "School off", defaultMarker: "SH", defaultIcon: SchoolRoundedIcon },
-  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH", defaultIcon: AccountBalanceRoundedIcon },
-  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD", defaultIcon: AltRouteRoundedIcon },
+  { value: "school_off", label: "School off", defaultMarker: "SH", defaultIcon: BeachAccessIcon },
+  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH", defaultIcon: AccountBalanceIcon },
+  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD", defaultIcon: LooksIcon },
 ];
 const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
   DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
