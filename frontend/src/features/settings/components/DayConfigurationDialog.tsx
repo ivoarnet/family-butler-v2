@@ -26,7 +26,7 @@ interface DayConfigurationDialogProps {
   open: boolean;
   editing: boolean;
   formState: DayConfigurationDialogFormState;
-  categoryOptions: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }>;
+  categoryOptions: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string; defaultIcon: string }>;
   startDateError: boolean;
   endDateError: boolean;
   rangeError: boolean;
@@ -112,7 +112,9 @@ export function DayConfigurationDialog({
               label="Marker (optional)"
               slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 4 } }}
               value={formState.label}
-              helperText={`Default marker: ${selectedCategory?.defaultMarker ?? "—"}`}
+              helperText={`Default marker: ${
+                selectedCategory ? `${selectedCategory.defaultIcon} ${selectedCategory.defaultMarker}` : "—"
+              }`}
               onChange={(event) => onFormStateChange((current) => ({ ...current, label: event.target.value }))}
             />
           </GlassPanel>

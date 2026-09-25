@@ -679,11 +679,12 @@ body,
   width: 3.3rem;
   transform: rotate(45deg);
   text-align: center;
+  white-space: nowrap;
   color: #fff;
-  font-size: 0.62rem;
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.04em;
-  padding: 0.1rem 0;
+  letter-spacing: 0.02em;
+  padding: 0.22rem 0;
 }
 
 .school-off {

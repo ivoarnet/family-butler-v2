@@ -20,10 +20,10 @@ import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, Set
 
 type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
-const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }> = [
-  { value: "school_off", label: "School off", defaultMarker: "SH" },
-  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH" },
-  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD" },
+const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string; defaultIcon: string }> = [
+  { value: "school_off", label: "School off", defaultMarker: "SH", defaultIcon: "🎒" },
+  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH", defaultIcon: "🏦" },
+  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD", defaultIcon: "🌉" },
 ];
 const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
   DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
@@ -1142,9 +1142,12 @@ export function SettingsPage({
                         {dayConfiguration.endDate !== dayConfiguration.startDate ? ` → ${dayConfiguration.endDate}` : ""}
                       </td>
                       <td>
-                        {dayConfiguration.label ||
-                          DAY_CONFIGURATION_OPTIONS.find((option) => option.value === dayConfiguration.category)?.defaultMarker ||
-                          "—"}
+                        {dayConfiguration.label
+                          ? dayConfiguration.label
+                          : (() => {
+                              const option = DAY_CONFIGURATION_OPTIONS.find((entry) => entry.value === dayConfiguration.category);
+                              return option ? `${option.defaultIcon} ${option.defaultMarker}` : "—";
+                            })()}
                       </td>
                       <td className="actions-cell">
                         <div className="icon-actions">

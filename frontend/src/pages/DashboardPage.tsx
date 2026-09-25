@@ -22,14 +22,14 @@ interface SpecialEvent {
 }
 
 interface DayCellDecorations {
-  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; label: string | null }>;
+  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: string; label: string | null }>;
 }
 
 const DEMO_LOCALE = "de-CH";
-const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; className: string }> = {
-  school_off: { defaultMarker: "SH", className: "school-off" },
-  bank_holiday: { defaultMarker: "BH", className: "bank-holiday" },
-  bridge_day: { defaultMarker: "BD", className: "bridge-day" },
+const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: string; className: string }> = {
+  school_off: { defaultMarker: "SH", icon: "🎒", className: "school-off" },
+  bank_holiday: { defaultMarker: "BH", icon: "🏦", className: "bank-holiday" },
+  bridge_day: { defaultMarker: "BD", icon: "🌉", className: "bridge-day" },
 };
 
 const addDays = (date: Date, days: number): Date => {
@@ -323,6 +323,7 @@ export function DashboardPage({
           id: `${dayConfiguration.id}-${isoDate}`,
           category: dayConfiguration.category,
           marker,
+          icon: DAY_CONFIGURATION_META[dayConfiguration.category].icon,
           label: dayConfiguration.label?.trim() || null,
         });
         grouped.set(isoDate, entry);
@@ -631,10 +632,10 @@ export function DashboardPage({
                           <span
                             key={corner.id}
                             className={`day-special-corner ${DAY_CONFIGURATION_META[corner.category].className}`}
-                            style={{ top: `${0.3 + index * 1.1}rem` }}
+                            style={{ top: `${0.3 + index * 1.5}rem` }}
                             title={corner.label ?? corner.marker}
                           >
-                            {corner.marker}
+                            {corner.icon} {corner.marker}
                           </span>
                         ))}
                         <div className="weekday-label-wrap">
