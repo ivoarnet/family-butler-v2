@@ -875,6 +875,7 @@ export function App() {
         currentUserEmail={currentUserEmail}
         currentUserInitials={currentUserInitials}
         currentUserAvatarUrl={currentUserAvatarUrl}
+        accessToken={authSession.access_token}
         onSignOut={signOut}
       />
     </>

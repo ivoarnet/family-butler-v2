@@ -4,3 +4,8 @@ export interface AgentChatMessage {
   author: string;
   text: string;
 }
+
+export interface AgentChatAttachment {
+  id: string;
+  file: File;
+}

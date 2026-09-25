@@ -880,23 +880,85 @@ body,
 
 .agent-chat-composer {
   display: grid;
-  grid-template-columns: 1fr auto;
-  gap: 0.65rem;
-  align-items: center;
+  gap: 0.6rem;
   padding: 0.85rem 1.2rem 1rem;
   border-top: 1px solid var(--dialog-border);
   background: var(--dialog-panel);
 }
 
-.agent-chat-composer > * {
+.agent-chat-dropzone {
+  border: 1px dashed var(--dialog-border);
+  border-radius: 0.85rem;
+  padding: 0.55rem 0.75rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
+.agent-chat-dropzone.active {
+  border-color: var(--action-gradient-start);
+  background: rgba(127, 139, 255, 0.1);
+}
+
+.agent-chat-file-input {
+  display: none;
+}
+
+.agent-chat-attach-button {
+  border: 1px solid var(--dialog-border);
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  border-radius: 999px;
+  padding: 0.3rem 0.6rem;
+  cursor: pointer;
+}
+
+.agent-chat-attachment-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 0.35rem;
+}
+
+.agent-chat-attachment-list li {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.agent-chat-attachment-list button {
+  border: 0;
+  background: transparent;
+  color: var(--text-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.agent-chat-input-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.agent-chat-input-row > * {
   min-width: 0;
 }
 
-.agent-chat-composer .MuiFormControl-root {
+.agent-chat-input-row .MuiFormControl-root {
   min-width: 0;
 }
 
-.agent-chat-composer .MuiInputBase-root {
+.agent-chat-input-row .MuiInputBase-root {
   border-radius: 999px;
 }
 

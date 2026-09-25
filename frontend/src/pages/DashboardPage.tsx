@@ -241,6 +241,7 @@ export function DashboardPage({
   currentUserEmail,
   currentUserInitials,
   currentUserAvatarUrl,
+  accessToken,
   onSignOut,
 }: {
   householdData: HouseholdData;
@@ -250,6 +251,7 @@ export function DashboardPage({
   currentUserEmail: string;
   currentUserInitials: string;
   currentUserAvatarUrl: string | null;
+  accessToken: string;
   onSignOut: () => Promise<void>;
 }) {
   const [now, setNow] = useState(() => new Date());
@@ -681,7 +683,7 @@ export function DashboardPage({
       </main>
 
       <div className="fab-stack">
-        <AgentChat />
+        <AgentChat accessToken={accessToken} />
         <button type="button" className="fab" onClick={openEventDialog} title="Create event">
           + Event
         </button>

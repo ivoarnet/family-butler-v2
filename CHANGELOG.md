@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Connected Agent Chat to a new OpenAI-backed Azure Function endpoint (`POST /api/agent/chat`) with provider abstraction under `/api/shared/agent/providers`, authenticated requests, and PDF/image attachment validation.
+- Upgraded Agent Chat UI from a visual mock to a working chat flow that sends text plus drag-and-drop/file-picker PDF and image attachments to the backend.
+- Added updated Agent Chat attachment-flow screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/agent-chat-openai-attachments.png`.
 - Updated dashboard event details from a read-only form layout to a card-style detail view with icon actions for **edit** and **close**, split into a reusable card view (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailCard.tsx`) and a dedicated dialog wrapper (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailDialog.tsx`).
 - Added event-type color support (frontend + API mapping + Supabase schema doc) and applied it to the event-detail card corner decoration, including the event-type icon in the corner accent.
 - Refined the event-detail card layout to stack date/location rows, move compact time display under date with icon, hide empty location/notes sections, remove duplicate type/repeat text, and switch the corner accent to a band style.
