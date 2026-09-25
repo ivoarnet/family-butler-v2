@@ -47,7 +47,7 @@ const DetailBlock = styled(Box)({
   display: "grid",
   gridTemplateColumns: "2.6rem 1fr",
   gap: "0.8rem",
-  alignItems: "start",
+  alignItems: "center",
 });
 
 const DetailIconBadge = styled(Box)({
@@ -140,11 +140,10 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
 
         <DetailList>
           <DetailBlock>
-            <DetailIconBadge>
-              <CalendarTodayOutlinedIcon fontSize="small" />
+            <DetailIconBadge aria-label="Date" title="Date">
+              <CalendarTodayOutlinedIcon fontSize="small" titleAccess="Date" />
             </DetailIconBadge>
             <Box>
-              <Label>Date</Label>
               <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{formatEventDate(event.date)}</Typography>
               <TimeInline direction="row" spacing={0.6} sx={{ alignItems: "center" }}>
                 <AccessTimeOutlinedIcon sx={{ fontSize: "1rem" }} />
@@ -155,11 +154,10 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit }: 
 
           {hasLocation ? (
             <DetailBlock>
-              <DetailIconBadge>
-                <PlaceOutlinedIcon fontSize="small" />
+              <DetailIconBadge aria-label="Location" title="Location">
+                <PlaceOutlinedIcon fontSize="small" titleAccess="Location" />
               </DetailIconBadge>
               <Box>
-                <Label>Location</Label>
                 <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{event.location}</Typography>
               </Box>
             </DetailBlock>
