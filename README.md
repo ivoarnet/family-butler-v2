@@ -14,14 +14,23 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 ```text
 .
 ├── api
+│   ├── shared/db
+│   └── {function}/(function.json,index.js)
 ├── frontend
 │   └── src
-│       ├── pages
 │       ├── features
+│       ├── pages
 │       └── shared
 ├── docs
+├── CONTRIBUTING.md
 └── .github/workflows
 ```
+
+## Current Architecture Notes
+
+- API persistence remains provider-based under `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/db` (Supabase provider currently active).
+- Frontend shared UI primitives are under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/ui`.
+- Shared member avatar color logic now lives in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/family/memberAvatarColors.ts` and is reused across app bootstrap/settings/dialog code.
 
 ## Prerequisites
 
@@ -68,6 +77,10 @@ Monorepo scaffold for a React frontend + Azure Functions backend using Supabase 
 - `npm run build` - Build backend and frontend
 - `npm run storybook --workspace frontend` - Run Storybook locally
 - `npm run build-storybook --workspace frontend` - Build Storybook static output
+
+## Contributing
+
+Please use `/home/runner/work/family-butler-v2/family-butler-v2/CONTRIBUTING.md` for branch, validation, and documentation expectations.
 
 ## API Runtime (Azure Functions)
 

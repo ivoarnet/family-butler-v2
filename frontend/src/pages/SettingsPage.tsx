@@ -13,44 +13,17 @@ import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../feat
 import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
 import { HouseholdDialog } from "../features/settings/components/HouseholdDialog";
 import { MemberDialog } from "../features/settings/components/MemberDialog";
+import { DEFAULT_MEMBER_COLOR, getMemberColorLabel, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
-const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
-  blue: "#3b82f6",
-  orange: "#f97316",
-  pink: "#ec4899",
-  purple: "#7c3aed",
-};
-const MEMBER_COLORS: MemberAvatarColor[] = ["#3b82f6", "#f97316", "#ec4899", "#7c3aed"];
-const MEMBER_COLOR_LABELS: Record<string, string> = {
-  "#3b82f6": "Blue",
-  "#f97316": "Orange",
-  "#ec4899": "Pink",
-  "#7c3aed": "Purple",
-};
-const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
 type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
 const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }> = [
   { value: "school_off", label: "School off", defaultMarker: "SH" },
   { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH" },
   { value: "bridge_day", label: "Bridge day", defaultMarker: "BD" },
 ];
-
-const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
-  if (typeof color !== "string") {
-    return DEFAULT_MEMBER_COLOR;
-  }
-  const trimmed = color.trim();
-  if (!trimmed) {
-    return DEFAULT_MEMBER_COLOR;
-  }
-  const legacy = LEGACY_MEMBER_COLOR_MAP[trimmed.toLowerCase()];
-  return legacy ?? trimmed;
-};
-
-const getMemberColorLabel = (color: MemberAvatarColor): string => MEMBER_COLOR_LABELS[color] ?? color;
 const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
   DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
 

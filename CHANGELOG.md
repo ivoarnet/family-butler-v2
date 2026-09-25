@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Performed a targeted architecture cleanup for member avatar color handling by extracting shared constants/normalization/labels into `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/family/memberAvatarColors.ts`, then reusing it in `App.tsx`, `SettingsPage.tsx`, and `MemberDialog.tsx` to remove duplicate implementations.
+- Added Storybook coverage for the settings member dialog via `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/settings/components/MemberDialog.stories.tsx`.
+- Updated repository architecture/contribution docs (`README.md`, `CONTRIBUTING.md`) to reflect the current structure and expected contribution workflow.
 - Refined Agent Chat dark-mode styling so conversation surfaces, typography, and composer input consistently use existing dialog theme tokens, with overflow handling for long message lines.
 - Tightened Agent Chat dark-mode visuals to remove white/light fallback surfaces and horizontal overflow, with stronger token-based overrides for message list/composer/bubbles.
 - Replaced the MUI X chat integration with a dedicated, split custom Agent Chat widget (`AgentChatDialog`, `AgentChatMessageList`, `AgentChatComposer`) styled to match the Add Event glass dialog language and improve maintainability.

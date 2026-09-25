@@ -5,38 +5,12 @@ import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, The
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
-import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent, MemberAvatarColor } from "./types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent } from "./types/family";
+import { normalizeMemberColor } from "./shared/family/memberAvatarColors";
 
 const THEME_STORAGE_KEY = "family-butler-theme";
 const ACTIVE_HOUSEHOLD_STORAGE_KEY = "family-butler-active-household-id";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const LEGACY_MEMBER_COLOR_MAP: Record<string, MemberAvatarColor> = {
-  blue: "#3b82f6",
-  orange: "#f97316",
-  pink: "#ec4899",
-  purple: "#7c3aed",
-};
-const MEMBER_COLORS: MemberAvatarColor[] = ["#3b82f6", "#f97316", "#ec4899", "#7c3aed"];
-const MEMBER_COLOR_LABELS: Record<string, string> = {
-  "#3b82f6": "Blue",
-  "#f97316": "Orange",
-  "#ec4899": "Pink",
-  "#7c3aed": "Purple",
-};
-const DEFAULT_MEMBER_COLOR: MemberAvatarColor = MEMBER_COLORS[0];
-
-const normalizeMemberColor = (color: unknown): MemberAvatarColor => {
-  if (typeof color !== "string") {
-    return DEFAULT_MEMBER_COLOR;
-  }
-  const trimmed = color.trim();
-  if (!trimmed) {
-    return DEFAULT_MEMBER_COLOR;
-  }
-  const legacy = LEGACY_MEMBER_COLOR_MAP[trimmed.toLowerCase()];
-  return legacy ?? trimmed;
-};
-
 const defaultHouseholdData: HouseholdData = {
   householdId: "",
   householdName: "",
