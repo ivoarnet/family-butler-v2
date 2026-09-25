@@ -683,7 +683,7 @@ export function DashboardPage({
       </main>
 
       <div className="fab-stack">
-        <AgentChat accessToken={accessToken} />
+        <AgentChat accessToken={accessToken} householdId={householdData.householdId} />
         <button type="button" className="fab" onClick={openEventDialog} title="Create event">
           + Event
         </button>

@@ -8,6 +8,7 @@ const meta: Meta<typeof AgentChatDialog> = {
     open: true,
     onClose: () => undefined,
     accessToken: "storybook-token",
+    householdId: "00000000-0000-0000-0000-000000000001",
   },
   parameters: {
     layout: "fullscreen",

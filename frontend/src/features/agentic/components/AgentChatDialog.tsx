@@ -56,7 +56,17 @@ const buildUserMessage = (text: string, attachments: AgentChatAttachment[]): str
   return trimmed ? `${trimmed}\n\nAttachments: ${attachmentSummary}` : `Attachments: ${attachmentSummary}`;
 };
 
-export function AgentChatDialog({ open, onClose, accessToken }: { open: boolean; onClose: () => void; accessToken: string }) {
+export function AgentChatDialog({
+  open,
+  onClose,
+  accessToken,
+  householdId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  accessToken: string;
+  householdId: string;
+}) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const [messages, setMessages] = useState<AgentChatMessage[]>(INITIAL_MESSAGES);
@@ -149,6 +159,7 @@ export function AgentChatDialog({ open, onClose, accessToken }: { open: boolean;
         },
         body: JSON.stringify({
           message: text,
+          householdId,
           attachments: attachmentPayload,
         }),
       });

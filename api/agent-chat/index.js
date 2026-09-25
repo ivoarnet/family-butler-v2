@@ -1,5 +1,7 @@
+const { randomUUID } = require("crypto");
 const { getAuthenticatedUserId } = require("../shared/auth");
 const agentProvider = require("../shared/agent/providers");
+const db = require("../shared/db");
 
 const PDF_MIME = "application/pdf";
 const IMAGE_MIME_TYPES = new Set(["image/png", "image/jpeg", "image/webp", "image/heic"]);
@@ -15,6 +17,25 @@ const MAX_FILES_PER_MESSAGE = parsePositiveInt(process.env.AGENT_MAX_FILES_PER_M
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 const toClientError = (message) => Object.assign(new Error(message), { statusCode: 400 });
+const toIntOrNull = (value) => {
+  if (value === null || value === undefined || value === "") {
+    return null;
+  }
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) ? parsed : null;
+};
+
+const CONTACT_MODEL_DESCRIPTION = [
+  "Contact table schema:",
+  "- id: string (UUID)",
+  "- firstName: string (required)",
+  "- lastName: string | null",
+  "- birthDay: number | null (1-31)",
+  "- birthMonth: number | null (1-12)",
+  "- birthYear: number | null (1900-2100)",
+  "- email: string | null",
+  "- mobilePhone: string | null",
+].join("\n");
 
 const normalizeAttachment = (attachment, index) => {
   const name = cleanString(attachment?.name) || `attachment-${index + 1}`;
@@ -59,12 +80,30 @@ module.exports = async function agentChat(context, req) {
     }
 
     const message = cleanString(req.body?.message);
+    const householdId = cleanString(req.body?.householdId);
     const incomingAttachments = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
 
     if (!message && incomingAttachments.length === 0) {
       context.res = {
         status: 400,
         body: { error: "message or attachments are required" },
+      };
+      return;
+    }
+
+    if (!householdId) {
+      context.res = {
+        status: 400,
+        body: { error: "householdId is required" },
+      };
+      return;
+    }
+
+    const householdState = await db.getHouseholdWithRelations(householdId, userId);
+    if (!householdState) {
+      context.res = {
+        status: 404,
+        body: { error: "Household not found" },
       };
       return;
     }
@@ -78,6 +117,31 @@ module.exports = async function agentChat(context, req) {
     }
 
     const attachments = incomingAttachments.map(normalizeAttachment);
+
+    const tools = [
+      {
+        name: "add_contact",
+        description: [
+          "Add a new contact entry to the current household contact list.",
+          "Use this when the user asks to create/add/save a contact.",
+          CONTACT_MODEL_DESCRIPTION,
+        ].join("\n"),
+        parameters: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            firstName: { type: "string" },
+            lastName: { type: ["string", "null"] },
+            birthDay: { type: ["integer", "null"], minimum: 1, maximum: 31 },
+            birthMonth: { type: ["integer", "null"], minimum: 1, maximum: 12 },
+            birthYear: { type: ["integer", "null"], minimum: 1900, maximum: 2100 },
+            email: { type: ["string", "null"] },
+            mobilePhone: { type: ["string", "null"] },
+          },
+          required: ["firstName"],
+        },
+      },
+    ];
 
     if (attachments.some((attachment) => attachment.kind === "pdf") && !agentProvider.supportsPdf()) {
       context.res = {
@@ -99,6 +163,51 @@ module.exports = async function agentChat(context, req) {
       userId,
       message: message || "Analyze the attached files.",
       attachments,
+      tools,
+      executeTool: async (toolName, args) => {
+        if (toolName !== "add_contact") {
+          throw toClientError(`Unsupported tool: ${toolName}`);
+        }
+
+        const firstName = cleanString(args?.firstName);
+        if (!firstName) {
+          throw toClientError("firstName is required for add_contact");
+        }
+
+        const birthDay = toIntOrNull(args?.birthDay);
+        const birthMonth = toIntOrNull(args?.birthMonth);
+        const birthYear = toIntOrNull(args?.birthYear);
+        if (birthDay !== null && (birthDay < 1 || birthDay > 31)) {
+          throw toClientError("birthDay must be between 1 and 31");
+        }
+        if (birthMonth !== null && (birthMonth < 1 || birthMonth > 12)) {
+          throw toClientError("birthMonth must be between 1 and 12");
+        }
+        if (birthYear !== null && (birthYear < 1900 || birthYear > 2100)) {
+          throw toClientError("birthYear must be between 1900 and 2100");
+        }
+
+        const newContact = {
+          id: randomUUID(),
+          firstName,
+          lastName: cleanString(args?.lastName) || null,
+          birthDay,
+          birthMonth,
+          birthYear,
+          email: cleanString(args?.email) || null,
+          mobilePhone: cleanString(args?.mobilePhone) || null,
+        };
+
+        const existingContacts = Array.isArray(householdState.contacts) ? householdState.contacts : [];
+        await db.replaceContacts(householdId, [...existingContacts, newContact]);
+        householdState.contacts = [...existingContacts, newContact];
+
+        return {
+          ok: true,
+          contact: newContact,
+          message: `Contact ${newContact.firstName} has been added.`,
+        };
+      },
     });
 
     context.res = {
