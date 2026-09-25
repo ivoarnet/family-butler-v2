@@ -96,6 +96,21 @@ const toEventOutput = (event) => ({
   notes: event.notes ?? null,
 });
 
+const normalizeTitleForDuplicateCheck = (value) => cleanString(value).toLowerCase();
+
+const buildEventDuplicateKey = (event) => {
+  const memberIds = Array.isArray(event?.memberIds) ? [...new Set(event.memberIds.filter(Boolean))].sort() : [];
+  return [
+    normalizeTitleForDuplicateCheck(event?.title),
+    cleanString(event?.date),
+    event?.allDay !== false ? "all_day" : "timed",
+    event?.allDay !== false ? "" : cleanString(event?.startTime),
+    event?.allDay !== false ? "" : cleanString(event?.endTime),
+    cleanString(event?.eventTypeId),
+    memberIds.join(","),
+  ].join("|");
+};
+
 module.exports = {
   EVENT_MODEL_DESCRIPTION,
   cleanString,
@@ -107,4 +122,5 @@ module.exports = {
   toAvailableMembers,
   toEventMembersContext,
   toEventOutput,
+  buildEventDuplicateKey,
 };

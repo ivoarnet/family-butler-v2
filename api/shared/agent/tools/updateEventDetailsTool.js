@@ -8,6 +8,7 @@ const {
   toEventMembersContext,
   toAvailableMembers,
   toEventOutput,
+  buildEventDuplicateKey,
 } = require("./eventModel");
 
 const normalizeForMatch = (value) => cleanString(value).toLowerCase();
@@ -42,7 +43,8 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       description: [
         "Update additional information on an existing household event (for example location, notes, time, or event type).",
         "Find the event by eventId when possible; otherwise eventTitle (+ optional date) can be used.",
-        "Before persisting, call with confirmUpdate=false (or omitted) to show a before/after preview, then call again with confirmUpdate=true after explicit confirmation.",
+        "Persist updates directly when enough data is provided.",
+        "Prevent duplicates by skipping updates that would make two events identical.",
         "Always keep available event types in context when updating event type.",
         EVENT_MODEL_DESCRIPTION,
         toEventMembersContext(householdState.members),
@@ -78,7 +80,6 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       },
     },
     async execute(args) {
-      const confirmUpdate = args?.confirmUpdate === true;
       const updates = args?.updates;
       if (!updates || typeof updates !== "object") {
         throw toClientError("updates is required");
@@ -205,16 +206,18 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
 
       const before = toEventOutput(currentEvent);
       const after = toEventOutput(updatedEvent);
-
-      if (!confirmUpdate) {
+      const duplicateUpdatedEvent = events.find(
+        (event) => event.id !== currentEvent.id && buildEventDuplicateKey(event) === buildEventDuplicateKey(updatedEvent)
+      );
+      if (duplicateUpdatedEvent) {
         return {
-          ok: false,
-          confirmationRequired: true,
-          reason: "confirm_before_update",
+          ok: true,
+          skippedDuplicate: true,
           before,
-          after,
+          event: toEventOutput(currentEvent),
+          duplicateEvent: toEventOutput(duplicateUpdatedEvent),
           availableMembers: toAvailableMembers(members),
-          message: "Review this event update with the user. If approved, call update_event_details again with confirmUpdate=true.",
+          message: "Duplicate event detected. Skipped update to prevent duplicate entries.",
         };
       }
 

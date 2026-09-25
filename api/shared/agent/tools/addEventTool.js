@@ -10,6 +10,7 @@ const {
   toEventMembersContext,
   toAvailableMembers,
   toEventOutput,
+  buildEventDuplicateKey,
 } = require("./eventModel");
 
 const toNormalizedTokens = (value) =>
@@ -70,7 +71,8 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
       description: [
         "Add a new event to the current household.",
         "Always choose a fitting event type when possible using available event types.",
-        "Before persisting, call with confirmAdd=false (or omitted) to show a preview card payload, then call again with confirmAdd=true after explicit user confirmation.",
+        "Persist events directly when enough data is provided.",
+        "Prevent duplicates by checking existing household events before writing.",
         EVENT_MODEL_DESCRIPTION,
         toEventMembersContext(householdState.members),
         toEventTypesContext(householdState.eventTypes),
@@ -104,7 +106,6 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
       },
     },
     async execute(args) {
-      const confirmAdd = args?.confirmAdd === true;
       const input = args?.event;
       if (!input || typeof input !== "object") {
         throw toClientError("event is required");
@@ -192,12 +193,17 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         memberNames: event.memberIds.map((id) => memberById.get(id)?.firstName).filter(Boolean),
       };
 
-      if (!confirmAdd) {
+      const existingEvents = Array.isArray(householdState.events) ? householdState.events : [];
+      const incomingKey = buildEventDuplicateKey(event);
+      const duplicateEvent = existingEvents.find((existingEvent) => buildEventDuplicateKey(existingEvent) === incomingKey);
+      if (duplicateEvent) {
         return {
-          ok: false,
-          confirmationRequired: true,
-          reason: "confirm_before_add",
-          previewCard,
+          ok: true,
+          skippedDuplicate: true,
+          event: {
+            ...toEventOutput(duplicateEvent),
+            memberNames: duplicateEvent.memberIds.map((id) => memberById.get(id)?.firstName).filter(Boolean),
+          },
           availableMembers: toAvailableMembers(members),
           availableEventTypes: eventTypes.map((eventType) => ({
             id: eventType.id,
@@ -206,12 +212,10 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
             color: eventType.color ?? null,
             sortOrder: eventType.sortOrder,
           })),
-          message:
-            "Preview the event card with the user before saving. If approved, call add_event again with the same event payload and confirmAdd=true.",
+          message: "Duplicate event detected. Skipped creating a new event.",
         };
       }
 
-      const existingEvents = Array.isArray(householdState.events) ? householdState.events : [];
       const updatedEvents = [...existingEvents, event];
       await db.replaceEvents(householdId, updatedEvents);
       householdState.events = updatedEvents;
