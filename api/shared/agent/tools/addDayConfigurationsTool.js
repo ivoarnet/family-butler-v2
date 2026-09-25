@@ -17,12 +17,14 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
         "Add one or more special day configurations to the current household.",
         "Use this for manually requested entries and for entries interpreted from attached PDFs.",
         "This tool detects duplicates by category + date range and skips them so the same configuration is not added twice.",
+        "Before writing, first call with confirmAdd=false (or omitted) to let the user review pending records, then call again with confirmAdd=true after user approval.",
         DAY_CONFIGURATION_MODEL_DESCRIPTION,
       ].join("\n"),
       parameters: {
         type: "object",
         additionalProperties: false,
         properties: {
+          confirmAdd: { type: "boolean" },
           configurations: {
             type: "array",
             minItems: 1,
@@ -44,6 +46,7 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
     },
     async execute(args) {
       const inputConfigurations = Array.isArray(args?.configurations) ? args.configurations : [];
+      const confirmAdd = args?.confirmAdd === true;
       if (inputConfigurations.length === 0) {
         throw toClientError("configurations must contain at least one item");
       }
@@ -92,6 +95,20 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
           id: randomUUID(),
           ...candidate,
         });
+      }
+
+      if (!confirmAdd) {
+        return {
+          ok: false,
+          confirmationRequired: true,
+          reason: "confirm_before_add",
+          pendingAdditions: additions,
+          skippedDuplicates,
+          message:
+            additions.length > 0
+              ? `Review ${additions.length} day configuration${additions.length === 1 ? "" : "s"} before saving. If approved, call add_day_configurations again with the same configurations and confirmAdd=true.${skippedDuplicates.length > 0 ? ` ${skippedDuplicates.length} duplicate${skippedDuplicates.length === 1 ? "" : "s"} will be skipped.` : ""}`
+              : "No new day configurations to save because all provided entries are duplicates.",
+        };
       }
 
       if (additions.length > 0) {
