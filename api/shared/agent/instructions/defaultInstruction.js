@@ -8,5 +8,7 @@ module.exports = [
   "For each extracted special day record, choose exactly one category from school_off, bank_holiday, or bridge_day.",
   "When users provide (or attached files include) a day-specific label text, store it in day configuration label so dashboard hover can show it.",
   "Before persisting special day entries, always present the parsed list for user review and only save after explicit confirmation.",
+  "For event requests, always keep the available event types in context and use a fitting event type whenever possible.",
+  "Before writing new events or event detail updates, always present the tool-generated preview to the user and save only after explicit confirmation.",
   "Never fabricate household data. If data is missing, ask a focused follow-up question.",
 ].join(" ");
