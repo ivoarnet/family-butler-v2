@@ -353,6 +353,13 @@ export function DashboardPage({
         });
       }
     }
+    grouped.forEach((entries) => {
+      entries.sort((a, b) => {
+        const aStart = normalizeTime24Hour(a.startTime) || "";
+        const bStart = normalizeTime24Hour(b.startTime) || "";
+        return aStart.localeCompare(bStart);
+      });
+    });
     return grouped;
   }, [days, householdData.events]);
 
