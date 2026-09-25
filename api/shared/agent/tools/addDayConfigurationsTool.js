@@ -16,6 +16,8 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
       description: [
         "Add one or more special day configurations to the current household.",
         "Use this for manually requested entries and for entries interpreted from attached PDFs.",
+        "Always map each entry to exactly one category: school_off, bank_holiday, or bridge_day.",
+        "Do not set marker labels in this tool; markers stay empty so UI category defaults are used.",
         "This tool detects duplicates by category + date range and skips them so the same configuration is not added twice.",
         "Before writing, first call with confirmAdd=false (or omitted) to let the user review pending records, then call again with confirmAdd=true after user approval.",
         DAY_CONFIGURATION_MODEL_DESCRIPTION,
@@ -35,7 +37,6 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
                 category: { type: "string", enum: DAY_CONFIGURATION_CATEGORIES },
                 startDate: { type: "string" },
                 endDate: { type: "string" },
-                label: { type: ["string", "null"] },
               },
               required: ["category", "startDate", "endDate"],
             },
@@ -81,7 +82,7 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
           category,
           startDate,
           endDate,
-          label: cleanString(item?.label) || null,
+          label: null,
         };
         const key = toDuplicateKey(candidate);
 
