@@ -2,8 +2,21 @@ import { useState } from "react";
 import ChatRoundedIcon from "@mui/icons-material/ChatRounded";
 import { AgentChatDialog } from "./AgentChatDialog";
 
-export function AgentChat() {
+export function AgentChat({
+  accessToken,
+  householdId,
+  onCloseChat,
+}: {
+  accessToken: string;
+  householdId: string;
+  onCloseChat: () => void;
+}) {
   const [isAgentChatOpen, setIsAgentChatOpen] = useState(false);
+
+  const handleClose = () => {
+    setIsAgentChatOpen(false);
+    onCloseChat();
+  };
 
   return (
     <>
@@ -17,7 +30,7 @@ export function AgentChat() {
         <ChatRoundedIcon fontSize="small" />
       </button>
 
-      <AgentChatDialog open={isAgentChatOpen} onClose={() => setIsAgentChatOpen(false)} />
+      <AgentChatDialog open={isAgentChatOpen} onClose={handleClose} accessToken={accessToken} householdId={householdId} />
     </>
   );
 }

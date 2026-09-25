@@ -241,6 +241,8 @@ export function DashboardPage({
   currentUserEmail,
   currentUserInitials,
   currentUserAvatarUrl,
+  accessToken,
+  onAgentDataChanged,
   onSignOut,
 }: {
   householdData: HouseholdData;
@@ -250,6 +252,8 @@ export function DashboardPage({
   currentUserEmail: string;
   currentUserInitials: string;
   currentUserAvatarUrl: string | null;
+  accessToken: string;
+  onAgentDataChanged: () => void;
   onSignOut: () => Promise<void>;
 }) {
   const [now, setNow] = useState(() => new Date());
@@ -681,7 +685,7 @@ export function DashboardPage({
       </main>
 
       <div className="fab-stack">
-        <AgentChat />
+        <AgentChat accessToken={accessToken} householdId={householdData.householdId} onCloseChat={onAgentDataChanged} />
         <button type="button" className="fab" onClick={openEventDialog} title="Create event">
           + Event
         </button>

@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Added an agent-tooling guide (`/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_TOOLS_GUIDE.md`) documenting how to add new tools and best practices for robust tool development.
+- Connected Agent Chat to a new OpenAI-backed Azure Function endpoint (`POST /api/agent/chat`) with provider abstraction under `/api/shared/agent/providers`, authenticated requests, and PDF/image attachment validation.
+- Upgraded Agent Chat UI from a visual mock to a working chat flow that sends text plus drag-and-drop/file-picker PDF and image attachments to the backend.
+- Added updated Agent Chat attachment-flow screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/agent-chat-openai-attachments.png`.
+- Added first agent tool-calling flow so chat can automatically execute `add_contact` for the selected household, with the contact-table schema exposed in tool metadata and birthday fields supported.
+- Refactored agent tools into dedicated modules under `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools` and added a read tool `get_next_birthday` so agent chat can answer questions like “Who’s birthday is next?” from household contact rows.
+- Added a generic read tool `get_contacts` so the agent can fetch household contact rows and answer broader contact-related questions beyond dedicated single-purpose tools.
+- Added a dedicated default chat-agent instruction file at `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/instructions/defaultInstruction.js` and wired it into OpenAI requests so the assistant consistently responds in a butler-style tone.
+- Added chat-turn history propagation from frontend to backend/provider so follow-up messages keep prior conversational context instead of treating each request as stateless.
+- Improved Agent Chat usability: pressing `Enter` now sends the message (use `Shift+Enter` for newline), message list auto-scrolls to the newest entry, and focus returns to the text input for faster follow-up messages.
+- Added duplicate-contact detection in `add_contact` and a confirmation flow (`confirmDuplicate`) so similar contacts (same birthday + similar name) require explicit confirmation before being written.
+- Refreshed active household context when Agent Chat closes so records added by agent tools become visible immediately without a full page refresh.
+- Added server-side current-date/time grounding in agent instructions (UTC + timezone context) so relative date phrases like “tomorrow” and “next Wednesday” are resolved against a known current date before tool calls.
 - Updated dashboard event details from a read-only form layout to a card-style detail view with icon actions for **edit** and **close**, split into a reusable card view (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailCard.tsx`) and a dedicated dialog wrapper (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailDialog.tsx`).
 - Added event-type color support (frontend + API mapping + Supabase schema doc) and applied it to the event-detail card corner decoration, including the event-type icon in the corner accent.
 - Refined the event-detail card layout to stack date/location rows, move compact time display under date with icon, hide empty location/notes sections, remove duplicate type/repeat text, and switch the corner accent to a band style.

@@ -24,3 +24,4 @@ This folder documents the planned **agentic** feature as a separate capability i
 - `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_MCP_ARCHITECTURE.md`
 - `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_INFRASTRUCTURE.md`
 - `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_EVE_EVALUATION.md`
+- `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_TOOLS_GUIDE.md`

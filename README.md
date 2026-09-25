@@ -90,6 +90,7 @@ Please use `/home/runner/work/family-butler-v2/family-butler-v2/CONTRIBUTING.md`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households`, `POST /api/households`, `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/auth-config` → `GET /api/auth-config`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/agent-chat` → `POST /api/agent/chat` (text + PDF/image attachments)
 
 Health diagnostics:
 
@@ -121,6 +122,12 @@ Set these app settings in Azure Static Web Apps:
 - `SUPABASE_URL`
 - `SUPABASE_PUBLISHABLE_KEY`
 - `SUPABASE_SECRET_KEY`
+- `LLM_PROVIDER` (`openai`)
+- `OPENAI_API_KEY`
+- `OPENAI_MODEL_CHAT`
+- `OPENAI_MODEL_VISION`
+- `AGENT_MAX_FILE_BYTES`
+- `AGENT_MAX_FILES_PER_MESSAGE`
 
 Frontend build-time env values (optional if runtime auth config is provided by API):
 
