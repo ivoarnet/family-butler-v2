@@ -51,6 +51,7 @@ const normalizeEventTypes = (eventTypes: EventType[]): EventType[] =>
       id: eventType.id,
       name: eventType.name.trim(),
       icon: eventType.icon?.trim() || undefined,
+      color: eventType.color?.trim() || undefined,
       sortOrder: index,
     }));
 

@@ -17,6 +17,7 @@ import {
 export interface EventTypeDialogFormState {
   name: string;
   icon: string;
+  color: string;
 }
 
 interface EventTypeDialogProps {
@@ -70,6 +71,14 @@ export function EventTypeDialog({ open, editing, formState, nameError, onClose, 
               value={formState.icon}
               helperText="Example: 🎓, 🩺, 🎉"
               onChange={(event) => onFormStateChange((current) => ({ ...current, icon: event.target.value }))}
+            />
+            <FormField
+              label="Color (optional)"
+              type="color"
+              slotProps={{ inputLabel: { shrink: true } }}
+              value={formState.color}
+              helperText="Used for event detail corner decoration."
+              onChange={(event) => onFormStateChange((current) => ({ ...current, color: event.target.value }))}
             />
           </GlassPanel>
         </DialogContentPanel>

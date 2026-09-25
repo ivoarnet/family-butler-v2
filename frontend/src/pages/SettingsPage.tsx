@@ -19,6 +19,7 @@ import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, Set
 
 
 type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
+const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
 const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string }> = [
   { value: "school_off", label: "School off", defaultMarker: "SH" },
   { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH" },
@@ -57,6 +58,7 @@ const buildContactFormState = (contact?: Contact): ContactFormState => ({
 const buildEventTypeFormState = (eventType?: EventType): EventTypeDialogFormState => ({
   name: eventType?.name ?? "",
   icon: eventType?.icon ?? "",
+  color: eventType?.color ?? DEFAULT_EVENT_TYPE_COLOR,
 });
 
 const buildDayConfigurationFormState = (): DayConfigurationDialogFormState => ({
@@ -478,18 +480,19 @@ export function SettingsPage({
     }
 
     const icon = eventTypeFormState.icon.trim() || undefined;
+    const color = eventTypeFormState.color.trim() || DEFAULT_EVENT_TYPE_COLOR;
     setHouseholdData((current) => {
       if (!editingEventTypeId) {
         return {
           ...current,
-          eventTypes: [...current.eventTypes, { id: crypto.randomUUID(), name, icon, sortOrder: current.eventTypes.length }],
+          eventTypes: [...current.eventTypes, { id: crypto.randomUUID(), name, icon, color, sortOrder: current.eventTypes.length }],
         };
       }
 
       return {
         ...current,
         eventTypes: current.eventTypes.map((eventType) =>
-          eventType.id === editingEventTypeId ? { ...eventType, name, icon } : eventType
+          eventType.id === editingEventTypeId ? { ...eventType, name, icon, color } : eventType
         ),
       };
     });
@@ -1045,6 +1048,7 @@ export function SettingsPage({
                 <tr>
                   <th>Name</th>
                   <th>Icon</th>
+                  <th>Color</th>
                   <th className="actions-column">Actions</th>
                 </tr>
               </thead>
@@ -1053,6 +1057,21 @@ export function SettingsPage({
                   <tr key={eventType.id}>
                     <td>{eventType.name}</td>
                     <td>{eventType.icon ?? "—"}</td>
+                    <td>
+                      <span style={{ display: "inline-flex", alignItems: "center", gap: "0.45rem" }}>
+                        <span
+                          aria-hidden
+                          style={{
+                            width: "0.9rem",
+                            height: "0.9rem",
+                            borderRadius: "999px",
+                            backgroundColor: eventType.color ?? DEFAULT_EVENT_TYPE_COLOR,
+                            border: "1px solid var(--dialog-border)",
+                          }}
+                        />
+                        {eventType.color ?? DEFAULT_EVENT_TYPE_COLOR}
+                      </span>
+                    </td>
                     <td className="actions-cell">
                       <div className="icon-actions">
                         <button

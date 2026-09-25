@@ -58,6 +58,7 @@ const mapEventType = (row) => ({
   householdId: row.household_id,
   name: row.name,
   icon: row.icon,
+  color: row.color,
   sortOrder: row.sort_order,
 });
 
@@ -294,7 +295,7 @@ module.exports = function createSupabaseProvider() {
         }),
         request(TABLES.eventTypes, {
           params: {
-            select: "id,household_id,name,icon,sort_order",
+            select: "id,household_id,name,icon,color,sort_order",
             household_id: `eq.${householdId}`,
             order: "sort_order.asc",
           },
@@ -449,6 +450,7 @@ module.exports = function createSupabaseProvider() {
         household_id: householdId,
         name: eventType.name,
         icon: eventType.icon,
+        color: eventType.color,
         sort_order: eventType.sortOrder,
       }));
 

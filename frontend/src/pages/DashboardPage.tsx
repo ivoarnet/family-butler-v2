@@ -7,7 +7,7 @@ import SettingsIcon from "@mui/icons-material/Settings";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
-import { EventViewDialog } from "../features/dashboard/components/EventViewDialog";
+import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
 import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent } from "../types/family";
@@ -702,12 +702,11 @@ export function DashboardPage({
         onFormStateChange={(updater) => setEventFormState((current) => updater(current))}
       />
 
-      <EventViewDialog
+      <EventDetailDialog
         open={Boolean(viewingEvent)}
         event={viewingEvent}
         eventType={viewingEvent?.eventTypeId ? (eventTypeById.get(viewingEvent.eventTypeId) ?? null) : null}
         members={orderedMembers}
-        timeLabel={viewingEvent ? formatEventTimeLabel(viewingEvent) : ""}
         onClose={closeEventViewDialog}
         onEdit={() => {
           if (viewingEvent) {

@@ -29,6 +29,7 @@ const normalizeEventType = (eventType) => ({
   id: eventType.id,
   name: eventType.name,
   icon: eventType.icon ?? undefined,
+  color: eventType.color ?? undefined,
   sortOrder: eventType.sortOrder,
 });
 
@@ -98,6 +99,15 @@ const cleanOptionalInt = (value) => {
 
   const parsed = Number.parseInt(String(value), 10);
   return Number.isNaN(parsed) ? null : parsed;
+};
+
+const cleanOptionalColor = (value) => {
+  const cleaned = cleanOptionalText(value);
+  if (!cleaned) {
+    return null;
+  }
+  const normalized = cleaned.toLowerCase();
+  return /^#([\da-f]{3}|[\da-f]{6})$/.test(normalized) ? normalized : null;
 };
 
 const normalizeTime24Hour = (value) => {
@@ -190,6 +200,7 @@ const parseIncomingEventTypes = (eventTypes) => {
         id: requestedId || randomUUID(),
         name,
         icon: cleanOptionalText(eventType.icon),
+        color: cleanOptionalColor(eventType.color),
         sortOrder: index,
       };
     });
