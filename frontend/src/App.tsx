@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { Session, SupabaseClient, User } from "@supabase/supabase-js";
-import { AuthScreen } from "./components/auth/AuthScreen";
+import { AuthScreen } from "./features/auth/components/AuthScreen";
 import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, ThemeMode } from "./features/app/types";
 import { DashboardPage } from "./pages/DashboardPage";
 import { SettingsPage } from "./pages/SettingsPage";

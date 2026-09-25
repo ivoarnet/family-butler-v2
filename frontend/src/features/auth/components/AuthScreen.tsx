@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Button, Typography } from "@mui/material";
-import { FormField, GradientButton } from "../../shared/ui/GlassFormDialog";
+import { FormField, GradientButton } from "../../../shared/ui/GlassFormDialog";
 
 type AuthMode = "login" | "register";
 
