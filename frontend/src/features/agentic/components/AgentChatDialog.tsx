@@ -56,6 +56,8 @@ const buildUserMessage = (text: string, attachments: AgentChatAttachment[]): str
   return trimmed ? `${trimmed}\n\nAttachments: ${attachmentSummary}` : `Attachments: ${attachmentSummary}`;
 };
 
+const toHistoryRole = (role: AgentChatMessage["role"]): "user" | "assistant" => (role === "assistant" ? "assistant" : "user");
+
 export function AgentChatDialog({
   open,
   onClose,
@@ -125,6 +127,12 @@ export function AgentChatDialog({
     }
 
     const currentAttachments = attachments;
+    const history = messages
+      .filter((message) => message.id !== "welcome")
+      .map((message) => ({
+        role: toHistoryRole(message.role),
+        text: message.text,
+      }));
 
     setMessages((current) => [
       ...current,
@@ -160,6 +168,7 @@ export function AgentChatDialog({
         body: JSON.stringify({
           message: text,
           householdId,
+          history,
           attachments: attachmentPayload,
         }),
       });

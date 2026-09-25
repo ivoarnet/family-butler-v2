@@ -56,6 +56,30 @@ const toOpenAiTools = (tools) =>
     parameters: tool.parameters,
   }));
 
+const buildContextText = (history, message) => {
+  const normalizedHistory = Array.isArray(history) ? history : [];
+  const historyLines = normalizedHistory
+    .filter((entry) => entry && typeof entry === "object")
+    .map((entry) => {
+      const role = entry.role === "assistant" ? "Assistant" : "User";
+      const text = cleanString(entry.text);
+      return text ? `${role}: ${text}` : "";
+    })
+    .filter(Boolean);
+
+  const currentMessage = cleanString(message);
+  if (historyLines.length === 0) {
+    return currentMessage;
+  }
+
+  return [
+    "Conversation so far:",
+    historyLines.join("\n"),
+    "Current user message:",
+    currentMessage,
+  ].join("\n\n");
+};
+
 module.exports = function createOpenAiProvider() {
   const apiKey = cleanString(process.env.OPENAI_API_KEY);
   if (!apiKey) {
@@ -74,11 +98,12 @@ module.exports = function createOpenAiProvider() {
       return true;
     },
 
-    async sendMessage({ message, attachments, tools = [], executeTool, instruction }) {
+    async sendMessage({ message, history = [], attachments, tools = [], executeTool, instruction }) {
       const hasImage = attachments.some((attachment) => attachment.kind === "image");
       const model = hasImage ? visionModel : chatModel;
 
-      const content = [{ type: "input_text", text: message }];
+      const contextText = buildContextText(history, message);
+      const content = [{ type: "input_text", text: contextText }];
 
       for (const attachment of attachments) {
         const dataUrl = `data:${attachment.mimeType};base64,${attachment.dataBase64}`;

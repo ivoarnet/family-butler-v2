@@ -18,6 +18,19 @@ const MAX_FILES_PER_MESSAGE = parsePositiveInt(process.env.AGENT_MAX_FILES_PER_M
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 const toClientError = (message) => Object.assign(new Error(message), { statusCode: 400 });
+const normalizeHistory = (history) => {
+  if (!Array.isArray(history)) {
+    return [];
+  }
+
+  return history
+    .filter((item) => item && typeof item === "object")
+    .map((item) => ({
+      role: item.role === "assistant" ? "assistant" : "user",
+      text: cleanString(item.text),
+    }))
+    .filter((item) => item.text);
+};
 
 const normalizeAttachment = (attachment, index) => {
   const name = cleanString(attachment?.name) || `attachment-${index + 1}`;
@@ -63,6 +76,7 @@ module.exports = async function agentChat(context, req) {
 
     const message = cleanString(req.body?.message);
     const householdId = cleanString(req.body?.householdId);
+    const history = normalizeHistory(req.body?.history);
     const incomingAttachments = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
 
     if (!message && incomingAttachments.length === 0) {
@@ -121,6 +135,7 @@ module.exports = async function agentChat(context, req) {
     const providerResponse = await agentProvider.sendMessage({
       userId,
       message: message || "Analyze the attached files.",
+      history,
       attachments,
       tools: agentTools.definitions,
       executeTool: (toolName, args) => agentTools.executeTool(toolName, args),
