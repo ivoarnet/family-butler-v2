@@ -162,8 +162,10 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       }
 
       const nextAllDay = updates.allDay === null || updates.allDay === undefined ? currentEvent.allDay !== false : updates.allDay !== false;
-      const rawStartTime = updates.startTime === undefined ? currentEvent.startTime : updates.startTime;
-      const rawEndTime = updates.endTime === undefined ? currentEvent.endTime : updates.endTime;
+      const shouldKeepStartTime = updates.startTime === undefined || updates.startTime === null || cleanString(updates.startTime) === "";
+      const shouldKeepEndTime = updates.endTime === undefined || updates.endTime === null || cleanString(updates.endTime) === "";
+      const rawStartTime = shouldKeepStartTime ? currentEvent.startTime : updates.startTime;
+      const rawEndTime = shouldKeepEndTime ? currentEvent.endTime : updates.endTime;
       const normalizedStartTime = normalizeTime24Hour(rawStartTime);
       const normalizedEndTime = normalizeTime24Hour(rawEndTime);
 
