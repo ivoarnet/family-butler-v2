@@ -28,9 +28,10 @@ interface EventDetailDialogProps {
   members: FamilyMember[];
   onClose: () => void;
   onEdit: () => void;
+  onDelete: () => void;
 }
 
-export function EventDetailDialog({ open, event, eventType, members, onClose, onEdit }: EventDetailDialogProps) {
+export function EventDetailDialog({ open, event, eventType, members, onClose, onEdit, onDelete }: EventDetailDialogProps) {
   const theme = useTheme();
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
 
@@ -40,7 +41,7 @@ export function EventDetailDialog({ open, event, eventType, members, onClose, on
 
   return (
     <EventDetailDialogShell open={open} onClose={onClose} aria-labelledby="event-detail-title" fullScreen={fullScreen}>
-      <EventDetailCard event={event} eventType={eventType} members={members} onEdit={onEdit} onClose={onClose} />
+      <EventDetailCard event={event} eventType={eventType} members={members} onEdit={onEdit} onClose={onClose} onDelete={onDelete} />
     </EventDetailDialogShell>
   );
 }
