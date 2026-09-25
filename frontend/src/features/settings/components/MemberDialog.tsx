@@ -20,6 +20,7 @@ import {
   GlassPanel,
   GradientButton,
 } from "../../../shared/ui/GlassFormDialog";
+import { getMemberColorLabel } from "../../../shared/family/memberAvatarColors";
 import { MemberAvatarColor } from "../../../types/family";
 
 const AvatarPanel = styled(Box)(({ theme }) => ({
@@ -83,13 +84,6 @@ const ColorSwatchButton = styled("button")<{ $selected: boolean; $swatch: string
     outlineOffset: 2,
   },
 }));
-
-const COLOR_LABELS: Record<string, string> = {
-  "#3b82f6": "Blue",
-  "#f97316": "Orange",
-  "#ec4899": "Pink",
-  "#7c3aed": "Purple",
-};
 
 export interface MemberDialogFormState {
   firstName: string;
@@ -182,9 +176,9 @@ export function MemberDialog({
                         key={color}
                         type="button"
                         role="radio"
-                        aria-label={`${COLOR_LABELS[color] ?? color} avatar color`}
+                        aria-label={`${getMemberColorLabel(color)} avatar color`}
                         aria-checked={selected}
-                        title={COLOR_LABELS[color] ?? color}
+                        title={getMemberColorLabel(color)}
                         $selected={selected}
                         $swatch={color}
                         onClick={() => onAvatarColorChange(color)}
