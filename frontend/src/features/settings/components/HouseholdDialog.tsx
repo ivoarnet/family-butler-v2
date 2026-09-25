@@ -21,6 +21,7 @@ const HouseholdDetailsSection = styled(Box)(({ theme }) => ({
 
 interface HouseholdDialogProps {
   open: boolean;
+  editing: boolean;
   householdName: string;
   householdNameError: boolean;
   requestError: string | null;
@@ -32,6 +33,7 @@ interface HouseholdDialogProps {
 
 export function HouseholdDialog({
   open,
+  editing,
   householdName,
   householdNameError,
   requestError,
@@ -50,7 +52,7 @@ export function HouseholdDialog({
       <Box component="form" onSubmit={onSubmit} noValidate>
         <DialogHeader>
           <Typography id={titleId} variant="h5" component="h2" sx={{ fontWeight: 700 }}>
-            Create household
+            {editing ? "Edit household" : "Create household"}
           </Typography>
           <Button
             type="button"
@@ -64,7 +66,9 @@ export function HouseholdDialog({
 
         <DialogContentPanel>
           <DialogDescription id={descriptionId} variant="body2">
-            Create a household workspace to manage members and contact lists in that context.
+            {editing
+              ? "Update your household name."
+              : "Create a household workspace to manage members and contact lists in that context."}
           </DialogDescription>
 
           <GlassPanel>
@@ -104,7 +108,7 @@ export function HouseholdDialog({
             Cancel
           </Button>
           <GradientButton type="submit" variant="contained" disableElevation disabled={isSubmitting}>
-            {isSubmitting ? "Creating…" : "Create household"}
+            {isSubmitting ? (editing ? "Saving…" : "Creating…") : editing ? "Save household" : "Create household"}
           </GradientButton>
         </DialogActionsBar>
       </Box>

@@ -550,6 +550,33 @@ export function App() {
     }
   };
 
+  const updateHouseholdName = async (householdId: string, householdName: string): Promise<{ ok: boolean; error?: string }> => {
+    try {
+      if (!authSession?.access_token) {
+        throw new Error("You need to sign in again.");
+      }
+      setIsCreatingHousehold(true);
+      const sourceHousehold =
+        householdData.householdId === householdId ? householdData : await readHousehold(authSession.access_token, householdId);
+      const persisted = await writeHousehold(authSession.access_token, { ...sourceHousehold, householdName });
+      setHouseholds((current) =>
+        current.map((household) => (household.id === householdId ? { ...household, name: persisted.householdName } : household))
+      );
+      if (activeHouseholdId === householdId) {
+        setHouseholdData(persisted);
+      }
+      setDataError(null);
+      setFailedAction(null);
+      return { ok: true };
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Could not update household.";
+      setDataError(message);
+      return { ok: false, error: message };
+    } finally {
+      setIsCreatingHousehold(false);
+    }
+  };
+
   const retryLastContextAction = () => {
     if (!failedAction) {
       return;
@@ -811,6 +838,7 @@ export function App() {
           void switchActiveHousehold(householdId);
         }}
         onCreateHousehold={createAndSelectHousehold}
+        onUpdateHousehold={updateHouseholdName}
         isContextLoading={isContextLoading}
         isCreatingHousehold={isCreatingHousehold}
         householdData={householdData}
@@ -841,6 +869,7 @@ export function App() {
           void switchActiveHousehold(householdId);
         }}
         onCreateHousehold={createAndSelectHousehold}
+        onUpdateHousehold={updateHouseholdName}
         isContextLoading={isContextLoading}
         isCreatingHousehold={isCreatingHousehold}
         householdData={householdData}
