@@ -52,8 +52,6 @@ export function DayConfigurationDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const titleId = "day-configuration-dialog-title";
   const descriptionId = "day-configuration-dialog-description";
-  const selectedCategory = categoryOptions.find((option) => option.value === formState.category);
-
   return (
     <GlassDialog open={open} onClose={onClose} aria-labelledby={titleId} aria-describedby={descriptionId} fullScreen={fullScreen}>
       <Box component="form" onSubmit={onSubmit} noValidate>
@@ -74,6 +72,12 @@ export function DayConfigurationDialog({
           <GlassPanel>
             <FieldTitle variant="subtitle1">Special day details</FieldTitle>
             <FormField
+              label="Description/label"
+              slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 30 } }}
+              value={formState.label}
+              onChange={(event) => onFormStateChange((current) => ({ ...current, label: event.target.value }))}
+            />
+            <FormField
               required
               select
               label="Category"
@@ -85,7 +89,10 @@ export function DayConfigurationDialog({
             >
               {categoryOptions.map((option) => (
                 <MenuItem key={option.value} value={option.value}>
-                  {option.label}
+                  <Box component="span" sx={{ display: "inline-flex", alignItems: "center", gap: 0.75 }}>
+                    {option.label}
+                    <option.defaultIcon fontSize="small" />
+                  </Box>
                 </MenuItem>
               ))}
             </FormField>
@@ -108,28 +115,6 @@ export function DayConfigurationDialog({
               error={endDateError || rangeError}
               helperText={endDateError ? "End date is required." : rangeError ? "End date must be on or after start date." : " "}
               onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
-            />
-            <FormField
-              label="Marker (optional)"
-              slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 4 } }}
-              value={formState.label}
-              helperText={
-                selectedCategory ? (
-                  (() => {
-                    const SelectedCategoryIcon = selectedCategory.defaultIcon;
-                    return (
-                      <span className="day-configuration-marker">
-                        Default marker:
-                        <SelectedCategoryIcon className="day-configuration-marker-icon" fontSize="inherit" />
-                        {selectedCategory.defaultMarker}
-                      </span>
-                    );
-                  })()
-                ) : (
-                  "Default marker: —"
-                )
-              }
-              onChange={(event) => onFormStateChange((current) => ({ ...current, label: event.target.value }))}
             />
           </GlassPanel>
         </DialogContentPanel>
