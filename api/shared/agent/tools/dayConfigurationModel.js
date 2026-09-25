@@ -6,7 +6,7 @@ const DAY_CONFIGURATION_MODEL_DESCRIPTION = [
   "- category: one of school_off | bank_holiday | bridge_day",
   "- startDate: string (YYYY-MM-DD)",
   "- endDate: string (YYYY-MM-DD, same day or after startDate)",
-  "- label: string | null (optional short marker)",
+  "- label: string | null (optional descriptive label shown on dashboard hover)",
 ].join("\n");
 
 module.exports = {

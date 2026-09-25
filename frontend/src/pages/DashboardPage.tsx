@@ -22,7 +22,7 @@ interface SpecialEvent {
 }
 
 interface DayCellDecorations {
-  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string }>;
+  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; label: string | null }>;
 }
 
 const DEMO_LOCALE = "de-CH";
@@ -118,10 +118,6 @@ const buildBirthdayEvents = (contacts: Contact[], periodStart: Date): SpecialEve
 };
 
 const getDayConfigurationMarker = (dayConfiguration: DayConfiguration): string => {
-  const customMarker = dayConfiguration.label?.trim().toUpperCase();
-  if (customMarker) {
-    return customMarker.slice(0, 4);
-  }
   return DAY_CONFIGURATION_META[dayConfiguration.category].defaultMarker;
 };
 
@@ -323,7 +319,12 @@ export function DashboardPage({
       for (let index = startIndex; index <= endIndex; index += 1) {
         const isoDate = dayIsoValues[index];
         const entry = grouped.get(isoDate) ?? { corners: [] };
-        entry.corners.push({ id: `${dayConfiguration.id}-${isoDate}`, category: dayConfiguration.category, marker });
+        entry.corners.push({
+          id: `${dayConfiguration.id}-${isoDate}`,
+          category: dayConfiguration.category,
+          marker,
+          label: dayConfiguration.label?.trim() || null,
+        });
         grouped.set(isoDate, entry);
       }
     });
@@ -631,7 +632,7 @@ export function DashboardPage({
                             key={corner.id}
                             className={`day-special-corner ${DAY_CONFIGURATION_META[corner.category].className}`}
                             style={{ top: `${0.3 + index * 1.1}rem` }}
-                            title={corner.marker}
+                            title={corner.label ?? corner.marker}
                           >
                             {corner.marker}
                           </span>
