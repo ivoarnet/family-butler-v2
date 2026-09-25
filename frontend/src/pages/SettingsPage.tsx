@@ -1145,7 +1145,21 @@ export function SettingsPage({
                   .sort((a, b) => a.startDate.localeCompare(b.startDate) || a.endDate.localeCompare(b.endDate))
                   .map((dayConfiguration) => (
                     <tr key={dayConfiguration.id}>
-                      <td>{getDayConfigurationLabel(dayConfiguration.category)}</td>
+                      <td>
+                        {(() => {
+                          const option = DAY_CONFIGURATION_OPTIONS.find((entry) => entry.value === dayConfiguration.category);
+                          if (!option) {
+                            return getDayConfigurationLabel(dayConfiguration.category);
+                          }
+                          const CategoryIcon = option.defaultIcon;
+                          return (
+                            <span className="day-configuration-marker">
+                              <CategoryIcon className="day-configuration-marker-icon" fontSize="inherit" />
+                              {option.label}
+                            </span>
+                          );
+                        })()}
+                      </td>
                       <td>
                         {dayConfiguration.startDate}
                         {dayConfiguration.endDate !== dayConfiguration.startDate ? ` → ${dayConfiguration.endDate}` : ""}
