@@ -118,6 +118,7 @@ export function SettingsPage({
   activeHouseholdId,
   onSwitchHousehold,
   onCreateHousehold,
+  onUpdateHousehold,
   isContextLoading,
   isCreatingHousehold,
   householdData,
@@ -139,6 +140,7 @@ export function SettingsPage({
   activeHouseholdId: string | null;
   onSwitchHousehold: (householdId: string) => void;
   onCreateHousehold: (householdName: string) => Promise<{ ok: boolean; error?: string }>;
+  onUpdateHousehold: (householdId: string, householdName: string) => Promise<{ ok: boolean; error?: string }>;
   isContextLoading: boolean;
   isCreatingHousehold: boolean;
   householdData: HouseholdData;
@@ -160,6 +162,7 @@ export function SettingsPage({
   const [createHouseholdSubmitted, setCreateHouseholdSubmitted] = useState(false);
   const [createHouseholdError, setCreateHouseholdError] = useState<string | null>(null);
   const [householdModalOpen, setHouseholdModalOpen] = useState(false);
+  const [editingHouseholdId, setEditingHouseholdId] = useState<string | null>(null);
   const [memberFormState, setMemberFormState] = useState<MemberFormState>(buildMemberFormState);
   const [contactFormState, setContactFormState] = useState<ContactFormState>(buildContactFormState);
   const [memberModalOpen, setMemberModalOpen] = useState(false);
@@ -218,9 +221,18 @@ export function SettingsPage({
   }, [initialProfileFirstName, initialProfileLastName]);
 
   const openAddHousehold = () => {
+    setEditingHouseholdId(null);
     setCreateHouseholdSubmitted(false);
     setCreateHouseholdError(null);
     setNewHouseholdName("");
+    setHouseholdModalOpen(true);
+  };
+
+  const openEditHousehold = (household: HouseholdSummary) => {
+    setEditingHouseholdId(household.id);
+    setCreateHouseholdSubmitted(false);
+    setCreateHouseholdError(null);
+    setNewHouseholdName(household.name);
     setHouseholdModalOpen(true);
   };
 
@@ -229,11 +241,12 @@ export function SettingsPage({
       return;
     }
     setHouseholdModalOpen(false);
+    setEditingHouseholdId(null);
     setCreateHouseholdSubmitted(false);
     setCreateHouseholdError(null);
   };
 
-  const submitCreateHousehold = async (event: FormEvent<HTMLFormElement>) => {
+  const submitHousehold = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setCreateHouseholdSubmitted(true);
     const trimmedName = newHouseholdName.trim();
@@ -241,14 +254,17 @@ export function SettingsPage({
       return;
     }
 
-    const result = await onCreateHousehold(trimmedName);
+    const result = editingHouseholdId
+      ? await onUpdateHousehold(editingHouseholdId, trimmedName)
+      : await onCreateHousehold(trimmedName);
     if (!result.ok) {
-      setCreateHouseholdError(result.error ?? "Could not create household.");
+      setCreateHouseholdError(result.error ?? `Could not ${editingHouseholdId ? "save" : "create"} household.`);
       return;
     }
 
     setCreateHouseholdError(null);
     setCreateHouseholdSubmitted(false);
+    setEditingHouseholdId(null);
     setNewHouseholdName("");
     setHouseholdModalOpen(false);
   };
@@ -778,14 +794,25 @@ export function SettingsPage({
                         <td>{household.name}</td>
                         <td>{isSelected ? <span className="selected-pill">Selected</span> : "—"}</td>
                         <td className="actions-cell">
-                          <button
-                            type="button"
-                            className="primary-pill"
-                            onClick={() => onSwitchHousehold(household.id)}
-                            disabled={isSelected || isContextLoading}
-                          >
-                            {isSelected ? "Active" : "Select"}
-                          </button>
+                          <div className="icon-actions">
+                            <button
+                              type="button"
+                              className="icon-button compact-icon-button"
+                              onClick={() => openEditHousehold(household)}
+                              disabled={isCreatingHousehold || isContextLoading}
+                              aria-label={`Edit ${household.name}`}
+                            >
+                              <EditOutlinedIcon fontSize="small" />
+                            </button>
+                            <button
+                              type="button"
+                              className="primary-pill"
+                              onClick={() => onSwitchHousehold(household.id)}
+                              disabled={isSelected || isContextLoading}
+                            >
+                              {isSelected ? "Active" : "Select"}
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -814,12 +841,13 @@ export function SettingsPage({
 
           <HouseholdDialog
             open={householdModalOpen}
+            editing={Boolean(editingHouseholdId)}
             householdName={newHouseholdName}
             householdNameError={createHouseholdNameError}
             requestError={createHouseholdError}
             isSubmitting={isCreatingHousehold}
             onClose={closeAddHousehold}
-            onSubmit={submitCreateHousehold}
+            onSubmit={submitHousehold}
             onHouseholdNameChange={(value) => {
               setNewHouseholdName(value);
               setCreateHouseholdError(null);
