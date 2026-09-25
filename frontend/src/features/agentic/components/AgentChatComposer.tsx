@@ -1,4 +1,4 @@
-import { ChangeEvent, DragEvent, FormEvent, useRef } from "react";
+import { ChangeEvent, DragEvent, FormEvent, KeyboardEvent, useEffect, useRef } from "react";
 import AttachFileRoundedIcon from "@mui/icons-material/AttachFileRounded";
 import SendRoundedIcon from "@mui/icons-material/SendRounded";
 import { Box, IconButton } from "@mui/material";
@@ -17,6 +17,7 @@ export function AgentChatComposer({
   onFilesSelected,
   attachments,
   onRemoveAttachment,
+  focusNonce,
 }: {
   value: string;
   onChange: (value: string) => void;
@@ -27,12 +28,28 @@ export function AgentChatComposer({
   onFilesSelected: (files: File[]) => void;
   attachments: AgentChatAttachment[];
   onRemoveAttachment: (attachmentId: string) => void;
+  focusNonce: number;
 }) {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
+  const textInputRef = useRef<HTMLInputElement | HTMLTextAreaElement | null>(null);
 
   const handleSubmit = (event: FormEvent) => {
     event.preventDefault();
     onSend();
+    requestAnimationFrame(() => {
+      textInputRef.current?.focus();
+    });
+  };
+
+  const handleMessageFieldKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
+    if (event.key !== "Enter" || event.shiftKey || event.nativeEvent.isComposing) {
+      return;
+    }
+    event.preventDefault();
+    onSend();
+    requestAnimationFrame(() => {
+      textInputRef.current?.focus();
+    });
   };
 
   const addFiles = (files: FileList | null) => {
@@ -53,6 +70,12 @@ export function AgentChatComposer({
     onDragActiveChange(false);
     addFiles(event.dataTransfer.files);
   };
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      textInputRef.current?.focus();
+    });
+  }, [focusNonce]);
 
   return (
     <Box component="form" className="agent-chat-composer" onSubmit={handleSubmit}>
@@ -105,8 +128,10 @@ export function AgentChatComposer({
 
       <div className="agent-chat-input-row">
         <FormField
+          inputRef={textInputRef}
           value={value}
           onChange={(event) => onChange(event.target.value)}
+          onKeyDown={handleMessageFieldKeyDown}
           placeholder="Message Family Butler Agent…"
           aria-label="Message Agent Chat"
           fullWidth

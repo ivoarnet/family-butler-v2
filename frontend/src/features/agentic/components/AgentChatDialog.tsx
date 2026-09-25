@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import { Box, Button, Typography, useMediaQuery } from "@mui/material";
 import { useTheme } from "@mui/material/styles";
@@ -76,8 +76,16 @@ export function AgentChatDialog({
   const [attachments, setAttachments] = useState<AgentChatAttachment[]>([]);
   const [isDragActive, setIsDragActive] = useState(false);
   const [isSending, setIsSending] = useState(false);
+  const [focusNonce, setFocusNonce] = useState(0);
 
   const canSend = useMemo(() => (draft.trim().length > 0 || attachments.length > 0) && !isSending, [draft, attachments, isSending]);
+
+  useEffect(() => {
+    if (!open) {
+      return;
+    }
+    setFocusNonce((current) => current + 1);
+  }, [open]);
 
   const addAssistantMessage = (text: string) => {
     setMessages((current) => [
@@ -184,6 +192,7 @@ export function AgentChatDialog({
       addAssistantMessage(error instanceof Error ? error.message : "Failed to send chat message");
     } finally {
       setIsSending(false);
+      setFocusNonce((current) => current + 1);
     }
   };
 
@@ -219,6 +228,7 @@ export function AgentChatDialog({
           onRemoveAttachment={(attachmentId) => {
             setAttachments((current) => current.filter((attachment) => attachment.id !== attachmentId));
           }}
+          focusNonce={focusNonce}
         />
       </Box>
     </GlassDialog>
