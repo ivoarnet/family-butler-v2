@@ -897,6 +897,23 @@ body,
   background: rgba(90, 108, 255, 0.24);
 }
 
+.agent-chat-bubble.assistant > * {
+  margin: 0;
+}
+
+.agent-chat-bubble.assistant > * + * {
+  margin-top: 0.6rem;
+}
+
+.agent-chat-bubble.assistant ul,
+.agent-chat-bubble.assistant ol {
+  padding-left: 1.25rem;
+}
+
+.agent-chat-bubble.assistant a {
+  color: inherit;
+}
+
 .agent-chat-composer {
   display: grid;
   gap: 0.6rem;
