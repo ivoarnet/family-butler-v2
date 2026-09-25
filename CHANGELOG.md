@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Updated dashboard event details from a read-only form layout to a card-style detail view with icon actions for **edit** and **close** in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailCard.tsx`.
+- Updated dashboard event details from a read-only form layout to a card-style detail view with icon actions for **edit** and **close**, split into a reusable card view (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailCard.tsx`) and a dedicated dialog wrapper (`/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/dashboard/components/EventDetailDialog.tsx`).
 - Added event-type color support (frontend + API mapping + Supabase schema doc) and applied it to the event-detail card corner decoration, including the event-type icon in the corner accent.
 - Added an explicit `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/pages/ProfilePage.tsx` page component so profile routing now maps to a dedicated page module alongside `SettingsPage` and `DashboardPage`, while preserving existing behavior.
 - Clarified frontend module boundaries by moving auth UI from `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/components/auth/AuthScreen.tsx` to `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/auth/components/AuthScreen.tsx`, so component placement now follows the same feature-first convention as other domains.
