@@ -1,9 +1,13 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
+import AltRouteRoundedIcon from "@mui/icons-material/AltRouteRounded";
 import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
+import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded";
 import SettingsIcon from "@mui/icons-material/Settings";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
@@ -11,7 +15,7 @@ import { EventDetailDialog } from "../features/dashboard/components/EventDetailD
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
 import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent } from "../types/family";
-import type { Dispatch, SetStateAction } from "react";
+import type { Dispatch, ElementType, SetStateAction } from "react";
 
 interface SpecialEvent {
   id: string;
@@ -22,14 +26,14 @@ interface SpecialEvent {
 }
 
 interface DayCellDecorations {
-  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: string; label: string | null }>;
+  corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: ElementType<SvgIconProps>; label: string | null }>;
 }
 
 const DEMO_LOCALE = "de-CH";
-const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: string; className: string }> = {
-  school_off: { defaultMarker: "SH", icon: "🎒", className: "school-off" },
-  bank_holiday: { defaultMarker: "BH", icon: "🏦", className: "bank-holiday" },
-  bridge_day: { defaultMarker: "BD", icon: "🌉", className: "bridge-day" },
+const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: ElementType<SvgIconProps>; className: string }> = {
+  school_off: { defaultMarker: "SH", icon: SchoolRoundedIcon, className: "school-off" },
+  bank_holiday: { defaultMarker: "BH", icon: AccountBalanceRoundedIcon, className: "bank-holiday" },
+  bridge_day: { defaultMarker: "BD", icon: AltRouteRoundedIcon, className: "bridge-day" },
 };
 
 const addDays = (date: Date, days: number): Date => {
@@ -628,16 +632,19 @@ export function DashboardPage({
                       className={`${isToday ? "today-row" : ""} ${!isToday && isWeekend ? "weekend-row" : ""}`.trim()}
                     >
                       <td className="day-cell">
-                        {dayDecorations.corners.map((corner, index) => (
-                          <span
-                            key={corner.id}
-                            className={`day-special-corner ${DAY_CONFIGURATION_META[corner.category].className}`}
-                            style={{ top: `${0.3 + index * 1.5}rem` }}
-                            title={corner.label ?? corner.marker}
-                          >
-                            {corner.icon} {corner.marker}
-                          </span>
-                        ))}
+                        {dayDecorations.corners.map((corner, index) => {
+                          const CornerIcon = corner.icon;
+                          return (
+                            <span
+                              key={corner.id}
+                              className={`day-special-corner ${DAY_CONFIGURATION_META[corner.category].className}`}
+                              style={{ top: `${0.3 + index * 1.5}rem` }}
+                              title={corner.label ?? corner.marker}
+                            >
+                              <CornerIcon className="day-special-corner-icon" fontSize="inherit" /> {corner.marker}
+                            </span>
+                          );
+                        })}
                         <div className="weekday-label-wrap">
                           <span className="weekday-label">{getWeekdayAbbreviation(day, DEMO_LOCALE)}</span>
                           {isToday && <span className="today-pill">Today</span>}

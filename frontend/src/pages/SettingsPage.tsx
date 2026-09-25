@@ -1,4 +1,6 @@
-import { FormEvent, useEffect, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type SetStateAction } from "react";
+import AccountBalanceRoundedIcon from "@mui/icons-material/AccountBalanceRounded";
+import AltRouteRoundedIcon from "@mui/icons-material/AltRouteRounded";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -7,6 +9,8 @@ import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
+import SchoolRoundedIcon from "@mui/icons-material/SchoolRounded";
+import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { Tab, Tabs } from "@mui/material";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
 import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../features/settings/components/DayConfigurationDialog";
@@ -20,10 +24,15 @@ import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, Set
 
 type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
-const DAY_CONFIGURATION_OPTIONS: Array<{ value: DayConfigurationCategory; label: string; defaultMarker: string; defaultIcon: string }> = [
-  { value: "school_off", label: "School off", defaultMarker: "SH", defaultIcon: "🎒" },
-  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH", defaultIcon: "🏦" },
-  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD", defaultIcon: "🌉" },
+const DAY_CONFIGURATION_OPTIONS: Array<{
+  value: DayConfigurationCategory;
+  label: string;
+  defaultMarker: string;
+  defaultIcon: ElementType<SvgIconProps>;
+}> = [
+  { value: "school_off", label: "School off", defaultMarker: "SH", defaultIcon: SchoolRoundedIcon },
+  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH", defaultIcon: AccountBalanceRoundedIcon },
+  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD", defaultIcon: AltRouteRoundedIcon },
 ];
 const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
   DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
@@ -1146,7 +1155,16 @@ export function SettingsPage({
                           ? dayConfiguration.label
                           : (() => {
                               const option = DAY_CONFIGURATION_OPTIONS.find((entry) => entry.value === dayConfiguration.category);
-                              return option ? `${option.defaultIcon} ${option.defaultMarker}` : "—";
+                              if (!option) {
+                                return "—";
+                              }
+                              const DefaultIcon = option.defaultIcon;
+                              return (
+                                <span className="day-configuration-marker">
+                                  <DefaultIcon className="day-configuration-marker-icon" fontSize="inherit" />
+                                  {option.defaultMarker}
+                                </span>
+                              );
                             })()}
                       </td>
                       <td className="actions-cell">

@@ -519,6 +519,16 @@ body,
   color: var(--text-secondary);
 }
 
+.day-configuration-marker {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+}
+
+.day-configuration-marker-icon {
+  font-size: 1em !important;
+}
+
 .settings-table th.actions-column,
 .settings-table td.actions-cell {
   text-align: right;
@@ -685,6 +695,11 @@ body,
   font-weight: 800;
   letter-spacing: 0.02em;
   padding: 0.22rem 0;
+}
+
+.day-special-corner-icon {
+  font-size: 0.72rem !important;
+  vertical-align: text-bottom;
 }
 
 .school-off {
