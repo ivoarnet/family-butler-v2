@@ -28,6 +28,7 @@ const normalizeTime24Hour = (value) => {
 };
 
 const isIsoDate = (value) => /^\d{4}-\d{2}-\d{2}$/.test(value);
+const isUuid = (value) => /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value);
 
 const isFiveMinuteStepTime = (value) => {
   const match = value.match(/^([01]\d|2[0-3]):([0-5]\d)$/);
@@ -100,6 +101,7 @@ module.exports = {
   cleanString,
   normalizeTime24Hour,
   isIsoDate,
+  isUuid,
   isFiveMinuteStepTime,
   toEventTypesContext,
   toAvailableMembers,
