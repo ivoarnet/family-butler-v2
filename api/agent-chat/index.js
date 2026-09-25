@@ -18,6 +18,19 @@ const MAX_FILES_PER_MESSAGE = parsePositiveInt(process.env.AGENT_MAX_FILES_PER_M
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 const toClientError = (message) => Object.assign(new Error(message), { statusCode: 400 });
+const buildRuntimeDateContext = () => {
+  const now = new Date();
+  const timezone = Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC";
+  const isoNow = now.toISOString();
+  const weekday = new Intl.DateTimeFormat("en-US", { weekday: "long", timeZone: "UTC" }).format(now);
+
+  return [
+    `Current date-time (UTC): ${isoNow}`,
+    `Current weekday (UTC): ${weekday}`,
+    `Server timezone: ${timezone}`,
+    "When users provide relative dates (for example tomorrow, next Wednesday, or Saturday), resolve them against the current UTC date-time above before calling tools.",
+  ].join(" ");
+};
 const normalizeHistory = (history) => {
   if (!Array.isArray(history)) {
     return [];
@@ -139,7 +152,7 @@ module.exports = async function agentChat(context, req) {
       attachments,
       tools: agentTools.definitions,
       executeTool: (toolName, args) => agentTools.executeTool(toolName, args),
-      instruction: defaultInstruction,
+      instruction: `${defaultInstruction} ${buildRuntimeDateContext()}`,
     });
 
     context.res = {
