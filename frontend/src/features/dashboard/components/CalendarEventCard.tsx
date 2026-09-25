@@ -1,5 +1,5 @@
 import { Avatar, AvatarGroup } from "@mui/material";
-import { alpha, styled } from "@mui/material/styles";
+import { styled } from "@mui/material/styles";
 import { FamilyMember, HouseholdEvent } from "../../../types/family";
 
 const EventCardButton = styled("button")({
@@ -19,11 +19,13 @@ const EventCardButton = styled("button")({
   },
 });
 
-const EventMeta = styled("div")({
+const EventHeader = styled("div")({
   display: "flex",
   justifyContent: "space-between",
   gap: "0.35rem",
-  alignItems: "center",
+  alignItems: "flex-start",
+  flexWrap: "wrap",
+  minWidth: 0,
 });
 
 interface CalendarEventCardProps {
@@ -39,21 +41,25 @@ export function CalendarEventCard({ event, eventTypeLabel, timeLabel, members, o
 
   return (
     <EventCardButton type="button" onClick={onClick} aria-label={`Open event ${event.title}`}>
-      <strong className="event-item-title">
-        {eventTypeLabel ? `${eventTypeLabel} ` : ""}
-        {event.title}
-      </strong>
+      <EventHeader>
+        <strong className="event-item-title">
+          {eventTypeLabel ? `${eventTypeLabel} ` : ""}
+          {event.title}
+        </strong>
+        {assignedMembers.length > 0 && (
+          <AvatarGroup
+            max={4}
+            sx={{ justifyContent: "flex-end", flexShrink: 0, "& .MuiAvatar-root": { width: 22, height: 22, fontSize: "0.72rem" } }}
+          >
+            {assignedMembers.map((member) => (
+              <Avatar key={member.id} sx={{ bgcolor: member.avatarColor, color: "#fff" }}>
+                {member.firstName.charAt(0)}
+              </Avatar>
+            ))}
+          </AvatarGroup>
+        )}
+      </EventHeader>
       <small>{timeLabel}</small>
-      <EventMeta>
-        <AvatarGroup max={4} sx={{ justifyContent: "flex-start", "& .MuiAvatar-root": { width: 22, height: 22, fontSize: "0.72rem" } }}>
-          {assignedMembers.map((member) => (
-            <Avatar key={member.id} sx={{ bgcolor: member.avatarColor, color: "#fff" }}>
-              {member.firstName.charAt(0)}
-            </Avatar>
-          ))}
-        </AvatarGroup>
-        <small style={{ color: alpha("#dbe3ff", 0.82) }}>{assignedMembers.length}</small>
-      </EventMeta>
     </EventCardButton>
   );
 }

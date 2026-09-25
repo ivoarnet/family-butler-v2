@@ -672,7 +672,7 @@ export function DashboardPage({
                               const assignedMembers = entry.memberIds
                                 .map((memberId) => memberById.get(memberId))
                                 .filter((member): member is NonNullable<typeof member> => Boolean(member));
-                              const eventTypeLabel = eventType ? `${eventType.icon ? `${eventType.icon} ` : ""}${eventType.name}` : null;
+                              const eventTypeLabel = eventType?.icon ?? null;
                               return (
                                 <CalendarEventCard
                                   key={`${entry.id}-${member.id}`}
