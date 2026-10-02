@@ -7,6 +7,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LooksIcon from "@mui/icons-material/Looks";
 import SettingsIcon from "@mui/icons-material/Settings";
+import { Fab } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
@@ -270,6 +271,7 @@ export function DashboardPage({
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
+  const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
   const [editingEventId, setEditingEventId] = useState<string | null>(null);
@@ -283,6 +285,7 @@ export function DashboardPage({
     [householdData.familyMembers]
   );
   const visibleMembers = useMemo(() => orderedMembers.filter((member) => member.visibleInCalendar), [orderedMembers]);
+  const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId);
   const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
   const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, periodStart), [householdData.contacts, periodStart]);
 
@@ -366,6 +369,9 @@ export function DashboardPage({
         if (!eventOccursOnDay(event, day)) {
           continue;
         }
+        const dayEntries = grouped.get(dayIso) ?? [];
+        dayEntries.push(event);
+        grouped.set(dayIso, dayEntries);
         const memberIds = event.memberIds.length > 0 ? event.memberIds : [""];
         memberIds.forEach((memberId) => {
           const key = `${dayIso}|${memberId}`;
@@ -616,12 +622,39 @@ export function DashboardPage({
 
       <main className="dashboard-main">
         <section className="calendar-card" aria-label="Two week family calendar">
+          <div className="calendar-member-filters" role="group" aria-label="Filter events by household member">
+            {visibleMembers.map((member) => (
+              <Fab
+                key={member.id}
+                size="medium"
+                color={selectedMember?.id === member.id ? "primary" : "default"}
+                aria-label={`Filter events for ${member.firstName}`}
+                aria-pressed={selectedMember?.id === member.id}
+                title={member.firstName}
+                onClick={() => setSelectedMemberId((current) => current === member.id ? null : member.id)}
+                sx={{
+                  flexShrink: 0,
+                  padding: 0,
+                  outline: selectedMember?.id === member.id ? "2px solid var(--accent)" : undefined,
+                  outlineOffset: 3,
+                  "&.Mui-focusVisible": { outline: "3px solid var(--text-primary)", outlineOffset: 3 },
+                }}
+              >
+                <span className="avatar" style={{ backgroundColor: member.avatarColor, width: "100%", height: "100%" }} aria-hidden="true">
+                  {member.firstName.charAt(0)}
+                </span>
+              </Fab>
+            ))}
+            <span className="calendar-filter-status" role="status">
+              {selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
+            </span>
+          </div>
           <div className="calendar-scroll">
             <table className="calendar-grid">
               <thead>
                 <tr>
                   <th className="week-column-header" scope="col">WEEK</th>
-                  <th className="day-column-header">DAY</th>
+                  <th className="day-column-header" scope="col">DAY</th>
                   {visibleMembers.map((member) => (
                     <th key={member.id} className="member-column-header">
                       <div className="member-header">
@@ -632,6 +665,7 @@ export function DashboardPage({
                       </div>
                     </th>
                   ))}
+                  <th className="shared-events-column" scope="col">Events</th>
                   <th className="birthday-column-header">
                     <div className="member-header">
                       <span className="avatar avatar-birthday">
@@ -662,7 +696,7 @@ export function DashboardPage({
                           {weekNumber}
                         </td>
                       )}
-                      <td className="day-cell">
+                      <th className="day-cell" scope="row">
                         {dayDecorations.corners.map((corner, index) => {
                           const CornerIcon = corner.icon;
                           return (
@@ -681,12 +715,12 @@ export function DashboardPage({
                           {isToday && <span className="today-pill">Today</span>}
                         </div>
                         <strong>{getDayLabel(day, DEMO_LOCALE)}</strong>
-                      </td>
+                      </th>
 
                       {visibleMembers.map((member) => {
                         const entries = eventsByDateAndMember.get(`${isoDate}|${member.id}`) ?? [];
                         return (
-                          <td key={`${isoDate}-${member.id}`} className="event-cell">
+                          <td key={`${isoDate}-${member.id}`} className="event-cell member-event-cell">
                             {entries.map((entry) => {
                               const eventType = entry.eventTypeId ? eventTypeById.get(entry.eventTypeId) : null;
                               const assignedMembers = entry.memberIds
@@ -707,6 +741,26 @@ export function DashboardPage({
                           </td>
                         );
                       })}
+
+                      <td className="event-cell shared-events-column">
+                        {(eventsByDateAndMember.get(isoDate) ?? [])
+                          .filter((entry) => !selectedMember || entry.memberIds.length === 0 || entry.memberIds.includes(selectedMember.id))
+                          .map((entry) => (
+                            <CalendarEventCard
+                              key={entry.id}
+                              event={entry}
+                              eventTypeLabel={entry.eventTypeId ? eventTypeById.get(entry.eventTypeId)?.icon ?? null : null}
+                              timeLabel={formatEventTimeLabel(entry)}
+                              members={orderedMembers}
+                              onClick={() => openEventViewDialog(entry.id)}
+                            />
+                          ))}
+                        {birthdayEntries.map((entry) => (
+                          <span className="birthday-item" key={entry.id}>
+                            <CakeRoundedIcon fontSize="inherit" aria-hidden="true" /> Birthday: {formatBirthdayLabel(entry)}
+                          </span>
+                        ))}
+                      </td>
 
                       <td className="birthday-cell">
                         {birthdayEntries.map((entry) => (
