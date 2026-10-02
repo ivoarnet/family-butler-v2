@@ -1,0 +1,55 @@
+name: tvOS prototype
+
+on:
+  pull_request:
+    paths:
+      - 'tvos/**'
+      - '.github/workflows/tvos.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'tvos/**'
+      - '.github/workflows/tvos.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  simulator:
+    runs-on: macos-15
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          persist-credentials: false
+      - name: Build and test in an Apple TV simulator
+        shell: bash
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          simulator_id="$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          candidates = [device["udid"] for runtime, entries in devices.items()
+                        if "tvOS" in runtime for device in entries
+                        if device.get("isAvailable") and "Apple TV" in device["name"]]
+          if not candidates:
+              sys.exit("No available Apple TV simulator")
+          print(candidates[0])
+          ')"
+          xcodebuild test \
+            -project "$GITHUB_WORKSPACE/tvos/FamilyButler.xcodeproj" \
+            -scheme FamilyButler \
+            -destination "platform=tvOS Simulator,id=$simulator_id" \
+            -derivedDataPath "$RUNNER_TEMP/tvos-derived-data" \
+            -resultBundlePath "$RUNNER_TEMP/tvos-tests.xcresult" \
+            CODE_SIGNING_ALLOWED=NO
+      - name: Preserve test results and UI screenshot attachments
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: tvos-simulator-results
+          path: ${{ runner.temp }}/tvos-tests.xcresult
+          if-no-files-found: warn
+          retention-days: 7
