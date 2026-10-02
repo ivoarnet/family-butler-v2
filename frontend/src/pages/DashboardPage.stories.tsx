@@ -79,6 +79,9 @@ export const DayAndEvents: Story = {
       await expect(canvas.queryByRole("group", { name: "View switcher" })).toBeNull();
       await expect(canvasElement.querySelector(".header-controls .period-navigation")!).not.toBeVisible();
       await expect(previousPeriod.closest(".calendar-member-filters")).not.toBeNull();
+      const brandingTop = canvasElement.querySelector(".header-branding")!.getBoundingClientRect().top;
+      const actionsTop = canvasElement.querySelector(".header-meta")!.getBoundingClientRect().top;
+      await expect(Math.abs(actionsTop - brandingTop)).toBeLessThanOrEqual(4);
     }
     await expect(canvas.getByRole("button", { name: "Jump to current period" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Open settings" })).toBeVisible();

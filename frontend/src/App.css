@@ -1188,6 +1188,26 @@ body,
 }
 
 @media (max-width: 760px) {
+  .dashboard-page .dashboard-header {
+    row-gap: 0;
+  }
+
+  .dashboard-page .header-actions {
+    display: contents;
+  }
+
+  .dashboard-page .header-meta {
+    position: absolute;
+    top: 1rem;
+    right: 1.25rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .dashboard-page .header-branding {
+    padding-right: 5rem;
+  }
+
   .calendar-member-filters .calendar-period-navigation {
     display: inline-flex;
   }
