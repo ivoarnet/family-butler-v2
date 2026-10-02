@@ -66,6 +66,8 @@ export const DayAndEvents: Story = {
     const period = canvas.getByRole("banner").querySelector("p")?.textContent;
     const events = () => canvas.getAllByRole("button", { name: "Open event Family picnic" });
 
+    await expect(alex.querySelector(".avatar")?.getBoundingClientRect().width).toBe(alex.getBoundingClientRect().width);
+    await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
     await expect(canvas.getByRole("button", { name: "Open event Hidden member event" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Filter events for Hidden" })).toBeNull();

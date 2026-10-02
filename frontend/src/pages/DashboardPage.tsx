@@ -634,12 +634,13 @@ export function DashboardPage({
                 onClick={() => setSelectedMemberId((current) => current === member.id ? null : member.id)}
                 sx={{
                   flexShrink: 0,
+                  padding: 0,
                   outline: selectedMember?.id === member.id ? "2px solid var(--accent)" : undefined,
                   outlineOffset: 3,
                   "&.Mui-focusVisible": { outline: "3px solid var(--text-primary)", outlineOffset: 3 },
                 }}
               >
-                <span className="avatar" style={{ backgroundColor: member.avatarColor }} aria-hidden="true">
+                <span className="avatar" style={{ backgroundColor: member.avatarColor, width: "100%", height: "100%" }} aria-hidden="true">
                   {member.firstName.charAt(0)}
                 </span>
               </Fab>
