@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Made the family calendar responsive to its available width: below 960px, member/week/birthday columns become Day + Events; below 480px, events are grouped under day labels. Wide-screen columns and date controls remain unchanged.
+- Added keyboard-accessible, single-member MUI FAB filters for compact calendar layouts, retaining selection across resizing. Shared events appear once, with existing cards and avatars; birthdays and unassigned events remain visible when filtering.
+- Added responsive calendar Storybook interaction coverage and updated UI screenshots: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/calendar-mobile-day-grouped.png` and `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/calendar-compact-day-events.png`.
 - Displayed ISO week numbers alongside the two-week dashboard calendar.
 - Added an agent-tooling guide (`/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_TOOLS_GUIDE.md`) documenting how to add new tools and best practices for robust tool development.
 - Connected Agent Chat to a new OpenAI-backed Azure Function endpoint (`POST /api/agent/chat`) with provider abstraction under `/api/shared/agent/providers`, authenticated requests, and PDF/image attachment validation.

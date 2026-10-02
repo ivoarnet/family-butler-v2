@@ -383,6 +383,7 @@ body,
 
 .calendar-card {
   overflow: hidden;
+  container: family-calendar / inline-size;
 }
 
 .settings-main {
@@ -674,11 +675,101 @@ body,
   border-left: 4px solid var(--accent);
 }
 
-.calendar-grid td {
+.calendar-grid td,
+.calendar-grid tbody th {
   height: 5.35rem;
   vertical-align: top;
   padding: 0.9rem 0.75rem;
   border-right: 1px solid var(--border);
+}
+
+.calendar-grid tbody th {
+  text-align: left;
+  font-weight: inherit;
+}
+
+.calendar-member-filters,
+.shared-events-column {
+  display: none;
+}
+
+@container family-calendar (max-width: 960px) {
+  .calendar-member-filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.75rem;
+    padding: 1rem;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-filter-status {
+    flex-basis: 100%;
+    color: var(--text-secondary);
+    overflow-wrap: anywhere;
+  }
+
+  .calendar-grid {
+    min-width: 0;
+  }
+
+  .calendar-grid .week-column-header,
+  .calendar-grid .week-number-cell,
+  .calendar-grid .member-column-header,
+  .calendar-grid .member-event-cell,
+  .calendar-grid .birthday-column-header,
+  .calendar-grid .birthday-cell {
+    display: none;
+  }
+
+  .calendar-grid .shared-events-column {
+    display: table-cell;
+    border-right: 0;
+  }
+
+  .calendar-grid .day-column-header {
+    width: 9rem;
+  }
+
+  .shared-events-column .event-item-title,
+  .shared-events-column .birthday-item {
+    white-space: normal;
+    overflow-wrap: anywhere;
+    min-width: 0;
+  }
+
+  .calendar-grid .today-row .day-cell {
+    border-left: 4px solid var(--accent);
+  }
+}
+
+@container family-calendar (max-width: 480px) {
+  .calendar-grid,
+  .calendar-grid tbody,
+  .calendar-grid tbody tr {
+    display: block;
+  }
+
+  .calendar-grid thead {
+    display: none;
+  }
+
+  .calendar-grid .day-cell,
+  .calendar-grid .shared-events-column {
+    display: block;
+    width: 100%;
+    height: auto;
+    border-right: 0;
+  }
+
+  .calendar-grid .day-cell {
+    padding: 0.75rem;
+    background: var(--surface-strong);
+  }
+
+  .calendar-grid .shared-events-column {
+    min-height: 1rem;
+  }
 }
 
 .calendar-grid td:last-child,
@@ -1073,6 +1164,21 @@ body,
 
   .header-branding h1 {
     font-size: 1.5rem;
+  }
+
+  .dashboard-page .header-branding,
+  .dashboard-page .header-branding > div {
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .dashboard-page .icon-badge {
+    flex-shrink: 0;
+  }
+
+  .dashboard-page .header-controls {
+    max-width: 100%;
+    justify-self: start;
   }
 
   .day-cell strong {
