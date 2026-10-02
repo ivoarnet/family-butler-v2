@@ -20,7 +20,7 @@ final class AppModel: ObservableObject {
         }
         do {
             let value = Bundle.main.object(forInfoDictionaryKey: "FamilyButlerAPIURL") as? String ?? ""
-            api = APIClient(baseURL: try APIClient.httpsURL(value))
+            self.api = APIClient(baseURL: try APIClient.httpsURL(value))
         } catch {
             message = ClientError.configuration.message
         }
