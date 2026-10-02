@@ -138,4 +138,8 @@ No Infrastructure-as-Code is included by design.
 
 ## Apple TV app evaluation
 
-The feasibility assessment and recommended monorepo approach for a future native tvOS client are documented in [`docs/APPLE_TV_APP_EVALUATION.md`](docs/APPLE_TV_APP_EVALUATION.md). This is an evaluation only; the project has not been converted to tvOS.
+An isolated SwiftUI proof of concept is in `/home/runner/work/family-butler-v2/family-butler-v2/tvos/FamilyButler.xcodeproj` (tvOS 17+, Xcode 16+). It is not an npm workspace and does not replace or change the web app or Azure deployment. It signs in existing email/password users, selects an owner-authorized household, and shows upcoming stored calendar dates.
+
+Open the project on a Mac, select the shared `FamilyButler` scheme and an Apple TV simulator, and set the app target's **API_BASE_URL** build setting to your deployed HTTPS site origin (no `/api` suffix). The default `https://example.invalid` deliberately cannot connect. No credentials or Supabase keys belong in Xcode settings.
+
+See [`docs/APPLE_TV_APP_EVALUATION.md`](docs/APPLE_TV_APP_EVALUATION.md) for contracts, privacy behavior, limitations, and build/manual-validation commands. The separate tvOS workflow runs simulator tests; **Apple-toolchain build, real authentication, remote navigation, and screenshot verification remain pending until that workflow/Mac validation has actually run**.

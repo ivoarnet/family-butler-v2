@@ -9,3 +9,9 @@ local.settings.json
 
 *storybook.log
 storybook-static
+
+# Local Xcode state and native build products
+DerivedData/
+*.xcuserstate
+xcuserdata/
+*.xcresult

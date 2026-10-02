@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added an isolated native SwiftUI tvOS calendar prototype with memory-only email/password sessions, owner-authorized household reads, remote focus styling, native tests, and a separate macOS simulator workflow; web/API deployment is unchanged.
+- Documented tvOS API/auth/calendar gaps and required Apple-toolchain validation. The UI smoke test records a sign-in/focus screenshot in `tvos-simulator-results`; updated simulator/household/calendar screenshots and a PR screenshot attachment remain pending Mac validation (no native screenshot was fabricated on Linux).
 - Moved mobile settings and account actions to the header’s top-right beside the branding, removing their separate row while preserving the relocated date controls. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
 - Moved two-week date navigation alongside mobile calendar member filters and hid the view selector on small screens, while retaining the date range and navigation actions. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
 - Reduced the mobile dashboard header to two compact rows by keeping period, settings, and account controls together, with the existing navigation behavior unchanged. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
