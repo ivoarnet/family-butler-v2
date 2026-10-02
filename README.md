@@ -135,3 +135,7 @@ Frontend build-time env values (optional if runtime auth config is provided by A
 - `VITE_SUPABASE_PUBLISHABLE_KEY`
 
 No Infrastructure-as-Code is included by design.
+
+## Apple TV app evaluation
+
+The feasibility assessment and recommended monorepo approach for a future native tvOS client are documented in [`docs/APPLE_TV_APP_EVALUATION.md`](docs/APPLE_TV_APP_EVALUATION.md). This is an evaluation only; the project has not been converted to tvOS.
