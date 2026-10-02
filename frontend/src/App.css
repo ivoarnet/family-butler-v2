@@ -615,6 +615,24 @@ body,
   color: var(--text-secondary);
 }
 
+.week-column-header {
+  width: 4.5rem;
+  text-align: center !important;
+  font-size: 0.76rem;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary);
+}
+
+.week-number-cell {
+  width: 4.5rem;
+  vertical-align: middle !important;
+  text-align: center;
+  color: var(--text-secondary);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  background: var(--surface-strong);
+}
+
 .birthday-column-header,
 .birthday-cell {
   width: 11rem;

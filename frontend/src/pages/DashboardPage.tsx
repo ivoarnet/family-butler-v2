@@ -49,6 +49,18 @@ const startOfWeekMonday = (date: Date): Date => {
   return copy;
 };
 
+const getIsoWeekNumber = (date: Date): number => {
+  const thursday = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+  const dayOfWeek = (thursday.getUTCDay() + 6) % 7;
+  thursday.setUTCDate(thursday.getUTCDate() - dayOfWeek + 3);
+
+  const firstThursday = new Date(Date.UTC(thursday.getUTCFullYear(), 0, 4));
+  const firstThursdayDay = (firstThursday.getUTCDay() + 6) % 7;
+  firstThursday.setUTCDate(firstThursday.getUTCDate() - firstThursdayDay + 3);
+
+  return 1 + Math.round((thursday.getTime() - firstThursday.getTime()) / (7 * 24 * 60 * 60 * 1000));
+};
+
 const formatPeriodRange = (start: Date, locale: string): string => {
   const end = addDays(start, 13);
   const startDay = new Intl.DateTimeFormat(locale, { day: "numeric" }).format(start);
@@ -608,6 +620,7 @@ export function DashboardPage({
             <table className="calendar-grid">
               <thead>
                 <tr>
+                  <th className="week-column-header" scope="col">WEEK</th>
                   <th className="day-column-header">DAY</th>
                   {visibleMembers.map((member) => (
                     <th key={member.id} className="member-column-header">
@@ -630,18 +643,25 @@ export function DashboardPage({
                 </tr>
               </thead>
               <tbody>
-                {days.map((day) => {
+                {days.map((day, dayIndex) => {
                   const isoDate = toIsoDate(day);
                   const isToday = isoDate === todayIso;
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
                   const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
+                  const isFirstDayOfWeek = dayIndex % 7 === 0;
+                  const weekNumber = getIsoWeekNumber(day);
 
                   return (
                     <tr
                       key={isoDate}
                       className={`${isToday ? "today-row" : ""} ${!isToday && isWeekend ? "weekend-row" : ""}`.trim()}
                     >
+                      {isFirstDayOfWeek && (
+                        <td className="week-number-cell" rowSpan={7} aria-label={`Week ${weekNumber}`}>
+                          {weekNumber}
+                        </td>
+                      )}
                       <td className="day-cell">
                         {dayDecorations.corners.map((corner, index) => {
                           const CornerIcon = corner.icon;
