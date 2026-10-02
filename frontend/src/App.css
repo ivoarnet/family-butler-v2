@@ -15,6 +15,7 @@ body,
 .dashboard-page {
   min-height: 100vh;
   background: var(--bg-gradient);
+  container: dashboard / inline-size;
 }
 
 .auth-page {
@@ -202,6 +203,10 @@ body,
   display: flex;
   align-items: center;
   gap: 0.9rem;
+}
+
+.header-actions {
+  display: contents;
 }
 
 .header-controls {
@@ -693,6 +698,10 @@ body,
   display: none;
 }
 
+.calendar-period-navigation {
+  display: none;
+}
+
 @container family-calendar (max-width: 960px) {
   .calendar-member-filters {
     display: flex;
@@ -701,6 +710,18 @@ body,
     gap: 0.75rem;
     padding: 1rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-member-filters .calendar-period-navigation {
+    flex-shrink: 0;
+    gap: 0;
+    padding: 0.2rem;
+    margin-left: auto;
+  }
+
+  .calendar-member-filters .calendar-period-navigation .icon-button {
+    width: 2rem;
+    height: 2rem;
   }
 
   .calendar-filter-status {
@@ -1114,6 +1135,49 @@ body,
     grid-template-columns: 1fr;
   }
 
+  .dashboard-page .header-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 0.5rem;
+    min-width: 0;
+  }
+
+  .dashboard-page .header-controls {
+    min-width: 0;
+    gap: 0.4rem;
+  }
+
+  .dashboard-page .header-controls .pill-group {
+    gap: 0;
+    padding: 0.2rem;
+  }
+
+  .dashboard-page .header-controls .icon-button {
+    width: 2rem;
+    height: 2rem;
+  }
+
+  .dashboard-page .view-switcher button {
+    padding: 0.4rem 0.6rem;
+    font-size: 0.9rem;
+  }
+
+  .dashboard-page .header-meta {
+    flex-shrink: 0;
+    gap: 0.35rem;
+  }
+
+  .dashboard-page .header-meta > .icon-button,
+  .dashboard-page .user-avatar-button {
+    height: 2rem;
+  }
+
+  .dashboard-page .user-avatar-button {
+    min-width: 2rem;
+    padding: 0 0.45rem;
+  }
+
   .settings-header {
     grid-template-columns: auto 1fr auto;
   }
@@ -1124,6 +1188,30 @@ body,
 }
 
 @media (max-width: 760px) {
+  .dashboard-page .dashboard-header {
+    row-gap: 0;
+  }
+
+  .dashboard-page .header-actions {
+    display: contents;
+  }
+
+  .dashboard-page .header-meta {
+    position: absolute;
+    top: 1rem;
+    right: 1.25rem;
+    flex-wrap: nowrap;
+    justify-content: flex-end;
+  }
+
+  .dashboard-page .header-branding {
+    padding-right: 5rem;
+  }
+
+  .calendar-member-filters .calendar-period-navigation {
+    display: inline-flex;
+  }
+
   .auth-page {
     padding: 0.9rem;
   }
@@ -1177,8 +1265,11 @@ body,
   }
 
   .dashboard-page .header-controls {
-    max-width: 100%;
-    justify-self: start;
+    display: none;
+  }
+
+  .dashboard-page .view-switcher {
+    display: none;
   }
 
   .day-cell strong {
@@ -1197,5 +1288,22 @@ body,
 
   .agent-chat-panel {
     height: calc(100vh - 2rem);
+  }
+}
+
+@media (max-width: 389px) {
+  .calendar-member-filters .calendar-period-navigation {
+    gap: 0;
+  }
+}
+
+@container dashboard (max-width: 760px) {
+  .dashboard-page .header-controls,
+  .dashboard-page .view-switcher {
+    display: none;
+  }
+
+  .dashboard-page .calendar-member-filters .calendar-period-navigation {
+    display: inline-flex;
   }
 }

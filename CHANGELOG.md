@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Moved mobile settings and account actions to the header’s top-right beside the branding, removing their separate row while preserving the relocated date controls. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
+- Moved two-week date navigation alongside mobile calendar member filters and hid the view selector on small screens, while retaining the date range and navigation actions. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
+- Reduced the mobile dashboard header to two compact rows by keeping period, settings, and account controls together, with the existing navigation behavior unchanged. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
 - Removed the thick background rim around calendar member-filter avatars while retaining the 48px touch target, selected outline, and keyboard-focus indicator. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/calendar-mobile-day-grouped.png`.
 - Made the family calendar responsive to its available width: below 960px, member/week/birthday columns become Day + Events; below 480px, events are grouped under day labels. Wide-screen columns and date controls remain unchanged.
 - Added keyboard-accessible, single-member MUI FAB filters for compact calendar layouts, retaining selection across resizing. Shared events appear once, with existing cards and avatars; birthdays and unassigned events remain visible when filtering.

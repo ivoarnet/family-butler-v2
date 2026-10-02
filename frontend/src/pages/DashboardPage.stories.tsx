@@ -65,7 +65,27 @@ export const DayAndEvents: Story = {
     const sam = canvas.getByRole("button", { name: "Filter events for Sam" });
     const period = canvas.getByRole("banner").querySelector("p")?.textContent;
     const events = () => canvas.getAllByRole("button", { name: "Open event Family picnic" });
+    const isMobile = (canvasElement.querySelector(".dashboard-page")?.getBoundingClientRect().width ?? Infinity) <= 760;
+    const previousPeriod = canvasElement.querySelector(
+      `${isMobile ? ".calendar-period-navigation" : ".header-controls .period-navigation"} [title="Previous two-week period"]`,
+    )!;
+    const nextPeriod = canvasElement.querySelector(
+      `${isMobile ? ".calendar-period-navigation" : ".header-controls .period-navigation"} [title="Next two-week period"]`,
+    )!;
 
+    await expect(previousPeriod).toBeVisible();
+    await expect(nextPeriod).toBeVisible();
+    if (isMobile) {
+      await expect(canvas.queryByRole("group", { name: "View switcher" })).toBeNull();
+      await expect(canvasElement.querySelector(".header-controls .period-navigation")!).not.toBeVisible();
+      await expect(previousPeriod.closest(".calendar-member-filters")).not.toBeNull();
+      const brandingTop = canvasElement.querySelector(".header-branding")!.getBoundingClientRect().top;
+      const actionsTop = canvasElement.querySelector(".header-meta")!.getBoundingClientRect().top;
+      await expect(Math.abs(actionsTop - brandingTop)).toBeLessThanOrEqual(4);
+    }
+    await expect(canvas.getByRole("button", { name: "Jump to current period" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Open settings" })).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Demo user · Open account menu" })).toBeVisible();
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().width).toBe(alex.getBoundingClientRect().width);
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
@@ -77,6 +97,10 @@ export const DayAndEvents: Story = {
     await expect(canvas.getByRole("button", { name: "Open event Household reminder" })).toBeVisible();
     await expect(canvas.getByText("Birthday: Taylor")).toBeVisible();
     await expect(canvas.getAllByRole("button", { name: "Open event Daily check-in" }).length).toBeGreaterThan(1);
+    await userEvent.click(previousPeriod);
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).not.toBe(period);
+    await userEvent.click(nextPeriod);
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toBe(period);
     await userEvent.click(sam);
     await expect(alex).toHaveAttribute("aria-pressed", "false");
     await expect(sam).toHaveAttribute("aria-pressed", "true");
@@ -86,7 +110,9 @@ export const DayAndEvents: Story = {
     await expect(sam).toHaveAttribute("aria-pressed", "false");
     await expect(canvas.getByRole("button", { name: "Open event Music lesson" })).toBeVisible();
     await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toBe(period);
-    await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
+    if (!isMobile) {
+      await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
+    }
   },
 };
 export const DayGroupedEvents: Story = {
