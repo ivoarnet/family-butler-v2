@@ -15,6 +15,7 @@ body,
 .dashboard-page {
   min-height: 100vh;
   background: var(--bg-gradient);
+  container: dashboard / inline-size;
 }
 
 .auth-page {
@@ -697,6 +698,10 @@ body,
   display: none;
 }
 
+.calendar-period-navigation {
+  display: none;
+}
+
 @container family-calendar (max-width: 960px) {
   .calendar-member-filters {
     display: flex;
@@ -705,6 +710,18 @@ body,
     gap: 0.75rem;
     padding: 1rem;
     border-bottom: 1px solid var(--border);
+  }
+
+  .calendar-member-filters .calendar-period-navigation {
+    flex-shrink: 0;
+    gap: 0;
+    padding: 0.2rem;
+    margin-left: auto;
+  }
+
+  .calendar-member-filters .calendar-period-navigation .icon-button {
+    width: 2rem;
+    height: 2rem;
   }
 
   .calendar-filter-status {
@@ -1171,6 +1188,10 @@ body,
 }
 
 @media (max-width: 760px) {
+  .calendar-member-filters .calendar-period-navigation {
+    display: inline-flex;
+  }
+
   .auth-page {
     padding: 0.9rem;
   }
@@ -1224,8 +1245,11 @@ body,
   }
 
   .dashboard-page .header-controls {
-    max-width: 100%;
-    justify-self: start;
+    display: none;
+  }
+
+  .dashboard-page .view-switcher {
+    display: none;
   }
 
   .day-cell strong {
@@ -1248,22 +1272,18 @@ body,
 }
 
 @media (max-width: 389px) {
-  .dashboard-page .header-controls {
-    flex-wrap: nowrap;
-    gap: 0.25rem;
+  .calendar-member-filters .calendar-period-navigation {
+    gap: 0;
   }
+}
 
-  .dashboard-page .header-controls .icon-button {
-    width: 1.8rem;
-    height: 1.8rem;
-  }
-
-  .dashboard-page .view-switcher button:disabled {
+@container dashboard (max-width: 760px) {
+  .dashboard-page .header-controls,
+  .dashboard-page .view-switcher {
     display: none;
   }
 
-  .dashboard-page .view-switcher button {
-    padding: 0.3rem 0.4rem;
-    font-size: 0.8rem;
+  .dashboard-page .calendar-member-filters .calendar-period-navigation {
+    display: inline-flex;
   }
 }

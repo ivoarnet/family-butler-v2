@@ -536,7 +536,7 @@ export function DashboardPage({
 
         <div className="header-actions">
           <div className="header-controls">
-            <div className="pill-group" role="group" aria-label="Period navigation">
+            <div className="pill-group period-navigation" role="group" aria-label="Period navigation">
               <button
                 type="button"
                 className="icon-button"
@@ -647,6 +647,32 @@ export function DashboardPage({
                 </span>
               </Fab>
             ))}
+            <div className="pill-group period-navigation calendar-period-navigation" role="group" aria-label="Period navigation">
+              <button
+                type="button"
+                className="icon-button"
+                title="Previous two-week period"
+                onClick={() => setPeriodStart((current) => addDays(current, -14))}
+              >
+                <ChevronLeftIcon fontSize="small" />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                title="Jump to current period"
+                onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
+              >
+                <CalendarMonthIcon fontSize="small" />
+              </button>
+              <button
+                type="button"
+                className="icon-button"
+                title="Next two-week period"
+                onClick={() => setPeriodStart((current) => addDays(current, 14))}
+              >
+                <ChevronRightIcon fontSize="small" />
+              </button>
+            </div>
             <span className="calendar-filter-status" role="status">
               {selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>

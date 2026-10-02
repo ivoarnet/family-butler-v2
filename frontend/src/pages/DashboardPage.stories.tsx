@@ -65,11 +65,21 @@ export const DayAndEvents: Story = {
     const sam = canvas.getByRole("button", { name: "Filter events for Sam" });
     const period = canvas.getByRole("banner").querySelector("p")?.textContent;
     const events = () => canvas.getAllByRole("button", { name: "Open event Family picnic" });
-    const previousPeriod = canvas.getByTitle("Previous two-week period");
-    const nextPeriod = canvas.getByTitle("Next two-week period");
+    const isMobile = (canvasElement.querySelector(".dashboard-page")?.getBoundingClientRect().width ?? Infinity) <= 760;
+    const previousPeriod = canvasElement.querySelector(
+      `${isMobile ? ".calendar-period-navigation" : ".header-controls .period-navigation"} [title="Previous two-week period"]`,
+    )!;
+    const nextPeriod = canvasElement.querySelector(
+      `${isMobile ? ".calendar-period-navigation" : ".header-controls .period-navigation"} [title="Next two-week period"]`,
+    )!;
 
     await expect(previousPeriod).toBeVisible();
     await expect(nextPeriod).toBeVisible();
+    if (isMobile) {
+      await expect(canvas.queryByRole("group", { name: "View switcher" })).toBeNull();
+      await expect(canvasElement.querySelector(".header-controls .period-navigation")!).not.toBeVisible();
+      await expect(previousPeriod.closest(".calendar-member-filters")).not.toBeNull();
+    }
     await expect(canvas.getByRole("button", { name: "Jump to current period" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Open settings" })).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Demo user · Open account menu" })).toBeVisible();
@@ -97,7 +107,9 @@ export const DayAndEvents: Story = {
     await expect(sam).toHaveAttribute("aria-pressed", "false");
     await expect(canvas.getByRole("button", { name: "Open event Music lesson" })).toBeVisible();
     await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toBe(period);
-    await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
+    if (!isMobile) {
+      await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
+    }
   },
 };
 export const DayGroupedEvents: Story = {
