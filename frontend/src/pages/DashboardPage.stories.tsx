@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { useState } from "react";
+import { useLayoutEffect, useState } from "react";
 import { expect, userEvent, within } from "storybook/test";
 import type { HouseholdData } from "../features/app/types";
 import { DashboardPage } from "./DashboardPage";
@@ -9,6 +9,35 @@ const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, 
 const tomorrow = new Date(today);
 tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+const yesterday = new Date(today);
+yesterday.setDate(yesterday.getDate() - 1);
+const yesterdayDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+const childcareOccurrences = [
+  {
+    id: "grandparents-care",
+    originalDate: yesterdayDate,
+    date,
+    providerId: "grandparents",
+    providerName: "Grandparents",
+    childIds: ["alex", "sam"],
+    allDay: true,
+    startTime: null,
+    endTime: null,
+    overrideAction: "move" as const,
+  },
+  {
+    id: "daycare-care",
+    originalDate: tomorrowDate,
+    date: tomorrowDate,
+    providerId: "daycare",
+    providerName: "Daycare",
+    childIds: ["alex"],
+    allDay: false,
+    startTime: "15:00",
+    endTime: "16:00",
+    overrideAction: "replace" as const,
+  },
+];
 const household: HouseholdData = {
   householdId: "demo",
   householdName: "Family Calendar",
@@ -34,6 +63,19 @@ const household: HouseholdData = {
 
 function DashboardStory({ width }: { width: number }) {
   const [householdData, setHouseholdData] = useState(household);
+  useLayoutEffect(() => {
+    const originalFetch = window.fetch;
+    window.fetch = async (input, init) => {
+      const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
+      if (url.includes("/childcare/occurrences?")) {
+        return Response.json({ occurrences: childcareOccurrences });
+      }
+      return originalFetch(input, init);
+    };
+    return () => {
+      window.fetch = originalFetch;
+    };
+  }, []);
   return (
     <div style={{ maxWidth: width, margin: "auto" }}>
       <DashboardPage
@@ -44,7 +86,7 @@ function DashboardStory({ width }: { width: number }) {
         currentUserEmail="demo@example.com"
         currentUserInitials="DU"
         currentUserAvatarUrl={null}
-        accessToken=""
+        accessToken="storybook-token"
         onAgentDataChanged={() => undefined}
         onSignOut={async () => undefined}
       />
@@ -93,6 +135,10 @@ export const DayAndEvents: Story = {
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().width).toBe(alex.getBoundingClientRect().width);
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
+    await expect(canvas.getByText("Childcare · Grandparents")).toBeVisible();
+    await expect(canvas.getByText("For Alex, Sam")).toBeVisible();
+    await expect(canvas.getByText(`Moved from ${yesterdayDate}`)).toBeVisible();
+    await expect(canvas.getByText("15:00 – 16:00")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Open event Hidden member event" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Filter events for Hidden" })).toBeNull();
     await userEvent.click(alex);

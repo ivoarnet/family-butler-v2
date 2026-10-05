@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Displayed persisted resolved childcare in the household calendar with provider/child labels and one-off move/replacement details, and added the read-only `get_childcare_coverage` agent tool. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-childcare.png`.
 - Aligned Childcare Settings with the other Settings grids using shared card styling, right-aligned icon actions, and styled add buttons. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-childcare.png`.
 - Added Settings → Childcare for provider editing/deactivation/reactivation, weekly all-day/timed arrangements with multiple children, non-persisting server-resolved previews, and single-occurrence cancellations/replacements/moves. Existing installations must rerun the childcare SQL migration. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-childcare.png`.
 - Added household-scoped childcare persistence, owner-based RLS, and an authenticated API for weekly all-day/timed arrangements with multiple children and one-off cancellation, replacement, and move overrides. Effective occurrences resolve server-side from persisted data, separately from events; UI, calendar, and agent integration remain planned.
