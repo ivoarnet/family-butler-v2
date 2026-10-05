@@ -154,8 +154,11 @@ export function EventDialog({
       helperText: timeErrorMessage ?? " ",
       fullWidth: true,
       sx: {
-        "& .MuiInputBase-input": {
+        "& .MuiPickersInputBase-root": {
           color: "var(--text-primary)",
+        },
+        "& .MuiInputLabel-root": {
+          color: "var(--dialog-muted)",
         },
         "& .MuiSvgIcon-root": {
           color: "var(--text-primary)",
