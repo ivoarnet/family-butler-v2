@@ -29,5 +29,5 @@ erDiagram
 
 - For concrete SQL table definitions currently used by the app (`households`, `household_members`, `contacts`, `tasks`), see `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`.
 - Event type and event entities are now persisted via `event_types` and `events` tables (household-scoped with `ON DELETE CASCADE` on household deletion).
-- Day configuration remains planned for a future API iteration.
+- Day configurations are persisted in the `day_configurations` table and are available through the household API and agent tools.
 - Service-layer validation must enforce same-household consistency for cross-table references.
