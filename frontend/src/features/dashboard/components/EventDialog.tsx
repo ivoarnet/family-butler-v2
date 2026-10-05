@@ -41,6 +41,17 @@ const TimeSection = styled(Box)(({ theme }) => ({
   },
 }));
 
+const TimeControlsSection = styled(Box)(({ theme }) => ({
+  display: "grid",
+  alignItems: "center",
+  gap: theme.spacing(2),
+  gridColumn: "1 / -1",
+  gridTemplateColumns: "auto minmax(0, 1fr)",
+  [theme.breakpoints.down("sm")]: {
+    gridTemplateColumns: "1fr",
+  },
+}));
+
 const FullWidthField = styled(FormField)({
   gridColumn: "1 / -1",
 });
@@ -91,6 +102,8 @@ export interface EventDialogFormState {
   title: string;
   memberIds: string[];
   date: string;
+  multiDay: boolean;
+  endDate: string;
   allDay: boolean;
   startTime: string;
   endTime: string;
@@ -108,6 +121,7 @@ interface EventDialogProps {
   formState: EventDialogFormState;
   titleError: boolean;
   dateError: boolean;
+  endDateError: boolean;
   memberSelectionError: boolean;
   timeErrorMessage: string | null;
   onClose: () => void;
@@ -123,6 +137,7 @@ export function EventDialog({
   formState,
   titleError,
   dateError,
+  endDateError,
   memberSelectionError,
   timeErrorMessage,
   onClose,
@@ -139,8 +154,27 @@ export function EventDialog({
       helperText: timeErrorMessage ?? " ",
       fullWidth: true,
       sx: {
-        "& .MuiInputBase-input": {
+        "& .MuiPickersOutlinedInput-root": {
+          minHeight: 52,
+          borderRadius: "12px",
+          background: "var(--dialog-field)",
           color: "var(--text-primary)",
+        },
+        "& .MuiInputLabel-root": {
+          color: "var(--dialog-muted)",
+        },
+        "& .MuiInputLabel-root.Mui-focused": {
+          color: "var(--accent-strong)",
+        },
+        "& .MuiPickersOutlinedInput-notchedOutline": {
+          borderColor: "var(--dialog-border)",
+        },
+        "& .MuiPickersOutlinedInput-root:hover .MuiPickersOutlinedInput-notchedOutline": {
+          borderColor: "var(--accent-strong)",
+        },
+        "& .MuiPickersOutlinedInput-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline": {
+          borderColor: "var(--accent-strong)",
+          boxShadow: "0 0 0 2px rgba(127, 139, 255, 0.2)",
         },
         "& .MuiSvgIcon-root": {
           color: "var(--text-primary)",
@@ -207,22 +241,93 @@ export function EventDialog({
                 helperText={dateError ? "Date is required." : " "}
                 onChange={(event) => onFormStateChange((current) => ({ ...current, date: event.target.value }))}
               />
-              <FormControl>
-                <FormSelect
-                  displayEmpty
-                  value={formState.eventTypeId}
-                  onChange={(event) => onFormStateChange((current) => ({ ...current, eventTypeId: String(event.target.value) }))}
-                  inputProps={{ "aria-label": "Event type" }}
-                >
-                  <MenuItem value="">No type</MenuItem>
-                  {eventTypes.map((eventType) => (
-                    <MenuItem key={eventType.id} value={eventType.id}>
-                      {eventType.icon ? `${eventType.icon} ` : ""}
-                      {eventType.name}
-                    </MenuItem>
-                  ))}
-                </FormSelect>
-              </FormControl>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formState.multiDay}
+                    onChange={(event) =>
+                      onFormStateChange((current) => ({
+                        ...current,
+                        multiDay: event.target.checked,
+                        endDate: event.target.checked
+                          ? current.endDate || dayjs(current.date).add(1, "day").format("YYYY-MM-DD")
+                          : "",
+                      }))
+                    }
+                  />
+                }
+                label="Multi-day event"
+                sx={{
+                  marginLeft: 0,
+                  "& .MuiFormControlLabel-label": {
+                    color: "var(--text-primary)",
+                    fontWeight: 600,
+                  },
+                }}
+              />
+              {formState.multiDay ? (
+                <FormField
+                  required
+                  type="date"
+                  label="Last day"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  value={formState.endDate}
+                  error={endDateError}
+                  helperText={endDateError ? "Last day must be on or after the start date." : " "}
+                  onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
+                />
+              ) : null}
+              <TimeControlsSection>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formState.allDay}
+                      onChange={(event) =>
+                        onFormStateChange((current) => ({
+                          ...current,
+                          allDay: event.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="All day"
+                  sx={{
+                    marginLeft: 0,
+                    "& .MuiFormControlLabel-label": {
+                      color: "var(--text-primary)",
+                      fontWeight: 600,
+                    },
+                  }}
+                />
+                {!formState.allDay ? (
+                  <TimeSection>
+                    <FormControl error={Boolean(timeErrorMessage)}>
+                      <MobileTimePicker
+                        ampm={false}
+                        views={["hours", "minutes"]}
+                        minutesStep={5}
+                        format="HH:mm"
+                        label="Begin"
+                        value={parseTimeValue(formState.startTime)}
+                        onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
+                        slotProps={timePickerSlotProps}
+                      />
+                    </FormControl>
+                    <FormControl error={Boolean(timeErrorMessage)}>
+                      <MobileTimePicker
+                        ampm={false}
+                        views={["hours", "minutes"]}
+                        minutesStep={5}
+                        format="HH:mm"
+                        label="End"
+                        value={parseTimeValue(formState.endTime)}
+                        onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
+                        slotProps={timePickerSlotProps}
+                      />
+                    </FormControl>
+                  </TimeSection>
+                ) : null}
+              </TimeControlsSection>
               <FormControl>
                 <FormSelect
                   value={formState.repeatRule}
@@ -270,56 +375,23 @@ export function EventDialog({
           </GlassPanel>
 
           <GlassPanel>
-            <FieldTitle variant="subtitle1">Time and notes</FieldTitle>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formState.allDay}
-                  onChange={(event) =>
-                    onFormStateChange((current) => ({
-                      ...current,
-                      allDay: event.target.checked,
-                    }))
-                  }
-                />
-              }
-              label="All day"
-              sx={{
-                marginLeft: 0,
-                "& .MuiFormControlLabel-label": {
-                  color: "var(--text-primary)",
-                  fontWeight: 600,
-                },
-              }}
-            />
-            {!formState.allDay ? (
-              <TimeSection>
-                <FormControl error={Boolean(timeErrorMessage)}>
-                  <MobileTimePicker
-                    ampm={false}
-                    views={["hours", "minutes"]}
-                    minutesStep={5}
-                    format="HH:mm"
-                    label="Begin"
-                    value={parseTimeValue(formState.startTime)}
-                    onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
-                    slotProps={timePickerSlotProps}
-                  />
-                </FormControl>
-                <FormControl error={Boolean(timeErrorMessage)}>
-                  <MobileTimePicker
-                    ampm={false}
-                    views={["hours", "minutes"]}
-                    minutesStep={5}
-                    format="HH:mm"
-                    label="End"
-                    value={parseTimeValue(formState.endTime)}
-                    onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
-                    slotProps={timePickerSlotProps}
-                  />
-                </FormControl>
-              </TimeSection>
-            ) : null}
+            <FieldTitle variant="subtitle1">Details</FieldTitle>
+            <FormControl>
+              <FormSelect
+                displayEmpty
+                value={formState.eventTypeId}
+                onChange={(event) => onFormStateChange((current) => ({ ...current, eventTypeId: String(event.target.value) }))}
+                inputProps={{ "aria-label": "Event type" }}
+              >
+                <MenuItem value="">No type</MenuItem>
+                {eventTypes.map((eventType) => (
+                  <MenuItem key={eventType.id} value={eventType.id}>
+                    {eventType.icon ? `${eventType.icon} ` : ""}
+                    {eventType.name}
+                  </MenuItem>
+                ))}
+              </FormSelect>
+            </FormControl>
             <FormField
               label="Location"
               slotProps={{ inputLabel: { shrink: true } }}

@@ -64,6 +64,8 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
             properties: {
               title: { type: ["string", "null"] },
               date: { type: ["string", "null"] },
+              endDate: { type: ["string", "null"] },
+              multiDay: { type: ["boolean", "null"] },
               memberIds: { type: ["array", "null"], items: { type: "string" } },
               allDay: { type: ["boolean", "null"] },
               startTime: { type: ["string", "null"] },
@@ -146,6 +148,25 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
         throw toClientError("updated date must use YYYY-MM-DD");
       }
 
+      let nextEndDate = updates.endDate === undefined || updates.endDate === null
+        ? currentEvent.endDate ?? null
+        : cleanString(updates.endDate) || null;
+      if (nextEndDate && (!isIsoDate(nextEndDate) || nextEndDate < nextDate)) {
+        throw toClientError("updated endDate must use YYYY-MM-DD and be on or after the event date");
+      }
+      if (updates.multiDay === true && (updates.endDate === undefined || updates.endDate === null) && !nextEndDate) {
+        throw toClientError("endDate is required when setting multiDay to true");
+      }
+      if (updates.multiDay === true && nextEndDate && nextEndDate <= nextDate) {
+        throw toClientError("updated endDate must be after the event date for multi-day events");
+      }
+      if (updates.multiDay === false) {
+        if (updates.endDate && cleanString(updates.endDate) > nextDate) {
+          throw toClientError("updated endDate cannot extend past the event date when multiDay is false");
+        }
+        nextEndDate = null;
+      }
+
       const nextMemberIds =
         updates.memberIds === undefined || updates.memberIds === null
           ? currentEvent.memberIds
@@ -162,7 +183,15 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
         }
       }
 
-      const nextAllDay = updates.allDay === null || updates.allDay === undefined ? currentEvent.allDay !== false : updates.allDay !== false;
+      const hasUpdatedTime =
+        (updates.startTime !== undefined && updates.startTime !== null && cleanString(updates.startTime) !== "") ||
+        (updates.endTime !== undefined && updates.endTime !== null && cleanString(updates.endTime) !== "");
+      const nextAllDay =
+        updates.allDay === null || updates.allDay === undefined
+          ? hasUpdatedTime
+            ? false
+            : currentEvent.allDay !== false
+          : updates.allDay !== false;
       const shouldKeepStartTime = updates.startTime === undefined || updates.startTime === null || cleanString(updates.startTime) === "";
       const shouldKeepEndTime = updates.endTime === undefined || updates.endTime === null || cleanString(updates.endTime) === "";
       const rawStartTime = shouldKeepStartTime ? currentEvent.startTime : updates.startTime;
@@ -170,13 +199,16 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       const normalizedStartTime = normalizeTime24Hour(rawStartTime);
       const normalizedEndTime = normalizeTime24Hour(rawEndTime);
 
-      if (!nextAllDay && (!normalizedStartTime || !normalizedEndTime)) {
+      if (!nextAllDay && ((cleanString(rawStartTime) && !normalizedStartTime) || (cleanString(rawEndTime) && !normalizedEndTime))) {
+        throw toClientError("event times must use HH:MM format");
+      }
+      if (!nextAllDay && (!nextEndDate || nextEndDate === nextDate) && (!normalizedStartTime || !normalizedEndTime)) {
         throw toClientError("event startTime and endTime are required for non all-day events");
       }
-      if (!nextAllDay && normalizedStartTime && normalizedEndTime && (!isFiveMinuteStepTime(normalizedStartTime) || !isFiveMinuteStepTime(normalizedEndTime))) {
+      if (!nextAllDay && ((normalizedStartTime && !isFiveMinuteStepTime(normalizedStartTime)) || (normalizedEndTime && !isFiveMinuteStepTime(normalizedEndTime)))) {
         throw toClientError("event startTime and endTime must use 5-minute steps");
       }
-      if (!nextAllDay && normalizedStartTime && normalizedEndTime && normalizedStartTime >= normalizedEndTime) {
+      if (!nextAllDay && normalizedStartTime && normalizedEndTime && (!nextEndDate || nextEndDate === nextDate) && normalizedStartTime >= normalizedEndTime) {
         throw toClientError("event time range is invalid");
       }
 
@@ -194,6 +226,7 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
         ...currentEvent,
         title: nextTitle,
         date: nextDate,
+        endDate: nextEndDate,
         memberIds: nextMemberIds,
         allDay: nextAllDay,
         startTime: nextAllDay ? null : normalizedStartTime,

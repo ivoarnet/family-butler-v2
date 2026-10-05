@@ -6,6 +6,9 @@ import { DashboardPage } from "./DashboardPage";
 
 const today = new Date();
 const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
+const tomorrow = new Date(today);
+tomorrow.setDate(tomorrow.getDate() + 1);
+const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
 const household: HouseholdData = {
   householdId: "demo",
   householdName: "Family Calendar",
@@ -19,6 +22,7 @@ const household: HouseholdData = {
   events: [
     { id: "shared", title: "Family picnic", date, allDay: true, memberIds: ["alex", "sam"] },
     { id: "alex-event", title: "Music lesson", date, allDay: false, startTime: "15:00", endTime: "16:00", memberIds: ["alex"] },
+    { id: "overnight", title: "Overnight stay", date, endDate: tomorrowDate, allDay: false, startTime: "18:00", memberIds: ["alex"] },
     { id: "sam-event", title: "Football practice", date, allDay: false, startTime: "17:00", endTime: "18:00", memberIds: ["sam"] },
     { id: "unassigned", title: "Household reminder", date, allDay: true, memberIds: [] },
     { id: "hidden-event", title: "Hidden member event", date, allDay: true, memberIds: ["hidden"] },
@@ -118,4 +122,20 @@ export const DayAndEvents: Story = {
 export const DayGroupedEvents: Story = {
   args: { width: 390 },
   play: DayAndEvents.play,
+};
+export const MultiDayEvent: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const eventCards = canvas.getAllByRole("button", { name: "Open event Overnight stay" });
+    await expect(eventCards.length).toBeGreaterThan(1);
+    await expect(canvas.getAllByText("18:00 →").length).toBeGreaterThan(0);
+    await expect(canvas.getAllByText("Continues").length).toBeGreaterThan(0);
+
+    await userEvent.click(canvas.getByTitle("Create event"));
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Multi-day event" }));
+    const lastDay = canvas.getByLabelText("Last day") as HTMLInputElement;
+    await expect(lastDay).toBeVisible();
+    await expect(lastDay.value).toBe(tomorrowDate);
+  },
 };

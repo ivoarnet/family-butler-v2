@@ -90,18 +90,24 @@ const CornerBand = styled(Box)<{ $color: string }>(({ $color }) => ({
   justifyContent: "center",
 }));
 
-const formatEventDate = (date: string): string => {
-  const parsed = new Date(date);
+const formatEventDate = (date: string, endDate?: string): string => {
+  const parsed = new Date(`${date}T00:00:00`);
   if (Number.isNaN(parsed.getTime())) {
     return date;
   }
 
-  return new Intl.DateTimeFormat(undefined, {
+  const formatter = new Intl.DateTimeFormat(undefined, {
     weekday: "long",
     day: "2-digit",
     month: "long",
     year: "numeric",
-  }).format(parsed);
+  });
+  const startLabel = formatter.format(parsed);
+  if (!endDate || endDate <= date) {
+    return startLabel;
+  }
+  const parsedEndDate = new Date(`${endDate}T00:00:00`);
+  return Number.isNaN(parsedEndDate.getTime()) ? startLabel : `${startLabel} – ${formatter.format(parsedEndDate)}`;
 };
 
 interface EventDetailCardProps {
@@ -116,7 +122,9 @@ interface EventDetailCardProps {
 export function EventDetailCard({ event, eventType, members, onClose, onEdit, onDelete }: EventDetailCardProps) {
   const assignedMembers = members.filter((member) => event.memberIds.includes(member.id));
   const eventTypeColor = eventType?.color ?? EVENT_TYPE_COLOR_FALLBACK;
-  const timeLabel = event.allDay ? "All day" : `${event.startTime ?? "—"} – ${event.endTime ?? "—"}`;
+  const timeLabel = event.allDay
+    ? "All day"
+    : [event.startTime, event.endTime].filter(Boolean).join(" – ") || "Time not specified";
 
   return (
     <CardRoot>
@@ -147,7 +155,7 @@ export function EventDetailCard({ event, eventType, members, onClose, onEdit, on
               <CalendarTodayOutlinedIcon fontSize="small" titleAccess="Date" />
             </DetailIconBadge>
             <Box>
-              <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{formatEventDate(event.date)}</Typography>
+              <Typography variant="h6" sx={{ marginTop: "0.15rem" }}>{formatEventDate(event.date, event.endDate)}</Typography>
               <TimeInline direction="row" spacing={0.6} sx={{ alignItems: "center" }}>
                 <AccessTimeOutlinedIcon sx={{ fontSize: "1rem" }} />
                 <span>{timeLabel}</span>

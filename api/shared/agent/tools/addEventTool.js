@@ -89,6 +89,8 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
               id: { type: "string" },
               title: { type: "string" },
               date: { type: "string" },
+              endDate: { type: ["string", "null"] },
+              multiDay: { type: "boolean" },
               memberIds: { type: "array", minItems: 1, items: { type: "string" } },
               allDay: { type: "boolean" },
               startTime: { type: ["string", "null"] },
@@ -121,6 +123,17 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         throw toClientError("event date must use YYYY-MM-DD");
       }
 
+      const endDate = cleanString(input.endDate) || null;
+      if (endDate && (!isIsoDate(endDate) || endDate < date)) {
+        throw toClientError("event endDate must use YYYY-MM-DD and be on or after the event date");
+      }
+      if (input.multiDay === true && (!endDate || endDate <= date)) {
+        throw toClientError("event endDate must be after the event date for multi-day events");
+      }
+      if (input.multiDay === false && endDate && endDate > date) {
+        throw toClientError("event endDate cannot extend past the event date when multiDay is false");
+      }
+
       const memberIds = Array.isArray(input.memberIds) ? [...new Set(input.memberIds.map((id) => cleanString(id)).filter(Boolean))] : [];
       if (memberIds.length === 0) {
         throw toClientError("event memberIds are required");
@@ -139,17 +152,24 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         }
       }
 
-      const allDay = input.allDay !== false;
-      const startTime = normalizeTime24Hour(input.startTime);
-      const endTime = normalizeTime24Hour(input.endTime);
+      const rawStartTime = cleanString(input.startTime);
+      const rawEndTime = cleanString(input.endTime);
+      const startTime = normalizeTime24Hour(rawStartTime);
+      const endTime = normalizeTime24Hour(rawEndTime);
+      const allDay = input.allDay === undefined
+        ? !rawStartTime && !rawEndTime
+        : input.allDay !== false || (Boolean(endDate) && !rawStartTime && !rawEndTime);
 
-      if (!allDay && (!startTime || !endTime)) {
+      if (!allDay && ((rawStartTime && !startTime) || (rawEndTime && !endTime))) {
+        throw toClientError("event times must use HH:MM format");
+      }
+      if (!allDay && (!endDate || endDate === date) && (!startTime || !endTime)) {
         throw toClientError("event startTime and endTime are required for non all-day events");
       }
-      if (!allDay && startTime && endTime && (!isFiveMinuteStepTime(startTime) || !isFiveMinuteStepTime(endTime))) {
+      if (!allDay && ((startTime && !isFiveMinuteStepTime(startTime)) || (endTime && !isFiveMinuteStepTime(endTime)))) {
         throw toClientError("event startTime and endTime must use 5-minute steps");
       }
-      if (!allDay && startTime && endTime && startTime >= endTime) {
+      if (!allDay && startTime && endTime && (!endDate || endDate === date) && startTime >= endTime) {
         throw toClientError("event time range is invalid");
       }
 
@@ -169,6 +189,7 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         id: isUuid(requestedId) ? requestedId : randomUUID(),
         title,
         date,
+        endDate,
         memberIds,
         allDay,
         startTime: allDay ? null : startTime,

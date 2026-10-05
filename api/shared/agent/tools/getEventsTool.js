@@ -54,10 +54,11 @@ module.exports = function createGetEventsTool({ householdState, toClientError })
 
       const filtered = events
         .filter((event) => {
-          if (fromDate && event.date < fromDate) {
+          const eventEndDate = event.endDate || event.date;
+          if (toDate && event.date > toDate) {
             return false;
           }
-          if (toDate && event.date > toDate) {
+          if (fromDate && eventEndDate < fromDate) {
             return false;
           }
           if (memberId && !event.memberIds.includes(memberId)) {
