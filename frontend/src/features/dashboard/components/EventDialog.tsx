@@ -91,6 +91,8 @@ export interface EventDialogFormState {
   title: string;
   memberIds: string[];
   date: string;
+  multiDay: boolean;
+  endDate: string;
   allDay: boolean;
   startTime: string;
   endTime: string;
@@ -108,6 +110,7 @@ interface EventDialogProps {
   formState: EventDialogFormState;
   titleError: boolean;
   dateError: boolean;
+  endDateError: boolean;
   memberSelectionError: boolean;
   timeErrorMessage: string | null;
   onClose: () => void;
@@ -123,6 +126,7 @@ export function EventDialog({
   formState,
   titleError,
   dateError,
+  endDateError,
   memberSelectionError,
   timeErrorMessage,
   onClose,
@@ -207,6 +211,42 @@ export function EventDialog({
                 helperText={dateError ? "Date is required." : " "}
                 onChange={(event) => onFormStateChange((current) => ({ ...current, date: event.target.value }))}
               />
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formState.multiDay}
+                    onChange={(event) =>
+                      onFormStateChange((current) => ({
+                        ...current,
+                        multiDay: event.target.checked,
+                        endDate: event.target.checked
+                          ? current.endDate || dayjs(current.date).add(1, "day").format("YYYY-MM-DD")
+                          : "",
+                      }))
+                    }
+                  />
+                }
+                label="Multi-day event"
+                sx={{
+                  marginLeft: 0,
+                  "& .MuiFormControlLabel-label": {
+                    color: "var(--text-primary)",
+                    fontWeight: 600,
+                  },
+                }}
+              />
+              {formState.multiDay ? (
+                <FormField
+                  required
+                  type="date"
+                  label="Last day"
+                  slotProps={{ inputLabel: { shrink: true } }}
+                  value={formState.endDate}
+                  error={endDateError}
+                  helperText={endDateError ? "Last day must be on or after the start date." : " "}
+                  onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
+                />
+              ) : null}
               <FormControl>
                 <FormSelect
                   displayEmpty

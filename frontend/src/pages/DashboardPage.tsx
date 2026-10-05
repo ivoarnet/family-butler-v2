@@ -142,6 +142,8 @@ const buildEventFormState = (date: string): EventDialogFormState => ({
   title: "",
   memberIds: [],
   date,
+  multiDay: false,
+  endDate: "",
   allDay: true,
   startTime: "",
   endTime: "",
@@ -174,6 +176,8 @@ const buildEventFormStateFromEvent = (event: HouseholdEvent): EventDialogFormSta
   title: event.title,
   memberIds: [...event.memberIds],
   date: event.date,
+  multiDay: Boolean(event.endDate && event.endDate > event.date),
+  endDate: event.endDate ?? "",
   allDay: event.allDay,
   startTime: normalizeTime24Hour(event.startTime),
   endTime: normalizeTime24Hour(event.endTime),
@@ -209,13 +213,14 @@ const eventOccursOnDay = (event: HouseholdEvent, day: Date): boolean => {
   }
   const dayStart = new Date(day.getFullYear(), day.getMonth(), day.getDate());
   const eventStart = new Date(eventDate.getFullYear(), eventDate.getMonth(), eventDate.getDate());
+  const dayIso = toIsoDate(dayStart);
   if (dayStart.getTime() < eventStart.getTime()) {
     return false;
   }
 
   const repeatFrequency = getRepeatFrequency(event.repeatRule);
   if (!repeatFrequency) {
-    return toIsoDate(eventStart) === toIsoDate(dayStart);
+    return dayIso >= event.date && dayIso <= (event.endDate || event.date);
   }
 
   const diffDays = Math.floor((dayStart.getTime() - eventStart.getTime()) / (24 * 60 * 60 * 1000));
@@ -234,12 +239,21 @@ const eventOccursOnDay = (event: HouseholdEvent, day: Date): boolean => {
   return false;
 };
 
-const formatEventTimeLabel = (event: HouseholdEvent): string => {
+const formatEventTimeLabel = (event: HouseholdEvent, day: string): string => {
   if (event.allDay) {
     return "All day";
   }
   const start = normalizeTime24Hour(event.startTime);
   const end = normalizeTime24Hour(event.endTime);
+  if (event.endDate && event.endDate > event.date) {
+    if (day === event.date) {
+      return start ? `${start} →` : "Starts";
+    }
+    if (day === event.endDate && end) {
+      return `← ${end}`;
+    }
+    return "Continues";
+  }
   if (start && end) {
     return `${start}-${end}`;
   }
@@ -469,7 +483,13 @@ export function DashboardPage({
     setEventFormSubmitted(true);
     const title = eventFormState.title.trim();
     const date = eventFormState.date.trim();
-    if (!title || !date || eventFormState.memberIds.length === 0) {
+    const endDate = eventFormState.multiDay ? eventFormState.endDate.trim() : "";
+    if (
+      !title ||
+      !date ||
+      (eventFormState.multiDay && (!endDate || endDate < date)) ||
+      eventFormState.memberIds.length === 0
+    ) {
       return;
     }
 
@@ -477,7 +497,10 @@ export function DashboardPage({
     const endTime = eventFormState.endTime.trim();
     if (
       !eventFormState.allDay &&
-      (!startTime || !endTime || !isFiveMinuteStepTime(startTime) || !isFiveMinuteStepTime(endTime) || startTime >= endTime)
+      ((!eventFormState.multiDay && (!startTime || !endTime)) ||
+        (startTime && !isFiveMinuteStepTime(startTime)) ||
+        (endTime && !isFiveMinuteStepTime(endTime)) ||
+        (startTime && endTime && (!eventFormState.multiDay || endDate === date) && startTime >= endTime))
     ) {
       return;
     }
@@ -486,8 +509,9 @@ export function DashboardPage({
       id: editingEventId ?? crypto.randomUUID(),
       title,
       date,
+      endDate: endDate || undefined,
       memberIds: eventFormState.memberIds,
-      allDay: eventFormState.allDay,
+      allDay: eventFormState.allDay || (!startTime && !endTime),
       startTime: eventFormState.allDay ? undefined : startTime || undefined,
       endTime: eventFormState.allDay ? undefined : endTime || undefined,
       eventTypeId: eventFormState.eventTypeId || undefined,
@@ -507,14 +531,22 @@ export function DashboardPage({
 
   const eventTitleError = eventFormSubmitted && !eventFormState.title.trim();
   const eventDateError = eventFormSubmitted && !eventFormState.date.trim();
+  const eventEndDateError =
+    eventFormSubmitted &&
+    eventFormState.multiDay &&
+    (!eventFormState.endDate.trim() || eventFormState.endDate < eventFormState.date);
   const eventMemberSelectionError = eventFormSubmitted && eventFormState.memberIds.length === 0;
   const eventTimeErrorMessage =
     eventFormSubmitted && !eventFormState.allDay
-      ? !eventFormState.startTime.trim() || !eventFormState.endTime.trim()
+      ? !eventFormState.multiDay && (!eventFormState.startTime.trim() || !eventFormState.endTime.trim())
         ? "Begin and end time are required for non all-day events."
-        : !isFiveMinuteStepTime(eventFormState.startTime.trim()) || !isFiveMinuteStepTime(eventFormState.endTime.trim())
+        : (eventFormState.startTime.trim() && !isFiveMinuteStepTime(eventFormState.startTime.trim())) ||
+            (eventFormState.endTime.trim() && !isFiveMinuteStepTime(eventFormState.endTime.trim()))
           ? "Use 24-hour HH:MM time with 5-minute steps."
-        : eventFormState.startTime >= eventFormState.endTime
+        : eventFormState.startTime &&
+            eventFormState.endTime &&
+            (!eventFormState.multiDay || eventFormState.endDate === eventFormState.date) &&
+            eventFormState.startTime >= eventFormState.endTime
           ? "Begin time must be before end time."
           : null
       : null;
@@ -760,7 +792,7 @@ export function DashboardPage({
                                   key={`${entry.id}-${member.id}`}
                                   event={entry}
                                   eventTypeLabel={eventTypeLabel}
-                                  timeLabel={formatEventTimeLabel(entry)}
+                                  timeLabel={formatEventTimeLabel(entry, isoDate)}
                                   members={assignedMembers}
                                   onClick={() => openEventViewDialog(entry.id)}
                                 />
@@ -778,7 +810,7 @@ export function DashboardPage({
                               key={entry.id}
                               event={entry}
                               eventTypeLabel={entry.eventTypeId ? eventTypeById.get(entry.eventTypeId)?.icon ?? null : null}
-                              timeLabel={formatEventTimeLabel(entry)}
+                              timeLabel={formatEventTimeLabel(entry, isoDate)}
                               members={orderedMembers}
                               onClick={() => openEventViewDialog(entry.id)}
                             />
@@ -821,6 +853,7 @@ export function DashboardPage({
         formState={eventFormState}
         titleError={eventTitleError}
         dateError={eventDateError}
+        endDateError={eventEndDateError}
         memberSelectionError={eventMemberSelectionError}
         timeErrorMessage={eventTimeErrorMessage}
         onClose={closeEventDialog}

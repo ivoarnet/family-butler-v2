@@ -67,6 +67,7 @@ const mapEvent = (row) => ({
   householdId: row.household_id,
   title: row.title,
   date: row.event_date,
+  endDate: row.end_date,
   memberIds: Array.isArray(row.member_ids) ? row.member_ids : [],
   allDay: row.all_day,
   startTime: row.start_time,
@@ -302,7 +303,7 @@ module.exports = function createSupabaseProvider() {
         }),
         request(TABLES.events, {
           params: {
-            select: "id,household_id,title,event_date,member_ids,all_day,start_time,end_time,event_type_id,repeat_rule,location,notes",
+            select: "id,household_id,title,event_date,end_date,member_ids,all_day,start_time,end_time,event_type_id,repeat_rule,location,notes",
             household_id: `eq.${householdId}`,
             order: "event_date.asc",
           },
@@ -493,6 +494,7 @@ module.exports = function createSupabaseProvider() {
         household_id: householdId,
         title: event.title,
         event_date: event.date,
+        end_date: event.endDate ?? null,
         member_ids: event.memberIds,
         all_day: event.allDay,
         start_time: event.startTime,

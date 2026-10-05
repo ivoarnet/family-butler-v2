@@ -73,6 +73,10 @@ const normalizeEvents = (events: HouseholdEvent[]): HouseholdEvent[] =>
       id: event.id,
       title: event.title.trim(),
       date: event.date,
+      endDate:
+        event.endDate?.trim() && /^\d{4}-\d{2}-\d{2}$/.test(event.endDate.trim()) && event.endDate.trim() >= event.date
+          ? event.endDate.trim()
+          : undefined,
       memberIds: Array.isArray(event.memberIds) ? [...new Set(event.memberIds.filter((memberId) => typeof memberId === "string" && memberId))] : [],
       allDay: event.allDay !== false,
       startTime: event.allDay ? undefined : normalizeTime24Hour(event.startTime),

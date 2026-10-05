@@ -35,6 +35,7 @@ export interface HouseholdEvent {
   id: string;
   title: string;
   date: string;
+  endDate?: string;
   memberIds: string[];
   allDay: boolean;
   startTime?: string;
