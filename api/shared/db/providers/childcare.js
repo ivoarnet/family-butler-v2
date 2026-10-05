@@ -3,7 +3,7 @@ const { randomUUID } = require("crypto");
 const MODELS = {
   providers: {
     table: "childcare_providers",
-    fields: { name: "name", type: "type" },
+    fields: { name: "name", type: "type", active: "active" },
   },
   arrangements: {
     table: "childcare_arrangements",
@@ -54,6 +54,20 @@ module.exports = function createChildcareProvider(request) {
     if (!rows?.[0]) throw new Error("Failed to persist childcare");
     return mapRow(model, rows[0]);
   };
+  const update = async (model, householdId, id, data) => {
+    const rows = await request(model.table, {
+      method: "PATCH",
+      params: { household_id: `eq.${householdId}`, id: `eq.${id}` },
+      headers: { Prefer: "return=representation" },
+      body: Object.fromEntries(Object.entries(model.fields).map(([key, column]) => [column, data[key]])),
+    });
+    if (!rows?.[0]) {
+      const error = new Error("childcare record not found");
+      error.status = 404;
+      throw error;
+    }
+    return mapRow(model, rows[0]);
+  };
   return {
     async getChildcareHousehold(householdId, userId) {
       const rows = await request("households", {
@@ -68,7 +82,9 @@ module.exports = function createChildcareProvider(request) {
       return { providers, arrangements, overrides };
     },
     createChildcareProvider: (householdId, data) => save(MODELS.providers, householdId, data),
+    updateChildcareProvider: (householdId, id, data) => update(MODELS.providers, householdId, id, data),
     createChildcareArrangement: (householdId, data) => save(MODELS.arrangements, householdId, data),
+    updateChildcareArrangement: (householdId, id, data) => update(MODELS.arrangements, householdId, id, data),
     saveChildcareOverride: (householdId, data) => save(MODELS.overrides, householdId, data, true),
   };
 };

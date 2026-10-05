@@ -38,7 +38,7 @@ Childcare is separate from `Event` records. Apply `docs/sql/childcare.sql` after
 
 ### Persisted model
 
-- `childcare_providers`: household-owned named provider with type `grandparent`, `individual_carer`, `daycare`, `school_programme`, or `other`. Providers are independent of contacts.
+- `childcare_providers`: household-owned named provider with type `grandparent`, `individual_carer`, `daycare`, `school_programme`, or `other`, and an `active` boolean (default true). Providers are independent of contacts. Deactivation hides a provider from new selections, not from existing arrangements or resolved care; reactivate it to select it again.
 - `childcare_arrangements`: provider, nonempty `childIds` (household member UUIDs), nonempty `weekdays` (ISO Monday = 1 through Sunday = 7), inclusive `startDate`, optional inclusive `endDate`, and `allDay`/`startTime`/`endTime`. One arrangement can cover multiple weekdays and multiple children, all sharing its provider and times. Different times require separate arrangements. There is no new child-role classification; callers choose participating household members.
 - `childcare_overrides`: one row per `(householdId, arrangementId, originalDate)`, with action `cancel`, `replace`, or `move`. `originalDate` must be a date in the arrangement's weekly schedule. `move` requires a different `movedDate`; replacement provider and timing are optional for moves. `replace` requires provider and/or timing changes. Repeated writes replace that occurrence's entire override, not the weekly arrangement.
 - All-day care has null times. Timed care requires increasing same-day `HH:MM` times. Overnight care is not supported. Dates and times are household-local wall-clock values, not UTC instants; the resolver uses UTC date arithmetic only to avoid timezone/DST drift.
@@ -54,7 +54,10 @@ All paths below are relative to `/api/households/{householdId}/childcare`; use t
 | --- | --- | --- |
 | GET | (none) | Reload persisted `{ providers, arrangements, overrides }`. |
 | POST | `/providers` | Create `{ "name": "Grandparents", "type": "grandparent" }`. |
+| PUT | `/providers` | Edit `{ id, name, type, active }`; deactivate/reactivate with `active: false/true`. |
 | POST | `/arrangements` | Create a validated weekly arrangement (example below). |
+| PUT | `/arrangements` | Edit a weekly arrangement using `id` and all arrangement fields. |
+| POST | `/preview` | Resolve a draft without writing: `{ arrangement, startDate, endDate }` → `{ occurrences }`. Include the existing arrangement `id` when editing to apply its saved overrides. Range limit is 366 days, as for `/occurrences`. |
 | PUT | `/overrides` | Set or replace one occurrence's override (example below). |
 | GET | `/occurrences?startDate=2026-10-01&endDate=2026-10-31` | Return `{ occurrences }` for an inclusive range of at most 366 days. |
 
@@ -104,8 +107,12 @@ Provider-only changes inherit normal timing. A partial timed change inherits omi
 
 ### Resolution and boundaries
 
-The resolver always reads persisted arrangements and overrides, never browser state or generic events. Cancellation removes only its occurrence. Replacement preserves the original date. A move suppresses the original date and appears at its destination even when the source date is outside the requested range or the destination is beyond the arrangement's normal bounds. The stable occurrence ID is `<arrangementId>:<originalDate>`. Results contain `householdId`, `arrangementId`, `originalDate`, effective `date`, `providerId`, `childIds`, timing, and nullable `overrideAction`, sorted by effective date, start time, and ID.
+The occurrences endpoint reads persisted arrangements and overrides, never generic events. The preview endpoint validates a supplied draft against household providers and members, then uses the same resolver with that draft and any existing overrides; it does not save anything. Cancellation removes only its occurrence. Replacement preserves the original date. A move suppresses the original date and appears at its destination even when the source date is outside the requested range or the destination is beyond the arrangement's normal bounds. The stable occurrence ID is `<arrangementId>:<originalDate>` (new unsaved previews use `preview` as the arrangement ID). Results contain `householdId`, `arrangementId`, `originalDate`, effective `date`, `providerId`, `childIds`, timing, and nullable `overrideAction`, sorted by effective date, start time, and ID.
 
-Overlapping arrangements and moves onto another scheduled day remain separate occurrences; no capacity/conflict inference is performed. Current API scope is create/read plus override upsert, intended for development/testing. Editing/deleting normal arrangements, clearing overrides, management UI, calendar display, and agent workflows are not yet exposed. Ordinary household saves do not replace childcare data.
+Overlapping arrangements and moves onto another scheduled day remain separate occurrences; no capacity/conflict inference is performed. Arrangement edits retain saved overrides. Changing weekdays or effective dates to exclude an override's original date is rejected both by the API (including previews) and the database, rather than silently discarding the change.
 
-Run focused regression tests from the repository root with `npm run test:api`; run `npm run build` for workspace build verification. Tests cover weekly resolution, multiple children, cancellations/replacements/moves, range boundaries, invalid input, household authorization, provider paging, API persistence/reload, and existing health/household reads using a mocked Supabase transport.
+Settings → Childcare exposes provider management, weekly arrangement editing with multiple children, draft previews, and upcoming single-occurrence changes. Historical resolved care is read-only in Settings. The current model has no descriptive arrangement name or notes. Cancelled occurrences are listed separately because they are excluded from resolved care. Deleting arrangements, clearing overrides, household-calendar display, provider schedule views, and agent workflows are not exposed. Ordinary household saves do not replace childcare data.
+
+Arrangement saving requires a successful preview. Changing the draft or preview dates invalidates that preview; review the refreshed results before saving. Previews are advisory rather than reservations or conflict checks.
+
+Run focused regression tests from the repository root with `npm run test:api`; run `npm run build` for workspace build verification. Tests cover weekly resolution, multiple children, cancellations/replacements/moves, range boundaries, invalid input, household authorization, provider paging, provider activation/editing, arrangement editing, non-persisting previews, API persistence/reload, and existing health/household reads using a mocked Supabase transport.

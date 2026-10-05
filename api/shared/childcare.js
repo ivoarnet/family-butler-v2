@@ -41,7 +41,8 @@ const validateTiming = (data) => {
 const validateProvider = (data) => {
   assert(typeof data.name === "string" && data.name.trim().length > 0, "provider name is required");
   assert(PROVIDER_TYPES.has(data.type), "provider type is invalid");
-  return { name: data.name.trim(), type: data.type };
+  assert(data.active === undefined || typeof data.active === "boolean", "active must be a boolean");
+  return { name: data.name.trim(), type: data.type, active: data.active ?? true };
 };
 
 const validateArrangement = (data, providers, memberIds) => {
@@ -146,5 +147,5 @@ const resolveOccurrences = ({ arrangements, overrides }, startDate, endDate) => 
 };
 
 module.exports = {
-  assert, validateId, validateProvider, validateArrangement, validateOverride, resolveOccurrences,
+  assert, validateId, validateProvider, validateArrangement, validateOverride, resolveOccurrences, isScheduled,
 };

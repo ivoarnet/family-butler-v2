@@ -10,6 +10,9 @@ create table if not exists public.childcare_providers (
   unique (household_id, id)
 );
 
+alter table public.childcare_providers
+  add column if not exists active boolean not null default true;
+
 create table if not exists public.childcare_arrangements (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
@@ -78,6 +81,15 @@ begin
   ) then
     raise exception 'child is not part of this household';
   end if;
+  if exists (
+    select 1 from public.childcare_overrides o
+    where o.arrangement_id = new.id and o.household_id = new.household_id
+      and (o.original_date < new.start_date
+        or (new.end_date is not null and o.original_date > new.end_date)
+        or not (extract(isodow from o.original_date)::smallint = any(new.weekdays)))
+  ) then
+    raise exception 'schedule change would remove an occurrence with a one-off change';
+  end if;
   return new;
 end;
 $$;
@@ -113,6 +125,9 @@ for each row execute function public.protect_childcare_member();
 create or replace function public.validate_childcare_override()
 returns trigger language plpgsql set search_path = public as $$
 begin
+  -- Serialize override validation with edits to its weekly arrangement.
+  perform 1 from public.childcare_arrangements
+  where id = new.arrangement_id and household_id = new.household_id for update;
   if not exists (
     select 1 from public.childcare_arrangements a
     where a.id = new.arrangement_id and a.household_id = new.household_id

@@ -104,6 +104,8 @@ test("validation rejects invalid dates, times, ranges, and cross-household refer
   assert.throws(() => resolve([arrangement], [], "2026-01-01", "2027-01-02"), { status: 400 });
   assert.throws(() => resolve([arrangement], [], "2026-02-30", "2026-03-01"), { status: 400 });
   assert.throws(() => validateProvider({ name: " ", type: "daycare" }), { status: 400 });
+  assert.throws(() => validateProvider({ name: "Carer", type: "other", active: "false" }), { status: 400 });
+  assert.equal(validateProvider({ name: "Carer", type: "other" }).active, true);
 });
 
 test("provider reads paginate and every page is scoped by household", async () => {
@@ -150,6 +152,9 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     const rows = tables[table].filter((row) => [...parsed.searchParams.entries()]
       .filter(([, value]) => value.startsWith("eq."))
       .every(([key, value]) => row[key] === value.slice(3)));
+    if (options.method === "PATCH") {
+      rows.forEach((row) => Object.assign(row, JSON.parse(options.body)));
+    }
     return Response.json(rows);
   };
   try {
@@ -164,12 +169,65 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     };
     const provider = await invoke("POST", "providers", { name: "Grandparents", type: "grandparent" });
     assert.equal(provider.status, 201);
+    assert.equal(provider.body.active, true);
+    const editedProvider = await invoke("PUT", "providers", {
+      id: provider.body.id, name: "Grandma", type: "grandparent", active: false,
+    });
+    assert.equal(editedProvider.status, 200);
+    assert.equal(editedProvider.body.name, "Grandma");
+    assert.equal(editedProvider.body.active, false);
+    assert.equal((await invoke("GET")).body.providers[0].active, false);
+    assert.equal((await invoke("PUT", "providers", {
+      ...editedProvider.body, active: true,
+    })).body.active, true);
+    assert.equal((await invoke("PUT", "providers", {
+      id: replacementId, name: "Other household", type: "other", active: true,
+    })).status, 404);
+    const draft = { ...arrangement, providerId: provider.body.id };
+    const beforePreview = calls.filter((call) => call.method !== "GET").length;
+    const preview = await invoke("POST", "preview", {
+      arrangement: { ...draft, id: undefined }, startDate: "2026-10-01", endDate: "2026-10-31",
+    });
+    assert.equal(preview.status, 200);
+    assert.equal(preview.body.occurrences.length, 4);
+    assert.deepEqual(preview.body.occurrences[0].childIds, [childId, secondChildId]);
+    assert.equal(calls.filter((call) => call.method !== "GET").length, beforePreview);
+    assert.equal((await invoke("POST", "preview", {
+      arrangement: { ...draft, childIds: [providerId] }, startDate: "2026-10-01", endDate: "2026-10-31",
+    })).status, 400);
+    assert.equal((await invoke("POST", "preview", {
+      arrangement: { ...draft, id: undefined }, startDate: "2026-10-01", endDate: "2027-10-31",
+    })).status, 400);
     const created = await invoke("POST", "arrangements", { ...arrangement, providerId: provider.body.id });
     assert.equal(created.status, 201);
+    const updated = await invoke("PUT", "arrangements", {
+      ...created.body, childIds: [secondChildId], allDay: false, startTime: "09:00", endTime: "17:00",
+    });
+    assert.equal(updated.status, 200);
+    assert.deepEqual(updated.body.childIds, [secondChildId]);
+    assert.equal(updated.body.startTime, "09:00");
+    assert.equal(tables.childcare_arrangements.length, 1);
+    assert.equal((await invoke("PUT", "arrangements", {
+      ...created.body, id: replacementId,
+    })).status, 400);
+    assert.equal((await invoke("PUT", "arrangements", created.body)).status, 200);
     const overrideBody = { arrangementId: created.body.id, originalDate: "2026-10-05", action: "cancel" };
     assert.equal((await invoke("PUT", "overrides", overrideBody)).status, 200);
     assert.equal((await invoke("PUT", "overrides", { ...overrideBody, action: "move", movedDate: "2026-11-03" })).status, 200);
     assert.equal(tables.childcare_overrides.length, 1);
+    const previewEdit = await invoke("POST", "preview", {
+      arrangement: { ...created.body, allDay: false, startTime: "08:00", endTime: "16:00" },
+      startDate: "2026-11-03", endDate: "2026-11-03",
+    });
+    assert.equal(previewEdit.status, 200);
+    assert.equal(previewEdit.body.occurrences[0].overrideAction, "move");
+    assert.equal(previewEdit.body.occurrences[0].startTime, "08:00");
+    const conflictingEdit = { ...created.body, weekdays: [2] };
+    assert.equal((await invoke("PUT", "arrangements", conflictingEdit)).status, 400);
+    assert.equal((await invoke("POST", "preview", {
+      arrangement: conflictingEdit, startDate: "2026-10-01", endDate: "2026-10-31",
+    })).status, 400);
+    assert.equal(tables.childcare_arrangements[0].weekdays[0], 1);
     const reload = await invoke("GET");
     assert.equal(reload.body.arrangements.length, 1);
     assert.deepEqual(reload.body.arrangements[0].childIds, [childId, secondChildId]);
@@ -181,11 +239,20 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     assert.equal((await invoke("POST", "arrangements", { ...arrangement, providerId: provider.body.id, childIds: [providerId] })).status, 400);
     assert.equal((await invoke("POST", "arrangements", arrangement)).status, 400);
     assert.equal((await invoke("GET", null, null, null, householdId, false)).status, 401);
+    assert.equal((await invoke("POST", "preview", {
+      arrangement: draft, startDate: "2026-10-01", endDate: "2026-10-31",
+    }, null, householdId, false)).status, 401);
     const before = calls.length;
     assert.equal((await invoke("GET", null, null, null, replacementId)).status, 404);
     assert.equal(calls.length, before + 1);
+    assert.equal((await invoke("PUT", "providers", editedProvider.body, null, replacementId)).status, 404);
+    assert.equal((await invoke("POST", "preview", {
+      arrangement: draft, startDate: "2026-10-01", endDate: "2026-10-31",
+    }, null, replacementId)).status, 404);
     assert.ok(calls.filter((call) => call.table.startsWith("childcare_") && call.method === "GET")
       .every((call) => call.params.get("household_id") === `eq.${householdId}`));
+    assert.ok(calls.filter((call) => call.method === "PATCH")
+      .every((call) => call.params.get("household_id") === `eq.${householdId}` && call.params.has("id")));
     assert.equal(tables.events.length, 0);
     const healthContext = {};
     await require("./health")(healthContext, { query: { checks: "1" } });

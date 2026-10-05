@@ -169,7 +169,7 @@ alter table public.events
 
 ### Childcare migration
 
-After creating the core tables above, run `docs/sql/childcare.sql` in the Supabase SQL Editor before using the childcare endpoints. The repeatable migration creates separate provider, weekly arrangement, and occurrence override tables, same-household constraints, child-reference validation, and owner-scoped RLS policies. It does not create generic events or Azure resources.
+After creating the core tables above, run `docs/sql/childcare.sql` in the Supabase SQL Editor before using the childcare endpoints. **Existing installations must rerun it before deploying Settings childcare management** to add provider `active` status and arrangement-edit/override protections. Existing providers default to active. The repeatable migration creates separate provider, weekly arrangement, and occurrence override tables, same-household constraints, child-reference validation, and owner-scoped RLS policies. It does not create generic events or Azure resources.
 
 The server-side secret key bypasses RLS, so the childcare Azure Function authenticates users and verifies `households.created_by_user_id` before every read/write. Do not expose that key to clients. Direct authenticated childcare access is restricted by RLS to the household owner; anonymous access has no policy.
 

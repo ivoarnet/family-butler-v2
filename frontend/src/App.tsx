@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./features/auth/components/AuthScreen";
 import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, ThemeMode } from "./features/app/types";
@@ -298,6 +298,18 @@ export function App() {
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const childcareRequest = useCallback(async (path: string, init: RequestInit = {}): Promise<unknown> => {
+    if (!authClient) throw new Error("Sign in to manage childcare.");
+    const { data: { session }, error } = await authClient.auth.getSession();
+    if (error || !session?.access_token) throw new Error("Your session has expired. Please sign in again.");
+    const headers = new Headers(init.headers);
+    for (const [name, value] of Object.entries(createRequestHeaders(session.access_token, !!init.body))) {
+      headers.set(name, value);
+    }
+    const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
+    if (!response.ok) throw new Error(await parseResponseError(response, "Childcare request failed."));
+    return response.json();
+  }, [authClient]);
 
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
@@ -856,6 +868,7 @@ export function App() {
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <SettingsPage
         mode="settings"
+        childcareRequest={childcareRequest}
         households={households}
         activeHouseholdId={activeHouseholdId}
         onSwitchHousehold={(householdId) => {

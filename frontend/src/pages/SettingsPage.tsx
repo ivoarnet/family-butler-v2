@@ -17,12 +17,13 @@ import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../feat
 import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/components/EventTypeDialog";
 import { HouseholdDialog } from "../features/settings/components/HouseholdDialog";
 import { MemberDialog } from "../features/settings/components/MemberDialog";
+import { ChildcareSettings, type ChildcareRequest } from "../features/settings/components/ChildcareSettings";
 import { DEFAULT_MEMBER_COLOR, getMemberColorLabel, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
-type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar";
+type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
 const DAY_CONFIGURATION_OPTIONS: Array<{
   value: DayConfigurationCategory;
@@ -118,6 +119,7 @@ export function SettingsPage({
   onSaveProfile,
   theme,
   setTheme,
+  childcareRequest,
 }: {
   mode: "profile" | "settings";
   households: HouseholdSummary[];
@@ -140,6 +142,7 @@ export function SettingsPage({
   onSaveProfile: (firstName: string, lastName: string) => Promise<{ ok: boolean; error?: string }>;
   theme: ThemeMode;
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
+  childcareRequest?: ChildcareRequest;
 }) {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSection);
   const [newHouseholdName, setNewHouseholdName] = useState("");
@@ -688,6 +691,7 @@ export function SettingsPage({
               <Tab value="contacts" label="Contacts" />
               <Tab value="events" label="Events" />
               <Tab value="calendar" label="Calendar" />
+              <Tab value="childcare" label="Childcare" />
             </Tabs>
           </div>
         ) : null}
@@ -841,6 +845,15 @@ export function SettingsPage({
         </section>
         ) : null}
 
+        {showSettingsWorkspace && settingsWorkspaceTab === "childcare" ? (
+          <section className="settings-section">
+            {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to manage childcare.</div>
+              : isContextLoading || householdData.householdId !== activeHouseholdId ? <div role="status">Loading selected household…</div>
+              : childcareRequest ? <ChildcareSettings key={activeHouseholdId} householdId={activeHouseholdId}
+                members={householdData.familyMembers} request={childcareRequest} />
+              : <div role="alert">Sign in to manage childcare.</div>}
+          </section>
+        ) : null}
         {showSettingsWorkspace && settingsWorkspaceTab === "members" ? (
         <section className="settings-card">
           <div className="section-toolbar">
