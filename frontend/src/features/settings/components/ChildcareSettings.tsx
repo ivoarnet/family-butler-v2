@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
+import BlockIcon from "@mui/icons-material/Block";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import type { FamilyMember } from "../../../types/family";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton } from "../../../shared/ui/GlassFormDialog";
 
@@ -141,13 +144,15 @@ export function ChildcareSettings({ householdId, members, request }: {
   };
   const occurrenceList = (items: ChildcareOccurrence[], editable = false) => items.length ? (
     <div className="table-scroll"><table className="settings-table" aria-label={editable ? "Childcare occurrences" : "Childcare preview"}>
-      <thead><tr><th>Date</th><th>Provider</th><th>Participants</th><th>Care</th><th>Schedule</th>{editable && <th>Actions</th>}</tr></thead>
+      <thead><tr><th>Date</th><th>Provider</th><th>Participants</th><th>Care</th><th>Schedule</th>{editable && <th className="actions-column">Actions</th>}</tr></thead>
       <tbody>{items.map((item) => <tr key={item.id}>
         <td>{item.date}{item.date !== item.originalDate && <div>Originally {item.originalDate}</div>}</td>
         <td>{providerName(item.providerId)}</td><td>{participantNames(item.childIds)}</td><td>{timingText(item)}</td>
         <td><Chip size="small" label={item.overrideAction ? `Changed · ${item.overrideAction}` : "Recurring"} /></td>
-        {editable && <td>{item.date >= today()
-          ? <Button disabled={disabled} onClick={() => openOverride(item)} aria-label={`Change care on ${item.date} for ${providerName(item.providerId)}`}>Change occurrence</Button>
+        {editable && <td className="actions-cell">{item.date >= today()
+          ? <div className="icon-actions"><button type="button" className="icon-button compact-icon-button" disabled={disabled}
+            onClick={() => openOverride(item)} aria-label={`Change care on ${item.date} for ${providerName(item.providerId)}`}
+            title="Change occurrence"><EditOutlinedIcon fontSize="small" /></button></div>
           : <Typography variant="body2">History · read only</Typography>}</td>}
       </tr>)}</tbody>
     </table></div>
@@ -160,49 +165,59 @@ export function ChildcareSettings({ householdId, members, request }: {
       setError(""); void load(loadedRange);
     }}>Retry</Button> : undefined}>{error}</Alert>}
     {loading && <Typography role="status">Loading childcare…</Typography>}
-    <Box component="section">
-      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h6" component="h3">Providers</Typography>
-        <Button disabled={disabled} onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>Add provider</Button>
-      </Stack>
+    <section className="settings-card">
+      <div className="section-toolbar">
+        <h2>Providers</h2>
+        <button type="button" className="primary-pill no-wrap-button" aria-label="Add provider" disabled={disabled}
+          onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>+ Provider</button>
+      </div>
       {!loading && !data.providers.length && <Typography>No providers yet. Add a provider before creating an arrangement.</Typography>}
       {!!data.providers.length && <div className="table-scroll"><table className="settings-table" aria-label="Childcare providers">
-        <thead><tr><th>Name</th><th>Type</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Type</th><th>Status</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.providers.map((item) => <tr key={item.id}>
           <td>{item.name}</td><td>{providerTypes.find(([value]) => value === item.type)?.[1] ?? item.type}</td>
           <td>{item.active ? "Active" : "Inactive"}</td>
-          <td><Button disabled={disabled} aria-label={`Edit provider ${item.name}`} onClick={() => { setError(""); setProvider(item); }}>Edit</Button>
-            <Button disabled={disabled} onClick={() => void mutate("providers", "PUT", { ...item, active: !item.active })}>
-              {item.active ? "Deactivate" : "Reactivate"}
-            </Button></td>
+          <td className="actions-cell"><div className="icon-actions">
+            <button type="button" className="icon-button compact-icon-button" disabled={disabled}
+              aria-label={`Edit provider ${item.name}`} title="Edit provider" onClick={() => { setError(""); setProvider(item); }}>
+              <EditOutlinedIcon fontSize="small" />
+            </button>
+            <button type="button" className="icon-button compact-icon-button" disabled={disabled}
+              aria-label={item.active ? "Deactivate" : "Reactivate"} title={item.active ? "Deactivate" : "Reactivate"}
+              onClick={() => void mutate("providers", "PUT", { ...item, active: !item.active })}>
+              {item.active ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+            </button>
+          </div></td>
         </tr>)}</tbody>
       </table></div>}
       <Typography variant="body2">Inactive providers are hidden from new care choices. Deactivation keeps existing recurring care and history; existing assignments remain valid.</Typography>
-    </Box>
-    <Box component="section">
-      <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-        <Typography variant="h6" component="h3">Weekly arrangements</Typography>
-        <Button disabled={disabled || !members.length || !data.providers.some((item) => item.active)} onClick={() => {
+    </section>
+    <section className="settings-card">
+      <div className="section-toolbar">
+        <h2>Weekly arrangements</h2>
+        <button type="button" className="primary-pill no-wrap-button" aria-label="Add arrangement"
+          disabled={disabled || !members.length || !data.providers.some((item) => item.active)} onClick={() => {
           setError(""); setPreview(null);
           setDraft({ providerId: data.providers.find((item) => item.active)!.id, childIds: [], weekdays: [],
             allDay: true, startTime: null, endTime: null, startDate: today(), endDate: null });
-        }}>Add arrangement</Button>
-      </Stack>
+        }}>+ Arrangement</button>
+      </div>
       {!loading && !data.arrangements.length && <Typography>No weekly arrangements yet.</Typography>}
       {!!data.arrangements.length && <div className="table-scroll"><table className="settings-table" aria-label="Childcare arrangements">
-        <thead><tr><th>Provider</th><th>Participants</th><th>Weekdays</th><th>Care</th><th>Effective dates</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Provider</th><th>Participants</th><th>Weekdays</th><th>Care</th><th>Effective dates</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.arrangements.map((item) => <tr key={item.id}>
           <td>{providerName(item.providerId)}</td><td>{participantNames(item.childIds)}</td>
           <td>{item.weekdays.map((day) => weekdays[day - 1]).join(", ")}</td><td>{timingText(item)}</td>
           <td>{item.startDate} – {item.endDate ?? "Ongoing"}</td>
-          <td><Button disabled={disabled} aria-label={`Edit arrangement for ${providerName(item.providerId)}`} onClick={() => {
+          <td className="actions-cell"><div className="icon-actions"><button type="button" className="icon-button compact-icon-button"
+            disabled={disabled} aria-label={`Edit arrangement for ${providerName(item.providerId)}`} title="Edit arrangement" onClick={() => {
             setError(""); setDraft(item); setPreview(null);
-          }}>Edit</Button></td>
+          }}><EditOutlinedIcon fontSize="small" /></button></div></td>
         </tr>)}</tbody>
       </table></div>}
-    </Box>
-    <Box component="section">
-      <Typography variant="h6" component="h3">Resolved care</Typography>
+    </section>
+    <section className="settings-card">
+      <div className="section-toolbar"><h2>Resolved care</h2></div>
       <Stack component="form" direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }} onSubmit={(event) => {
         event.preventDefault();
         if (!disabled && validRange(range.startDate, range.endDate)) { setError(""); void load(range); }
@@ -211,7 +226,7 @@ export function ChildcareSettings({ householdId, members, request }: {
           slotProps={{ inputLabel: { shrink: true } }} onChange={(event) => { setRange({ ...range, startDate: event.target.value }); setPreview(null); }} />
         <FormField label="Range end" type="date" value={range.endDate} disabled={disabled}
           slotProps={{ inputLabel: { shrink: true } }} onChange={(event) => { setRange({ ...range, endDate: event.target.value }); setPreview(null); }} />
-        <Button type="submit" disabled={disabled || !validRange(range.startDate, range.endDate)}>Show care</Button>
+        <button type="submit" className="primary-pill no-wrap-button" disabled={disabled || !validRange(range.startDate, range.endDate)}>Show care</button>
       </Stack>
       {!validRange(range.startDate, range.endDate) && <Alert severity="warning">Choose an ordered range of at most 366 days.</Alert>}
       <Typography variant="body2">Showing {loadedRange.startDate} – {loadedRange.endDate}</Typography>
@@ -224,7 +239,7 @@ export function ChildcareSettings({ householdId, members, request }: {
           {item.originalDate} · {providerName(arrangement.providerId)} · {participantNames(arrangement.childIds)} · Cancelled
         </Typography>;
       })}</Stack> : <Typography>No cancellations in this range.</Typography>)}
-    </Box>
+    </section>
 
     <GlassDialog open={!!provider} onClose={() => { if (!busy) setProvider(null); }} aria-labelledby="childcare-provider-title" maxWidth="sm" fullWidth>
       {provider && <Box component="form" onSubmit={(event) => {

@@ -121,6 +121,45 @@ export default meta;
 type Story = StoryObj<typeof ChildcareStory>;
 
 export const ProvidersAndCare: Story = {};
+export const SettingsGridStyling: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("table", { name: "Childcare occurrences" });
+    for (const heading of ["Providers", "Weekly arrangements", "Resolved care"]) {
+      const title = canvas.getByRole("heading", { name: heading, level: 2 });
+      await expect(title.parentElement).toHaveClass("section-toolbar");
+      await expect(title.closest("section")).toHaveClass("settings-card");
+    }
+    for (const [name, text] of [["Add provider", "+ Provider"], ["Add arrangement", "+ Arrangement"]]) {
+      const add = canvas.getByRole("button", { name });
+      await expect(add).toHaveClass("primary-pill", "no-wrap-button");
+      await expect(add).toHaveTextContent(text);
+      await expect(getComputedStyle(add).whiteSpace).toBe("nowrap");
+    }
+    await expect(canvas.getByRole("button", { name: "Show care" })).toHaveClass("primary-pill", "no-wrap-button");
+    for (const name of ["Childcare providers", "Childcare arrangements", "Childcare occurrences"]) {
+      const table = canvas.getByRole("table", { name });
+      await expect(table).toHaveClass("settings-table");
+      const actions = within(table).getByRole("columnheader", { name: "Actions" });
+      await expect(actions).toHaveClass("actions-column");
+      await expect(getComputedStyle(actions).textAlign).toBe("right");
+      for (const button of within(table).getAllByRole("button")) {
+        await expect(button).toHaveClass("icon-button", "compact-icon-button");
+        await expect(button.textContent).toBe("");
+        await expect(getComputedStyle(button).width).toBe("32px");
+        await expect(button.parentElement).toHaveClass("icon-actions");
+        await expect(getComputedStyle(button.parentElement!).justifyContent).toBe("flex-end");
+        await expect(button.closest("td")).toHaveClass("actions-cell");
+        await expect(getComputedStyle(button.closest("td")!).textAlign).toBe("right");
+        await expect(button.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
+      }
+    }
+    for (const name of ["Edit provider Grandma Jo", "Edit arrangement for Grandma Jo", `Change care on ${date()} for Grandma Jo`]) {
+      await expect(canvas.getByRole("button", { name }).querySelector("svg")).toHaveAttribute("data-testid", "EditOutlinedIcon");
+    }
+    await expect(canvas.getByRole("button", { name: "Deactivate" }).querySelector("svg")).toHaveAttribute("data-testid", "BlockIcon");
+  },
+};
 export const LoadingError: Story = { args: { fail: true } };
 export const LocalDateDefaults: Story = {
   play: async ({ canvasElement }) => {
@@ -167,6 +206,8 @@ export const ProviderLifecycle: Story = {
     await waitFor(() => expect(row.getByRole("button", { name: "Deactivate" })).toBeEnabled());
     await userEvent.click(row.getByRole("button", { name: "Deactivate" }));
     await row.findByText("Inactive");
+    await expect(row.getByRole("button", { name: "Reactivate" })).toHaveClass("icon-button", "compact-icon-button");
+    await expect(row.getByRole("button", { name: "Reactivate" }).querySelector("svg")).toHaveAttribute("data-testid", "CheckCircleOutlineOutlinedIcon");
     await waitFor(() => expect(row.getByRole("button", { name: "Reactivate" })).toBeEnabled());
     await userEvent.click(row.getByRole("button", { name: "Reactivate" }));
     await row.findByText("Active");
