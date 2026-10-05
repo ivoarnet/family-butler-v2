@@ -37,6 +37,7 @@ const normalizeEvent = (event) => ({
   id: event.id,
   title: event.title,
   date: event.date,
+  endDate: event.endDate ?? undefined,
   memberIds: event.memberIds,
   allDay: event.allDay,
   startTime: event.startTime ?? undefined,
@@ -224,16 +225,27 @@ const parseIncomingEvents = (events) => {
         throw new Error("event date is required");
       }
 
+      const endDate = cleanOptionalText(event.endDate);
+      if (endDate && !/^\d{4}-\d{2}-\d{2}$/.test(endDate)) {
+        throw new Error("event endDate is invalid; use YYYY-MM-DD");
+      }
+      if (endDate && endDate < date) {
+        throw new Error("event endDate must be on or after the event date");
+      }
+
       const allDay = event.allDay !== false;
       const startTime = normalizeTime24Hour(event.startTime);
       const endTime = normalizeTime24Hour(event.endTime);
-      if (!allDay && (!startTime || !endTime)) {
+      if (!allDay && ((event.startTime && !startTime) || (event.endTime && !endTime))) {
+        throw new Error("event startTime and endTime must use 24-hour HH:MM format");
+      }
+      if (!allDay && (!endDate || endDate === date) && (!startTime || !endTime)) {
         throw new Error("event startTime and endTime are required in 24-hour HH:MM format for non all-day events");
       }
       if (!allDay && startTime && endTime && (!isFiveMinuteStepTime(startTime) || !isFiveMinuteStepTime(endTime))) {
         throw new Error("event startTime and endTime must use 5-minute steps");
       }
-      if (!allDay && startTime && endTime && startTime >= endTime) {
+      if (!allDay && startTime && endTime && (!endDate || endDate === date) && startTime >= endTime) {
         throw new Error("event time range is invalid");
       }
 
@@ -249,6 +261,7 @@ const parseIncomingEvents = (events) => {
         id: requestedId || randomUUID(),
         title,
         date,
+        endDate: endDate || null,
         memberIds,
         allDay,
         startTime: allDay ? null : startTime,

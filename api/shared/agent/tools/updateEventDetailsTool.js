@@ -65,6 +65,7 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
               title: { type: ["string", "null"] },
               date: { type: ["string", "null"] },
               endDate: { type: ["string", "null"] },
+              multiDay: { type: ["boolean", "null"] },
               memberIds: { type: ["array", "null"], items: { type: "string" } },
               allDay: { type: ["boolean", "null"] },
               startTime: { type: ["string", "null"] },
@@ -147,11 +148,23 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
         throw toClientError("updated date must use YYYY-MM-DD");
       }
 
-      const nextEndDate = updates.endDate === undefined || updates.endDate === null
+      let nextEndDate = updates.endDate === undefined || updates.endDate === null
         ? currentEvent.endDate ?? null
         : cleanString(updates.endDate) || null;
       if (nextEndDate && (!isIsoDate(nextEndDate) || nextEndDate < nextDate)) {
         throw toClientError("updated endDate must use YYYY-MM-DD and be on or after the event date");
+      }
+      if (updates.multiDay === true && (updates.endDate === undefined || updates.endDate === null) && !nextEndDate) {
+        throw toClientError("endDate is required when setting multiDay to true");
+      }
+      if (updates.multiDay === true && nextEndDate && nextEndDate <= nextDate) {
+        throw toClientError("updated endDate must be after the event date for multi-day events");
+      }
+      if (updates.multiDay === false) {
+        if (updates.endDate && cleanString(updates.endDate) > nextDate) {
+          throw toClientError("updated endDate cannot extend past the event date when multiDay is false");
+        }
+        nextEndDate = null;
       }
 
       const nextMemberIds =

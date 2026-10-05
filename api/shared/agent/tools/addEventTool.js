@@ -90,6 +90,7 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
               title: { type: "string" },
               date: { type: "string" },
               endDate: { type: ["string", "null"] },
+              multiDay: { type: "boolean" },
               memberIds: { type: "array", minItems: 1, items: { type: "string" } },
               allDay: { type: "boolean" },
               startTime: { type: ["string", "null"] },
@@ -125,6 +126,12 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
       const endDate = cleanString(input.endDate) || null;
       if (endDate && (!isIsoDate(endDate) || endDate < date)) {
         throw toClientError("event endDate must use YYYY-MM-DD and be on or after the event date");
+      }
+      if (input.multiDay === true && (!endDate || endDate <= date)) {
+        throw toClientError("event endDate must be after the event date for multi-day events");
+      }
+      if (input.multiDay === false && endDate && endDate > date) {
+        throw toClientError("event endDate cannot extend past the event date when multiDay is false");
       }
 
       const memberIds = Array.isArray(input.memberIds) ? [...new Set(input.memberIds.map((id) => cleanString(id)).filter(Boolean))] : [];
