@@ -938,7 +938,7 @@ body,
 .specials-cell .specials-entry {
   margin-bottom: 0.4rem;
   padding-bottom: 0.3rem;
-  border-bottom: 1px dotted rgba(34, 197, 94, 0.55);
+  border-bottom: 1px dotted var(--border);
 }
 
 .event-item-title {

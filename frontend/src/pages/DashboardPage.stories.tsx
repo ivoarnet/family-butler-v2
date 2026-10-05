@@ -118,6 +118,7 @@ export const Desktop: Story = {
       expect(getComputedStyle(firstChildcare.querySelector(".calendar-childcare-icon")!).color)
         .toBe(getComputedStyle(firstChildcare.querySelector("strong")!).color);
       expect(firstChildcare.getAttribute("title")).toContain("All day");
+      expect(getComputedStyle(firstChildcare).borderBottomColor).toBe(getComputedStyle(todayRow).borderBottomColor);
       const birthdayEntry = specialsCell.querySelector(".calendar-birthday-entry")!;
       expect(birthdayEntry.textContent).toBe("Taylor");
       expect(birthdayEntry.querySelector(".calendar-special-icon[data-testid='CakeIcon']")).not.toBeNull();
