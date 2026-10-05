@@ -115,10 +115,14 @@ export const Desktop: Story = {
       expect(firstChildcare.textContent).toContain("Grandparents");
       expect(firstChildcare.textContent).toContain("For Alex, Sam");
       expect(firstChildcare.querySelector(".calendar-childcare-icon")).not.toBeNull();
+      expect(getComputedStyle(firstChildcare.querySelector(".calendar-childcare-icon")!).color)
+        .toBe(getComputedStyle(firstChildcare.querySelector("strong")!).color);
       expect(firstChildcare.getAttribute("title")).toContain("All day");
       const birthdayEntry = specialsCell.querySelector(".calendar-birthday-entry")!;
       expect(birthdayEntry.textContent).toBe("Taylor");
       expect(birthdayEntry.querySelector(".calendar-special-icon[data-testid='CakeIcon']")).not.toBeNull();
+      expect(getComputedStyle(birthdayEntry.querySelector(".calendar-special-icon")!).color)
+        .toBe(getComputedStyle(birthdayEntry.querySelector("strong")!).color);
       expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Taylor"));
       expect(canvasElement.querySelector(".specials-column-header")?.textContent).toBe("Specials");
       expect(canvasElement.querySelector(".specials-column-header svg")).toBeNull();
@@ -174,6 +178,8 @@ export const DayAndEvents: Story = {
       expect(entry.textContent).toContain("Grandparents");
       expect(entry.textContent).toContain("For Alex, Sam");
       expect(entry?.querySelector(".calendar-childcare-icon")).not.toBeNull();
+      expect(getComputedStyle(entry.querySelector(".calendar-childcare-icon")!).color)
+        .toBe(getComputedStyle(entry.querySelector("strong")!).color);
       expect(entry?.getAttribute("title")).toContain("For Alex, Sam");
       expect(entry?.getAttribute("title")).toContain(`Moved from ${yesterdayDate}`);
       expect(daycareEntry).toBeVisible();

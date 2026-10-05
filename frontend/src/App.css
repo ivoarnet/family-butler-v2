@@ -924,7 +924,7 @@ body,
 .calendar-childcare-icon,
 .calendar-special-icon {
   flex-shrink: 0;
-  color: #15803d;
+  color: var(--text-primary);
   font-size: 1rem !important;
 }
 
