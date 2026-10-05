@@ -10,6 +10,7 @@
     "dev": "concurrently \"npm:dev:api\" \"npm:dev:frontend\"",
     "dev:api": "npm run dev --workspace api",
     "dev:frontend": "npm run dev --workspace frontend",
+    "test:api": "npm test --workspace api",
     "build": "npm run build --workspace api && npm run build --workspace frontend"
   },
   "devDependencies": {

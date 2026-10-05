@@ -18,6 +18,11 @@ const getProvider = () => {
 };
 
 module.exports = {
+  getChildcareHousehold: (...args) => getProvider().getChildcareHousehold(...args),
+  getChildcare: (...args) => getProvider().getChildcare(...args),
+  createChildcareProvider: (...args) => getProvider().createChildcareProvider(...args),
+  createChildcareArrangement: (...args) => getProvider().createChildcareArrangement(...args),
+  saveChildcareOverride: (...args) => getProvider().saveChildcareOverride(...args),
   listHouseholds: (...args) => getProvider().listHouseholds(...args),
   createHousehold: (...args) => getProvider().createHousehold(...args),
   getMemberHouseholdId: (...args) => getProvider().getMemberHouseholdId(...args),

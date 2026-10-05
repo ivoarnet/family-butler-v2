@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Added household-scoped childcare persistence, owner-based RLS, and an authenticated API for weekly all-day/timed arrangements with multiple children and one-off cancellation, replacement, and move overrides. Effective occurrences resolve server-side from persisted data, separately from events; UI, calendar, and agent integration remain planned.
 - Matched time-picker background, corner radius, text, labels, and borders with other dialog fields. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/event-dialog-time-fields-dark.png`.
 - Moved event time pickers beside the **All day** toggle and added an updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/event-dialog-times-beside-all-day.png`.
 - Added opt-in multi-day events with inclusive end dates, partial or absent times, calendar display across each event day, and agent create/update flag support.
