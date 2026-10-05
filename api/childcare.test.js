@@ -251,6 +251,8 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     }, null, replacementId)).status, 404);
     assert.ok(calls.filter((call) => call.table.startsWith("childcare_") && call.method === "GET")
       .every((call) => call.params.get("household_id") === `eq.${householdId}`));
+    assert.ok(calls.filter((call) => call.method === "PATCH")
+      .every((call) => call.params.get("household_id") === `eq.${householdId}` && call.params.has("id")));
     assert.equal(tables.events.length, 0);
     const healthContext = {};
     await require("./health")(healthContext, { query: { checks: "1" } });
