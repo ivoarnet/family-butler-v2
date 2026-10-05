@@ -154,11 +154,17 @@ export function EventDialog({
       helperText: timeErrorMessage ?? " ",
       fullWidth: true,
       sx: {
-        "& .MuiPickersInputBase-root": {
+        "& .MuiPickersOutlinedInput-root": {
+          minHeight: 52,
+          borderRadius: "12px",
+          background: "var(--dialog-field)",
           color: "var(--text-primary)",
         },
         "& .MuiInputLabel-root": {
           color: "var(--dialog-muted)",
+        },
+        "& .MuiInputLabel-root.Mui-focused": {
+          color: "var(--accent-strong)",
         },
         "& .MuiPickersOutlinedInput-notchedOutline": {
           borderColor: "var(--dialog-border)",

@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Fixed dark-mode time-picker text, labels, and borders to use the same dialog color tokens as other fields. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/event-dialog-time-fields-dark.png`.
+- Matched time-picker background, corner radius, text, labels, and borders with other dialog fields. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/event-dialog-time-fields-dark.png`.
 - Moved event time pickers beside the **All day** toggle and added an updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/event-dialog-times-beside-all-day.png`.
 - Added opt-in multi-day events with inclusive end dates, partial or absent times, calendar display across each event day, and agent create/update flag support.
 - Moved mobile settings and account actions to the header’s top-right beside the branding, removing their separate row while preserving the relocated date controls. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/dashboard-mobile-header-compact.png`.
