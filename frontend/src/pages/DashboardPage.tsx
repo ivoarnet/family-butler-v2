@@ -35,11 +35,9 @@ interface DayCellDecorations {
 function ChildcareCalendarEntry({
   occurrence,
   members,
-  className,
 }: {
   occurrence: ResolvedChildcareOccurrence;
   members: FamilyMember[];
-  className?: string;
 }) {
   const memberById = new Map(members.map((member) => [member.id, member]));
   const childNames = occurrence.childIds
@@ -57,12 +55,13 @@ function ChildcareCalendarEntry({
 
   return (
     <div
-      className={`calendar-childcare-entry ${className ?? ""}`.trim()}
+      className="calendar-childcare-entry"
       title={`${providerName} · ${details}`}
       aria-label={`Childcare: ${providerName}. ${details}`}
     >
       <ChildCareIcon className="calendar-childcare-icon" fontSize="small" aria-hidden="true" />
       <strong>{providerName}</strong>
+      <small>For {childNames.join(", ") || "household children"}</small>
     </div>
   );
 }
@@ -859,24 +858,8 @@ export function DashboardPage({
 
                       {visibleMembers.map((member) => {
                         const entries = eventsByDateAndMember.get(`${isoDate}|${member.id}`) ?? [];
-                        const childcareEntries = (childcareByDate.get(isoDate) ?? [])
-                          .filter((occurrence) => occurrence.childIds.includes(member.id));
                         return (
-                          <td
-                            key={`${isoDate}-${member.id}`}
-                            className={`event-cell member-event-cell ${childcareEntries.length > 0 ? "has-childcare" : ""}`}
-                          >
-                            {childcareEntries.length > 0 && (
-                              <div className="calendar-childcare-rail">
-                                {childcareEntries.map((occurrence) => (
-                                  <ChildcareCalendarEntry
-                                    key={occurrence.id}
-                                    occurrence={occurrence}
-                                    members={orderedMembers}
-                                  />
-                                ))}
-                              </div>
-                            )}
+                          <td key={`${isoDate}-${member.id}`} className="event-cell member-event-cell">
                             {entries.map((entry) => {
                               const eventType = entry.eventTypeId ? eventTypeById.get(entry.eventTypeId) : null;
                               const assignedMembers = entry.memberIds
@@ -899,16 +882,6 @@ export function DashboardPage({
                       })}
 
                       <td className="event-cell shared-events-column">
-                        {(childcareByDate.get(isoDate) ?? [])
-                          .filter((occurrence) => !selectedMember || occurrence.childIds.includes(selectedMember.id))
-                          .map((occurrence) => (
-                            <ChildcareCalendarEntry
-                              key={occurrence.id}
-                              occurrence={occurrence}
-                              members={orderedMembers}
-                              className="calendar-childcare-entry--compact-only"
-                            />
-                          ))}
                         {(eventsByDateAndMember.get(isoDate) ?? [])
                           .filter((entry) => !selectedMember || entry.memberIds.length === 0 || entry.memberIds.includes(selectedMember.id))
                           .map((entry) => (
@@ -921,11 +894,6 @@ export function DashboardPage({
                               onClick={() => openEventViewDialog(entry.id)}
                             />
                           ))}
-                        {birthdayEntries.map((entry) => (
-                          <span className="birthday-item" key={entry.id}>
-                            Birthday: {formatBirthdayLabel(entry)}
-                          </span>
-                        ))}
                       </td>
 
                       <td className="specials-cell">
@@ -934,7 +902,6 @@ export function DashboardPage({
                             key={occurrence.id}
                             occurrence={occurrence}
                             members={orderedMembers}
-                            className="calendar-childcare-entry--specials"
                           />
                         ))}
                         {birthdayEntries.map((entry) => (

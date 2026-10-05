@@ -737,17 +737,16 @@ body,
   .calendar-grid .week-column-header,
   .calendar-grid .week-number-cell,
   .calendar-grid .member-column-header,
-  .calendar-grid .member-event-cell,
-  .calendar-grid .specials-column-header,
-  .calendar-grid .specials-cell {
+  .calendar-grid .member-event-cell {
     display: none;
   }
 
-  .calendar-grid .calendar-childcare-entry--compact-only {
-    display: flex;
+  .calendar-grid .shared-events-column {
+    display: table-cell;
+    border-right: 0;
   }
 
-  .calendar-grid .shared-events-column {
+  .calendar-grid .specials-cell {
     display: table-cell;
     border-right: 0;
   }
@@ -756,8 +755,7 @@ body,
     width: 9rem;
   }
 
-  .shared-events-column .event-item-title,
-  .shared-events-column .birthday-item {
+  .shared-events-column .event-item-title {
     white-space: normal;
     overflow-wrap: anywhere;
     min-width: 0;
@@ -780,7 +778,8 @@ body,
   }
 
   .calendar-grid .day-cell,
-  .calendar-grid .shared-events-column {
+  .calendar-grid .shared-events-column,
+  .calendar-grid .specials-cell {
     display: block;
     width: 100%;
     height: auto;
@@ -794,6 +793,15 @@ body,
 
   .calendar-grid .shared-events-column {
     min-height: 1rem;
+  }
+
+  .calendar-grid .specials-cell::before {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--text-secondary);
+    content: "Specials";
+    font-size: 0.75rem;
+    font-weight: 700;
   }
 }
 
@@ -898,22 +906,9 @@ body,
   margin-bottom: 0.3rem;
 }
 
-.member-event-cell.has-childcare {
-  position: relative;
-  padding-top: 0.55rem !important;
-}
-
-.calendar-childcare-rail {
-  display: flex;
-  flex-direction: column;
-  gap: 0.15rem;
-  margin-bottom: 0.35rem;
-  padding-bottom: 0.2rem;
-  border-bottom: 1px dotted rgba(34, 197, 94, 0.55);
-}
-
 .calendar-childcare-entry {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem;
   min-width: 0;
@@ -924,6 +919,15 @@ body,
   overflow: hidden;
   white-space: nowrap;
   cursor: help;
+}
+
+.calendar-childcare-entry small {
+  flex-basis: 100%;
+  padding-left: 1.35rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
 }
 
 .calendar-childcare-icon {
@@ -939,11 +943,7 @@ body,
   text-overflow: ellipsis;
 }
 
-.calendar-childcare-entry--compact-only {
-  display: none;
-}
-
-.calendar-childcare-entry--specials {
+.specials-cell .calendar-childcare-entry {
   margin-bottom: 0.4rem;
   padding-bottom: 0.3rem;
   border-bottom: 1px dotted rgba(34, 197, 94, 0.55);
