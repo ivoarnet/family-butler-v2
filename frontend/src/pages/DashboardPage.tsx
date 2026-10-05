@@ -1,6 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
+import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
@@ -55,13 +56,24 @@ function ChildcareCalendarEntry({
 
   return (
     <div
-      className="calendar-childcare-entry"
+      className="specials-entry calendar-childcare-entry"
       title={`${providerName} · ${details}`}
       aria-label={`Childcare: ${providerName}. ${details}`}
     >
       <ChildCareIcon className="calendar-childcare-icon" fontSize="small" aria-hidden="true" />
       <strong>{providerName}</strong>
       <small>For {childNames.join(", ") || "household children"}</small>
+    </div>
+  );
+}
+
+function BirthdayCalendarEntry({ event }: { event: SpecialEvent }) {
+  const label = formatBirthdayLabel(event);
+
+  return (
+    <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}`}>
+      <CakeIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
+      <strong>{label}</strong>
     </div>
   );
 }
@@ -905,9 +917,7 @@ export function DashboardPage({
                           />
                         ))}
                         {birthdayEntries.map((entry) => (
-                          <span className="birthday-item" key={entry.id}>
-                            {formatBirthdayLabel(entry)}
-                          </span>
+                          <BirthdayCalendarEntry key={entry.id} event={entry} />
                         ))}
                       </td>
                     </tr>

@@ -885,18 +885,6 @@ body,
   font-weight: 700;
 }
 
-.birthday-item {
-  display: block;
-  width: fit-content;
-  margin-bottom: 0.3rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid rgba(127, 139, 255, 0.35);
-  background: rgba(127, 139, 255, 0.15);
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-
 .event-cell {
   min-width: 0;
   padding: 0.55rem 0.5rem !important;
@@ -906,9 +894,8 @@ body,
   margin-bottom: 0.3rem;
 }
 
-.calendar-childcare-entry {
+.specials-entry {
   display: flex;
-  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem;
   min-width: 0;
@@ -921,6 +908,10 @@ body,
   cursor: help;
 }
 
+.calendar-childcare-entry {
+  flex-wrap: wrap;
+}
+
 .calendar-childcare-entry small {
   flex-basis: 100%;
   padding-left: 1.35rem;
@@ -930,20 +921,21 @@ body,
   white-space: normal;
 }
 
-.calendar-childcare-icon {
+.calendar-childcare-icon,
+.calendar-special-icon {
   flex-shrink: 0;
   color: #15803d;
   font-size: 1rem !important;
 }
 
-.calendar-childcare-entry strong {
+.specials-entry strong {
   min-width: 0;
   overflow: hidden;
   font-size: 0.75rem;
   text-overflow: ellipsis;
 }
 
-.specials-cell .calendar-childcare-entry {
+.specials-cell .specials-entry {
   margin-bottom: 0.4rem;
   padding-bottom: 0.3rem;
   border-bottom: 1px dotted rgba(34, 197, 94, 0.55);

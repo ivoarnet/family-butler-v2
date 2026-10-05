@@ -116,6 +116,9 @@ export const Desktop: Story = {
       expect(firstChildcare.textContent).toContain("For Alex, Sam");
       expect(firstChildcare.querySelector(".calendar-childcare-icon")).not.toBeNull();
       expect(firstChildcare.getAttribute("title")).toContain("All day");
+      const birthdayEntry = specialsCell.querySelector(".calendar-birthday-entry")!;
+      expect(birthdayEntry.textContent).toBe("Taylor");
+      expect(birthdayEntry.querySelector(".calendar-special-icon[data-testid='CakeIcon']")).not.toBeNull();
       expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Taylor"));
       expect(canvasElement.querySelector(".specials-column-header")?.textContent).toBe("Specials");
       expect(canvasElement.querySelector(".specials-column-header svg")).toBeNull();
@@ -176,7 +179,7 @@ export const DayAndEvents: Story = {
       expect(daycareEntry).toBeVisible();
       expect(daycareEntry?.getAttribute("title")).toContain("15:00 – 16:00");
       expect(daycareEntry?.getAttribute("title")).toContain("One-off adjustment");
-      expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Birthday: Taylor"));
+      expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Taylor"));
       expect(sharedEvents.querySelector(".calendar-childcare-entry")).toBeNull();
       expect(sharedEvents.textContent).not.toContain("Birthday: Taylor");
     });
@@ -186,7 +189,9 @@ export const DayAndEvents: Story = {
     await expect(alex).toHaveAttribute("aria-pressed", "true");
     await expect(canvas.queryByRole("button", { name: "Open event Football practice" })).toBeNull();
     await expect(canvas.getByRole("button", { name: "Open event Household reminder" })).toBeVisible();
-    await expect(canvas.getByText("Birthday: Taylor")).toBeVisible();
+    const birthday = canvasElement.querySelector(".today-row .calendar-birthday-entry")!;
+    await expect(birthday).toBeVisible();
+    await expect(birthday.querySelector(".calendar-special-icon[data-testid='CakeIcon']")).not.toBeNull();
     await expect(canvas.getAllByRole("button", { name: "Open event Daily check-in" }).length).toBeGreaterThan(1);
     await userEvent.click(previousPeriod);
     await expect(canvas.getByRole("banner").querySelector("p")?.textContent).not.toBe(period);
