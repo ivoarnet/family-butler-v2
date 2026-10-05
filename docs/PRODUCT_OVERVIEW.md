@@ -20,13 +20,13 @@ The current product supports:
 
 See [Data Model](DATA_MODEL.md) for current domain and persistence details, and [Agent Chat Tools Guide](agentic/AGENTIC_TOOLS_GUIDE.md) for the actions currently exposed to the agent.
 
-## Childcare — Settings management implemented
+## Childcare — Settings, calendar, and agent read coverage implemented
 
-Childcare Planning helps households organise recurring care arrangements provided by grandparents, individual carers, daycare centres, and school programmes. Its authenticated household API persists providers, weekly all-day or timed arrangements with one or more children, and one-off cancellations, replacements, and moved dates. A server-side resolver returns effective occurrences for a selected date range without creating calendar events.
+Childcare Planning helps households organise recurring care arrangements provided by grandparents, individual carers, daycare centres, and school programmes. Its authenticated household API persists providers, weekly all-day or timed arrangements with one or more children, and one-off cancellations, replacements, and moved dates. A server-side resolver returns effective occurrences for a selected date range without creating calendar events. The household calendar displays resolved care with the provider, participating children, timing, and one-off adjustments. Agent chat can read explainable resolved coverage for a requested date range through a household-scoped server-side tool.
 
-Settings → Childcare supports creating, editing, deactivating, and reactivating providers; creating and editing weekly arrangements with participating children; reviewing resolved draft occurrences before saving; and cancelling, replacing, or moving a single upcoming occurrence. Recurring care and one-off changes are labelled separately.
+Settings → Childcare supports creating, editing, deactivating, and reactivating providers; creating and editing weekly arrangements with participating children; reviewing resolved draft occurrences before saving; and cancelling, replacing, or moving a single upcoming occurrence. Recurring care and one-off changes are labelled separately. The calendar shows all-day and timed resolved care in its visible two-week range. The `get_childcare_coverage` agent tool reads persisted resolved coverage; it does not make care changes.
 
-Household-calendar display, provider schedule views, and childcare agent tools remain planned; childcare is not currently available through agent chat. Parenting time, payments, booking, capacity, and attendance are outside this implementation. See [Childcare model and API](DATA_MODEL.md#childcare--implemented) and [Supabase setup](SUPABASE.md#childcare-migration).
+Provider schedule views remain planned. Parenting time, payments, booking, capacity, and attendance are outside this implementation. See [Childcare model and API](DATA_MODEL.md#childcare--implemented) and [Supabase setup](SUPABASE.md#childcare-migration).
 
 ## Planned modules
 

@@ -25,7 +25,12 @@ module.exports = async function childcare(context, req) {
       context.res = {
         status: 200,
         body: resource === "occurrences"
-          ? { occurrences: resolveOccurrences(data, request.query?.startDate, request.query?.endDate) }
+          ? {
+            occurrences: resolveOccurrences(data, request.query?.startDate, request.query?.endDate).map((occurrence) => ({
+              ...occurrence,
+              providerName: data.providers.find((provider) => provider.id === occurrence.providerId)?.name ?? null,
+            })),
+          }
           : data,
       };
       return;

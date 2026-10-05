@@ -894,6 +894,31 @@ body,
   margin-bottom: 0.3rem;
 }
 
+.childcare-calendar-card {
+  display: grid;
+  gap: 0.2rem;
+  margin-bottom: 0.35rem;
+  padding: 0.4rem 0.55rem;
+  border: 1px solid rgba(34, 197, 94, 0.48);
+  border-left: 4px solid #22c55e;
+  border-radius: 0.65rem;
+  background: rgba(34, 197, 94, 0.12);
+  overflow-wrap: anywhere;
+}
+
+.childcare-calendar-card strong {
+  color: var(--text-primary);
+}
+
+.childcare-calendar-card span,
+.childcare-calendar-card small {
+  font-size: 0.73rem;
+}
+
+.childcare-calendar-card .childcare-adjustment {
+  font-weight: 700;
+}
+
 .event-item-title {
   font-size: 0.83rem;
   white-space: nowrap;

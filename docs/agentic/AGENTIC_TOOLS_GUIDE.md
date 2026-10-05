@@ -6,6 +6,7 @@ This guide explains how to add new tools for the Agent Chat backend.
 
 - Tool registry: `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/index.js`
 - Existing tools:
+  - `/api/shared/agent/tools/getChildcareCoverageTool.js`
   - `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/addContactTool.js`
   - `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/getContactsTool.js`
   - `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/getNextBirthdayTool.js`
@@ -67,6 +68,10 @@ This guide explains how to add new tools for the Agent Chat backend.
 7. **Ground relative dates with runtime context**
    - The API appends current date/time context to instructions.
    - For date-sensitive tools, assume relative phrases may appear and validate resolved values.
+
+## Childcare coverage
+
+`get_childcare_coverage` accepts an inclusive `fromDate`/`toDate` range (at most 366 days) and returns persisted, resolved occurrences for the authenticated current household. Results include effective dates and times, provider and participating child names, plus original dates and change actions for moved or replaced occurrences. Cancellations are omitted. It is a read-only tool and does not infer parenting-time responsibility or care availability.
 
 ## Minimal template
 

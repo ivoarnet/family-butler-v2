@@ -15,8 +15,10 @@ import { EventDialog, EventDialogFormState } from "../features/dashboard/compone
 import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent, ResolvedChildcareOccurrence } from "../types/family";
 import type { Dispatch, ElementType, SetStateAction } from "react";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 interface SpecialEvent {
   id: string;
@@ -292,6 +294,8 @@ export function DashboardPage({
   const [viewingEventId, setViewingEventId] = useState<string | null>(null);
   const [eventFormState, setEventFormState] = useState<EventDialogFormState>(() => buildEventFormState(toIsoDate(new Date())));
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
+  const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
+  const [childcareLoadError, setChildcareLoadError] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
@@ -302,6 +306,42 @@ export function DashboardPage({
   const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId);
   const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
   const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, periodStart), [householdData.contacts, periodStart]);
+
+  useEffect(() => {
+    if (!householdData.householdId || !accessToken || days.length === 0) {
+      setChildcareOccurrences([]);
+      setChildcareLoadError(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const startDate = toIsoDate(days[0]);
+    const endDate = toIsoDate(days[days.length - 1]);
+    setChildcareOccurrences([]);
+    setChildcareLoadError(false);
+    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?startDate=${startDate}&endDate=${endDate}`, {
+      headers: {
+        Authorization: ["Bearer", accessToken].join(" "),
+        "x-supabase-auth-token": accessToken,
+      },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Childcare could not be loaded");
+        }
+        return response.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>;
+      })
+      .then((result) => setChildcareOccurrences(Array.isArray(result.occurrences) ? result.occurrences : []))
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setChildcareOccurrences([]);
+          setChildcareLoadError(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, [accessToken, days, householdData.householdId]);
 
   const birthdayEventsByDate = useMemo(() => {
     const grouped = new Map<string, SpecialEvent[]>();
@@ -404,6 +444,16 @@ export function DashboardPage({
     });
     return grouped;
   }, [days, householdData.events]);
+
+  const childcareByDate = useMemo(() => {
+    const grouped = new Map<string, ResolvedChildcareOccurrence[]>();
+    childcareOccurrences.forEach((occurrence) => {
+      const entries = grouped.get(occurrence.date) ?? [];
+      entries.push(occurrence);
+      grouped.set(occurrence.date, entries);
+    });
+    return grouped;
+  }, [childcareOccurrences]);
 
   const viewingEvent = useMemo(() => householdData.events.find((event) => event.id === viewingEventId) ?? null, [householdData.events, viewingEventId]);
 
@@ -706,7 +756,9 @@ export function DashboardPage({
               </button>
             </div>
             <span className="calendar-filter-status" role="status">
-              {selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
+              {childcareLoadError
+                ? "Childcare could not be loaded."
+                : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
           <div className="calendar-scroll">
@@ -803,6 +855,26 @@ export function DashboardPage({
                       })}
 
                       <td className="event-cell shared-events-column">
+                        {(childcareByDate.get(isoDate) ?? [])
+                          .filter((occurrence) => !selectedMember || occurrence.childIds.includes(selectedMember.id))
+                          .map((occurrence) => {
+                            const childNames = occurrence.childIds
+                              .map((childId) => memberById.get(childId)?.firstName)
+                              .filter((name): name is string => Boolean(name));
+                            const changeLabel = occurrence.overrideAction === "move"
+                              ? `Moved from ${occurrence.originalDate}`
+                              : occurrence.overrideAction === "replace" ? "One-off adjustment" : null;
+                            return (
+                              <div className="childcare-calendar-card" key={occurrence.id}>
+                                <strong>Childcare · {occurrence.providerName ?? "Care provider"}</strong>
+                                <small>
+                                  {occurrence.allDay ? "All day" : `${occurrence.startTime} – ${occurrence.endTime}`}
+                                </small>
+                                <span>For {childNames.join(", ") || "household children"}</span>
+                                {changeLabel && <small className="childcare-adjustment">{changeLabel}</small>}
+                              </div>
+                            );
+                          })}
                         {(eventsByDateAndMember.get(isoDate) ?? [])
                           .filter((entry) => !selectedMember || entry.memberIds.length === 0 || entry.memberIds.includes(selectedMember.id))
                           .map((entry) => (

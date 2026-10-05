@@ -46,6 +46,19 @@ export interface HouseholdEvent {
   notes?: string;
 }
 
+export interface ResolvedChildcareOccurrence {
+  id: string;
+  originalDate: string;
+  date: string;
+  providerId: string;
+  providerName: string | null;
+  childIds: string[];
+  allDay: boolean;
+  startTime: string | null;
+  endTime: string | null;
+  overrideAction: "replace" | "move" | null;
+}
+
 export type DayConfigurationCategory = "school_off" | "bank_holiday" | "bridge_day";
 
 export interface DayConfiguration {

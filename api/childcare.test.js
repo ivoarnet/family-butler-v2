@@ -5,6 +5,7 @@ const {
   validateProvider, validateArrangement, validateOverride, resolveOccurrences,
 } = require("./shared/childcare");
 const createChildcareProvider = require("./shared/db/providers/childcare");
+const createGetChildcareCoverageTool = require("./shared/agent/tools/getChildcareCoverageTool");
 
 const householdId = "00000000-0000-0000-0000-000000000001";
 const providerId = "00000000-0000-0000-0000-000000000002";
@@ -235,6 +236,24 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     assert.equal(resolved.status, 200);
     assert.equal(resolved.body.occurrences.length, 1);
     assert.equal(resolved.body.occurrences[0].originalDate, "2026-10-05");
+    assert.equal(resolved.body.occurrences[0].providerName, "Grandma");
+    const db = require("./shared/db");
+    const coverageTool = createGetChildcareCoverageTool({
+      db,
+      householdId,
+      householdState: { members: [{ id: childId, firstName: "Child" }, { id: secondChildId, firstName: "Second child" }] },
+      toClientError: (message) => Object.assign(new Error(message), { statusCode: 400 }),
+    });
+    const coverage = await coverageTool.execute({ fromDate: "2026-11-03", toDate: "2026-11-03" });
+    assert.equal(coverage.count, 1);
+    assert.equal(coverage.occurrences[0].provider, "Grandma");
+    assert.equal(coverage.occurrences[0].change, "move");
+    assert.deepEqual(coverage.occurrences[0].children.map((child) => child.name), ["Child", "Second child"]);
+    assert.equal(coverage.occurrences[0].allDay, true);
+    await assert.rejects(
+      coverageTool.execute({ fromDate: "2026-11-03", toDate: "2027-11-04" }),
+      { statusCode: 400 },
+    );
     assert.equal((await invoke("GET", "occurrences", null, {})).status, 400);
     assert.equal((await invoke("POST", "arrangements", { ...arrangement, providerId: provider.body.id, childIds: [providerId] })).status, 400);
     assert.equal((await invoke("POST", "arrangements", arrangement)).status, 400);
@@ -264,7 +283,6 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     assert.equal(householdContext.res.status, 200);
     assert.equal(householdContext.res.body.familyMembers[0].id, childId);
     assert.deepEqual(householdContext.res.body.events, []);
-    const db = require("./shared/db");
     const originalReplaceMembers = db.replaceMembers;
     db.replaceMembers = async () => { throw new Error("member participates in a childcare arrangement"); };
     try {
