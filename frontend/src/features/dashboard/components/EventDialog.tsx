@@ -247,22 +247,27 @@ export function EventDialog({
                   onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
                 />
               ) : null}
-              <FormControl>
-                <FormSelect
-                  displayEmpty
-                  value={formState.eventTypeId}
-                  onChange={(event) => onFormStateChange((current) => ({ ...current, eventTypeId: String(event.target.value) }))}
-                  inputProps={{ "aria-label": "Event type" }}
-                >
-                  <MenuItem value="">No type</MenuItem>
-                  {eventTypes.map((eventType) => (
-                    <MenuItem key={eventType.id} value={eventType.id}>
-                      {eventType.icon ? `${eventType.icon} ` : ""}
-                      {eventType.name}
-                    </MenuItem>
-                  ))}
-                </FormSelect>
-              </FormControl>
+              <FormControlLabel
+                control={
+                  <Switch
+                    checked={formState.allDay}
+                    onChange={(event) =>
+                      onFormStateChange((current) => ({
+                        ...current,
+                        allDay: event.target.checked,
+                      }))
+                    }
+                  />
+                }
+                label="All day"
+                sx={{
+                  marginLeft: 0,
+                  "& .MuiFormControlLabel-label": {
+                    color: "var(--text-primary)",
+                    fontWeight: 600,
+                  },
+                }}
+              />
               <FormControl>
                 <FormSelect
                   value={formState.repeatRule}
@@ -310,28 +315,23 @@ export function EventDialog({
           </GlassPanel>
 
           <GlassPanel>
-            <FieldTitle variant="subtitle1">Time and notes</FieldTitle>
-            <FormControlLabel
-              control={
-                <Switch
-                  checked={formState.allDay}
-                  onChange={(event) =>
-                    onFormStateChange((current) => ({
-                      ...current,
-                      allDay: event.target.checked,
-                    }))
-                  }
-                />
-              }
-              label="All day"
-              sx={{
-                marginLeft: 0,
-                "& .MuiFormControlLabel-label": {
-                  color: "var(--text-primary)",
-                  fontWeight: 600,
-                },
-              }}
-            />
+            <FieldTitle variant="subtitle1">Details</FieldTitle>
+            <FormControl>
+              <FormSelect
+                displayEmpty
+                value={formState.eventTypeId}
+                onChange={(event) => onFormStateChange((current) => ({ ...current, eventTypeId: String(event.target.value) }))}
+                inputProps={{ "aria-label": "Event type" }}
+              >
+                <MenuItem value="">No type</MenuItem>
+                {eventTypes.map((eventType) => (
+                  <MenuItem key={eventType.id} value={eventType.id}>
+                    {eventType.icon ? `${eventType.icon} ` : ""}
+                    {eventType.name}
+                  </MenuItem>
+                ))}
+              </FormSelect>
+            </FormControl>
             {!formState.allDay ? (
               <TimeSection>
                 <FormControl error={Boolean(timeErrorMessage)}>
