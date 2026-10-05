@@ -160,6 +160,16 @@ export function EventDialog({
         "& .MuiInputLabel-root": {
           color: "var(--dialog-muted)",
         },
+        "& .MuiPickersOutlinedInput-notchedOutline": {
+          borderColor: "var(--dialog-border)",
+        },
+        "& .MuiPickersOutlinedInput-root:hover .MuiPickersOutlinedInput-notchedOutline": {
+          borderColor: "var(--accent-strong)",
+        },
+        "& .MuiPickersOutlinedInput-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline": {
+          borderColor: "var(--accent-strong)",
+          boxShadow: "0 0 0 2px rgba(127, 139, 255, 0.2)",
+        },
         "& .MuiSvgIcon-root": {
           color: "var(--text-primary)",
         },
