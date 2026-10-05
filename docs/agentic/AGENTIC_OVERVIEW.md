@@ -1,6 +1,6 @@
 # Agentic Feature Overview
 
-This folder documents the planned **agentic** feature as a separate capability in Family Butler.
+This folder documents Family Butler's agent experience, its current chat and tool capabilities, and the evolving MCP architecture.
 
 ## Scope
 
