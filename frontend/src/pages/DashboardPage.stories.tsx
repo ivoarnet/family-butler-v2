@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useState } from "react";
-import { expect, userEvent, within } from "storybook/test";
+import { expect, userEvent, waitFor, within } from "storybook/test";
 import type { HouseholdData } from "../features/app/types";
 import { DashboardPage } from "./DashboardPage";
 
@@ -135,10 +135,12 @@ export const DayAndEvents: Story = {
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().width).toBe(alex.getBoundingClientRect().width);
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
-    await expect(canvas.getByText("Childcare · Grandparents")).toBeVisible();
-    await expect(canvas.getByText("For Alex, Sam")).toBeVisible();
-    await expect(canvas.getByText(`Moved from ${yesterdayDate}`)).toBeVisible();
-    await expect(canvas.getByText("15:00 – 16:00")).toBeVisible();
+    await waitFor(() => {
+      expect(canvas.getByText("Childcare · Grandparents")).toBeVisible();
+      expect(canvas.getByText("For Alex, Sam")).toBeVisible();
+      expect(canvas.getByText(`Moved from ${yesterdayDate}`)).toBeVisible();
+      expect(canvas.getByText("15:00 – 16:00")).toBeVisible();
+    });
     await expect(canvas.getByRole("button", { name: "Open event Hidden member event" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Filter events for Hidden" })).toBeNull();
     await userEvent.click(alex);
