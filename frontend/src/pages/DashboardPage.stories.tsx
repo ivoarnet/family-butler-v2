@@ -102,7 +102,18 @@ const meta: Meta<typeof DashboardStory> = {
 export default meta;
 type Story = StoryObj<typeof DashboardStory>;
 
-export const Desktop: Story = { args: { width: 1440 } };
+export const Desktop: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const todayRow = canvasElement.querySelector(".today-row")!;
+    const memberCells = todayRow.querySelectorAll(".member-event-cell");
+    await waitFor(() => {
+      expect(memberCells).toHaveLength(2);
+      expect(memberCells[0].querySelector(".calendar-childcare-entry")?.textContent).toContain("Grandparents");
+      expect(memberCells[1].querySelector(".calendar-childcare-entry")?.textContent).toContain("Grandparents");
+    });
+  },
+};
 export const DayAndEvents: Story = {
   args: { width: 800 },
   play: async ({ canvasElement }) => {
@@ -136,7 +147,7 @@ export const DayAndEvents: Story = {
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
     await waitFor(() => {
-      expect(canvas.getByText("Childcare · Grandparents")).toBeVisible();
+      expect(canvas.getByText("Grandparents")).toBeVisible();
       expect(canvas.getByText("For Alex, Sam")).toBeVisible();
       expect(canvas.getByText(`Moved from ${yesterdayDate}`)).toBeVisible();
       expect(canvas.getByText("15:00 – 16:00")).toBeVisible();

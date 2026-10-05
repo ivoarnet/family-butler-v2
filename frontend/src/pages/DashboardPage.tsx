@@ -15,7 +15,7 @@ import { EventDialog, EventDialogFormState } from "../features/dashboard/compone
 import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent, ResolvedChildcareOccurrence } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence } from "../types/family";
 import type { Dispatch, ElementType, SetStateAction } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -30,6 +30,34 @@ interface SpecialEvent {
 
 interface DayCellDecorations {
   corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: ElementType<SvgIconProps>; label: string | null }>;
+}
+
+function ChildcareCalendarEntry({
+  occurrence,
+  members,
+}: {
+  occurrence: ResolvedChildcareOccurrence;
+  members: FamilyMember[];
+}) {
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const childNames = occurrence.childIds
+    .map((childId) => memberById.get(childId)?.firstName)
+    .filter((name): name is string => Boolean(name));
+  const changeLabel = occurrence.overrideAction === "move"
+    ? `Moved from ${occurrence.originalDate}`
+    : occurrence.overrideAction === "replace" ? "One-off adjustment" : null;
+
+  return (
+    <div className="calendar-childcare-entry">
+      <span className="calendar-childcare-marker" aria-hidden="true">Care</span>
+      <span className="calendar-childcare-details">
+        <strong>{occurrence.providerName ?? "Care provider"}</strong>
+        <small>{occurrence.allDay ? "All day" : `${occurrence.startTime} – ${occurrence.endTime}`}</small>
+        <small>For {childNames.join(", ") || "household children"}</small>
+        {changeLabel && <small className="calendar-childcare-change">{changeLabel}</small>}
+      </span>
+    </div>
+  );
 }
 
 const DEMO_LOCALE = "de-CH";
@@ -831,8 +859,17 @@ export function DashboardPage({
 
                       {visibleMembers.map((member) => {
                         const entries = eventsByDateAndMember.get(`${isoDate}|${member.id}`) ?? [];
+                        const childcareEntries = (childcareByDate.get(isoDate) ?? [])
+                          .filter((occurrence) => occurrence.childIds.includes(member.id));
                         return (
                           <td key={`${isoDate}-${member.id}`} className="event-cell member-event-cell">
+                            {childcareEntries.map((occurrence) => (
+                              <ChildcareCalendarEntry
+                                key={occurrence.id}
+                                occurrence={occurrence}
+                                members={orderedMembers}
+                              />
+                            ))}
                             {entries.map((entry) => {
                               const eventType = entry.eventTypeId ? eventTypeById.get(entry.eventTypeId) : null;
                               const assignedMembers = entry.memberIds
@@ -857,24 +894,13 @@ export function DashboardPage({
                       <td className="event-cell shared-events-column">
                         {(childcareByDate.get(isoDate) ?? [])
                           .filter((occurrence) => !selectedMember || occurrence.childIds.includes(selectedMember.id))
-                          .map((occurrence) => {
-                            const childNames = occurrence.childIds
-                              .map((childId) => memberById.get(childId)?.firstName)
-                              .filter((name): name is string => Boolean(name));
-                            const changeLabel = occurrence.overrideAction === "move"
-                              ? `Moved from ${occurrence.originalDate}`
-                              : occurrence.overrideAction === "replace" ? "One-off adjustment" : null;
-                            return (
-                              <div className="childcare-calendar-card" key={occurrence.id}>
-                                <strong>Childcare · {occurrence.providerName ?? "Care provider"}</strong>
-                                <small>
-                                  {occurrence.allDay ? "All day" : `${occurrence.startTime} – ${occurrence.endTime}`}
-                                </small>
-                                <span>For {childNames.join(", ") || "household children"}</span>
-                                {changeLabel && <small className="childcare-adjustment">{changeLabel}</small>}
-                              </div>
-                            );
-                          })}
+                          .map((occurrence) => (
+                            <ChildcareCalendarEntry
+                              key={occurrence.id}
+                              occurrence={occurrence}
+                              members={orderedMembers}
+                            />
+                          ))}
                         {(eventsByDateAndMember.get(isoDate) ?? [])
                           .filter((entry) => !selectedMember || entry.memberIds.length === 0 || entry.memberIds.includes(selectedMember.id))
                           .map((entry) => (
