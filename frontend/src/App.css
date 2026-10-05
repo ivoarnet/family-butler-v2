@@ -896,56 +896,44 @@ body,
 
 .member-event-cell.has-childcare {
   position: relative;
-  padding-right: 2.5rem !important;
+  padding-top: 0.55rem !important;
 }
 
 .calendar-childcare-rail {
-  position: absolute;
-  top: 0.55rem;
-  right: 0.35rem;
-  bottom: 0.55rem;
   display: flex;
-  gap: 0.2rem;
+  flex-direction: column;
+  gap: 0.15rem;
+  margin-bottom: 0.35rem;
+  padding-bottom: 0.2rem;
+  border-bottom: 1px dotted rgba(34, 197, 94, 0.55);
 }
 
-.calendar-childcare-entry--wide {
+.calendar-childcare-entry {
   display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 1.55rem;
-  min-height: 0;
-  padding: 0.25rem 0.15rem;
-  border-right: 3px solid #22c55e;
-  border-radius: 0.3rem 0 0 0.3rem;
-  background: rgba(34, 197, 94, 0.12);
-  color: #15803d;
-  font-size: 0.7rem;
-  font-weight: 800;
-  text-align: center;
-  text-orientation: mixed;
-  writing-mode: vertical-rl;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  cursor: help;
-}
-
-.calendar-childcare-entry--compact {
-  display: block;
-  width: fit-content;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
   max-width: 100%;
   margin-bottom: 0.25rem;
-  padding: 0.18rem 0.5rem;
-  border-top: 2px solid #22c55e;
-  background: rgba(34, 197, 94, 0.1);
   color: var(--text-primary);
-  font-size: 0.72rem;
-  font-weight: 700;
   line-height: 1.25;
   overflow: hidden;
-  text-overflow: ellipsis;
   white-space: nowrap;
   cursor: help;
+}
+
+.calendar-childcare-label {
+  flex-shrink: 0;
+  color: #15803d;
+  font-size: 0.62rem;
+  font-weight: 800;
+}
+
+.calendar-childcare-entry strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
 }
 
 .event-item-title {

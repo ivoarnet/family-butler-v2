@@ -35,11 +35,9 @@ interface DayCellDecorations {
 function ChildcareCalendarEntry({
   occurrence,
   members,
-  layout,
 }: {
   occurrence: ResolvedChildcareOccurrence;
   members: FamilyMember[];
-  layout: "wide" | "compact";
 }) {
   const memberById = new Map(members.map((member) => [member.id, member]));
   const childNames = occurrence.childIds
@@ -57,11 +55,12 @@ function ChildcareCalendarEntry({
 
   return (
     <div
-      className={`calendar-childcare-entry calendar-childcare-entry--${layout}`}
+      className="calendar-childcare-entry"
       title={`${providerName} · ${details}`}
       aria-label={`Childcare: ${providerName}. ${details}`}
     >
-      {layout === "wide" ? providerName : `Care · ${providerName}`}
+      <span className="calendar-childcare-label" aria-hidden="true">CARE</span>
+      <strong>{providerName}</strong>
     </div>
   );
 }
@@ -879,7 +878,6 @@ export function DashboardPage({
                                     key={occurrence.id}
                                     occurrence={occurrence}
                                     members={orderedMembers}
-                                    layout="wide"
                                   />
                                 ))}
                               </div>
@@ -913,7 +911,6 @@ export function DashboardPage({
                               key={occurrence.id}
                               occurrence={occurrence}
                               members={orderedMembers}
-                              layout="compact"
                             />
                           ))}
                         {(eventsByDateAndMember.get(isoDate) ?? [])

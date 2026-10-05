@@ -109,9 +109,11 @@ export const Desktop: Story = {
     const memberCells = todayRow.querySelectorAll(".member-event-cell");
     await waitFor(() => {
       expect(memberCells).toHaveLength(2);
-      expect(memberCells[0].querySelector(".calendar-childcare-entry--wide")?.textContent).toContain("Grandparents");
-      expect(memberCells[1].querySelector(".calendar-childcare-entry--wide")?.textContent).toContain("Grandparents");
-      expect(memberCells[0].querySelector(".calendar-childcare-entry--wide")?.getAttribute("title")).toContain("All day");
+      const firstChildcare = memberCells[0].querySelector(".calendar-childcare-entry");
+      expect(firstChildcare?.textContent).toBe("CAREGGrandparents");
+      expect(memberCells[1].querySelector(".calendar-childcare-entry")?.textContent).toBe("CAREGGrandparents");
+      expect(firstChildcare?.getAttribute("title")).toContain("All day");
+      expect(firstChildcare?.textContent).not.toContain("For Alex");
     });
   },
 };
@@ -148,10 +150,12 @@ export const DayAndEvents: Story = {
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
     await waitFor(() => {
-      expect(canvas.getByText("Care · Grandparents")).toBeVisible();
-      expect(canvas.getByText("Care · Daycare")).toBeVisible();
-      expect(canvas.getByText("Care · Grandparents").getAttribute("title")).toContain("For Alex, Sam");
-      expect(canvas.getByText("Care · Grandparents").getAttribute("title")).toContain(`Moved from ${yesterdayDate}`);
+      const entry = canvas.getByText("Grandparents").closest(".calendar-childcare-entry");
+      expect(entry).toBeVisible();
+      expect(entry?.textContent).toBe("CAREGGrandparents");
+      expect(entry?.getAttribute("title")).toContain("For Alex, Sam");
+      expect(entry?.getAttribute("title")).toContain(`Moved from ${yesterdayDate}`);
+      expect(canvas.getByText("Daycare").closest(".calendar-childcare-entry")?.textContent).toBe("CAREGDaycare");
     });
     await expect(canvas.getByRole("button", { name: "Open event Hidden member event" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Filter events for Hidden" })).toBeNull();
