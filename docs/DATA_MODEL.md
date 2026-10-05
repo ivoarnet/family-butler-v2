@@ -44,7 +44,7 @@ Childcare is separate from `Event` records. Apply `docs/sql/childcare.sql` after
 - All-day care has null times. Timed care requires increasing same-day `HH:MM` times. Overnight care is not supported. Dates and times are household-local wall-clock values, not UTC instants; the resolver uses UTC date arithmetic only to avoid timezone/DST drift.
 - This first iteration deliberately supports simple weekly recurrence rather than RRULE parsing, alternating weeks, or holiday exclusions. Special days do not automatically cancel care.
 
-Composite foreign keys enforce same-household providers and arrangements. SQL triggers validate household children and override source dates. Deleting or transferring a referenced member is rejected until its childcare arrangements are removed; household deletion still cascades. Childcare RLS allows authenticated household owners only, matching `households.created_by_user_id`. Azure Functions additionally authenticate and check ownership before accessing the server-side provider.
+Composite foreign keys enforce same-household providers and arrangements. SQL triggers validate household children and override source dates. Child validation and member deletion/transfer share a household-level transaction lock to prevent concurrent writes from leaving dangling references. Deleting or transferring a referenced member is rejected until its childcare arrangements are removed; household deletion still cascades. Childcare RLS allows authenticated household owners only, matching `households.created_by_user_id`. Azure Functions additionally authenticate and check ownership before accessing the server-side provider.
 
 ### API
 

@@ -67,6 +67,8 @@ create table if not exists public.childcare_overrides (
 create or replace function public.validate_childcare_children()
 returns trigger language plpgsql set search_path = public as $$
 begin
+  -- Serialize child-reference validation with member deletion/transfer in this household.
+  perform pg_advisory_xact_lock(hashtextextended(new.household_id::text, 0));
   if exists (
     select 1 from unnest(new.child_ids) child_id
     where not exists (
@@ -88,8 +90,11 @@ for each row execute function public.validate_childcare_children();
 create or replace function public.protect_childcare_member()
 returns trigger language plpgsql set search_path = public as $$
 begin
-  if (tg_op = 'DELETE' or new.household_id <> old.household_id or new.id <> old.id)
-    and exists (select 1 from public.households where id = old.household_id)
+  if tg_op <> 'DELETE' and new.household_id = old.household_id and new.id = old.id then
+    return new;
+  end if;
+  perform pg_advisory_xact_lock(hashtextextended(old.household_id::text, 0));
+  if exists (select 1 from public.households where id = old.household_id)
     and exists (
       select 1 from public.childcare_arrangements
       where household_id = old.household_id and old.id = any(child_ids)
