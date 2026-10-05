@@ -1,7 +1,7 @@
 const db = require("../shared/db");
 const { getAuthenticatedUserId } = require("../shared/auth");
 const {
-  assert, validateId, validateProvider, validateArrangement, validateOverride, resolveOccurrences,
+  assert, validateId, validateProvider, validateArrangement, validateOverride, resolveOccurrences, isScheduled,
 } = require("../shared/childcare");
 
 module.exports = async function childcare(context, req) {
@@ -30,20 +30,45 @@ module.exports = async function childcare(context, req) {
       };
       return;
     }
-    if ((method === "POST" && ["providers", "arrangements"].includes(resource))
-      || (method === "PUT" && resource === "overrides")) {
+    if ((method === "POST" && ["providers", "arrangements", "preview"].includes(resource))
+      || (method === "PUT" && ["providers", "arrangements", "overrides"].includes(resource))) {
       const body = request.body;
       assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
       let result;
       if (resource === "providers") {
-        result = await db.createChildcareProvider(householdId, validateProvider(body));
+        const provider = validateProvider(body);
+        result = method === "PUT"
+          ? await db.updateChildcareProvider(householdId, validateId(body.id, "id"), provider)
+          : await db.createChildcareProvider(householdId, provider);
       } else {
         const data = await db.getChildcare(householdId);
-        result = resource === "arrangements"
-          ? await db.createChildcareArrangement(householdId, validateArrangement(body, data.providers, household.memberIds))
-          : await db.saveChildcareOverride(householdId, validateOverride(body, data.arrangements, data.providers));
+        if (resource === "overrides") {
+          result = await db.saveChildcareOverride(householdId, validateOverride(body, data.arrangements, data.providers));
+        } else {
+          const draft = resource === "preview" ? body.arrangement : body;
+          assert(draft && typeof draft === "object" && !Array.isArray(draft), "arrangement object is required");
+          const arrangement = validateArrangement(draft, data.providers, household.memberIds);
+          const id = method === "PUT" || (resource === "preview" && draft.id != null)
+            ? validateId(draft.id, "id") : null;
+          if (id) {
+            assert(data.arrangements.some((item) => item.id === id), "arrangement is not part of this household");
+            assert(data.overrides.filter((item) => item.arrangementId === id)
+              .every((item) => isScheduled(arrangement, item.originalDate)),
+            "schedule change would remove an occurrence with a one-off change; keep its weekday and effective dates");
+          }
+          if (resource === "preview") {
+            result = { occurrences: resolveOccurrences({
+              arrangements: [{ ...arrangement, id: id ?? "preview", householdId }],
+              overrides: id ? data.overrides.filter((item) => item.arrangementId === id) : [],
+            }, body.startDate, body.endDate) };
+          } else {
+            result = method === "PUT"
+              ? await db.updateChildcareArrangement(householdId, id, arrangement)
+              : await db.createChildcareArrangement(householdId, arrangement);
+          }
+        }
       }
-      context.res = { status: method === "POST" ? 201 : 200, body: result };
+      context.res = { status: method === "POST" && resource !== "preview" ? 201 : 200, body: result };
       return;
     }
     context.res = { status: 405, body: { error: "method or childcare resource not supported" } };
