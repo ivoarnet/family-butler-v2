@@ -41,6 +41,17 @@ const TimeSection = styled(Box)(({ theme }) => ({
   },
 }));
 
+const TimeControlsSection = styled(Box)(({ theme }) => ({
+  display: "grid",
+  alignItems: "center",
+  gap: theme.spacing(2),
+  gridColumn: "1 / -1",
+  gridTemplateColumns: "auto minmax(0, 1fr)",
+  [theme.breakpoints.down("sm")]: {
+    gridTemplateColumns: "1fr",
+  },
+}));
+
 const FullWidthField = styled(FormField)({
   gridColumn: "1 / -1",
 });
@@ -247,27 +258,57 @@ export function EventDialog({
                   onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
                 />
               ) : null}
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={formState.allDay}
-                    onChange={(event) =>
-                      onFormStateChange((current) => ({
-                        ...current,
-                        allDay: event.target.checked,
-                      }))
-                    }
-                  />
-                }
-                label="All day"
-                sx={{
-                  marginLeft: 0,
-                  "& .MuiFormControlLabel-label": {
-                    color: "var(--text-primary)",
-                    fontWeight: 600,
-                  },
-                }}
-              />
+              <TimeControlsSection>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={formState.allDay}
+                      onChange={(event) =>
+                        onFormStateChange((current) => ({
+                          ...current,
+                          allDay: event.target.checked,
+                        }))
+                      }
+                    />
+                  }
+                  label="All day"
+                  sx={{
+                    marginLeft: 0,
+                    "& .MuiFormControlLabel-label": {
+                      color: "var(--text-primary)",
+                      fontWeight: 600,
+                    },
+                  }}
+                />
+                {!formState.allDay ? (
+                  <TimeSection>
+                    <FormControl error={Boolean(timeErrorMessage)}>
+                      <MobileTimePicker
+                        ampm={false}
+                        views={["hours", "minutes"]}
+                        minutesStep={5}
+                        format="HH:mm"
+                        label="Begin"
+                        value={parseTimeValue(formState.startTime)}
+                        onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
+                        slotProps={timePickerSlotProps}
+                      />
+                    </FormControl>
+                    <FormControl error={Boolean(timeErrorMessage)}>
+                      <MobileTimePicker
+                        ampm={false}
+                        views={["hours", "minutes"]}
+                        minutesStep={5}
+                        format="HH:mm"
+                        label="End"
+                        value={parseTimeValue(formState.endTime)}
+                        onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
+                        slotProps={timePickerSlotProps}
+                      />
+                    </FormControl>
+                  </TimeSection>
+                ) : null}
+              </TimeControlsSection>
               <FormControl>
                 <FormSelect
                   value={formState.repeatRule}
@@ -332,34 +373,6 @@ export function EventDialog({
                 ))}
               </FormSelect>
             </FormControl>
-            {!formState.allDay ? (
-              <TimeSection>
-                <FormControl error={Boolean(timeErrorMessage)}>
-                  <MobileTimePicker
-                    ampm={false}
-                    views={["hours", "minutes"]}
-                    minutesStep={5}
-                    format="HH:mm"
-                    label="Begin"
-                    value={parseTimeValue(formState.startTime)}
-                    onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
-                    slotProps={timePickerSlotProps}
-                  />
-                </FormControl>
-                <FormControl error={Boolean(timeErrorMessage)}>
-                  <MobileTimePicker
-                    ampm={false}
-                    views={["hours", "minutes"]}
-                    minutesStep={5}
-                    format="HH:mm"
-                    label="End"
-                    value={parseTimeValue(formState.endTime)}
-                    onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
-                    slotProps={timePickerSlotProps}
-                  />
-                </FormControl>
-              </TimeSection>
-            ) : null}
             <FormField
               label="Location"
               slotProps={{ inputLabel: { shrink: true } }}
