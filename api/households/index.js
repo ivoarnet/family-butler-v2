@@ -509,7 +509,7 @@ module.exports = async function households(context, req) {
       || message.includes("invalid")
       || message.includes("must be on or after")
       ? 400
-      : message.includes("already exists")
+      : message.includes("already exists") || message.includes("participates in a childcare arrangement")
       ? 409
       : message.includes("not authorized")
       ? 403
