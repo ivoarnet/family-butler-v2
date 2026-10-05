@@ -1,6 +1,12 @@
 # family-butler-v2
 
-Monorepo scaffold for a React frontend + Azure Functions backend using Supabase (PostgreSQL) as the database.
+Family Butler helps households coordinate the people, relationships, and plans that make up family life. Its core capabilities include household and member management, contacts and birthdays, a shared calendar of household events, and calendar day annotations.
+
+Family Butler is agent-first: agents are intended to be the primary way people access and manage functionality across the product. The current web app also provides direct interfaces, and the agent can already help with selected contacts, events, birthdays, and day configurations; agent coverage will grow with the product.
+
+The product is organized around modules. The core household and calendar capabilities are implemented; **Daycare** is the next planned module, and **Parenting Time** is planned for later. See the [product overview](docs/PRODUCT_OVERVIEW.md) for current capabilities, module descriptions, status, and guidance for documenting future modules.
+
+This repository contains the React frontend, Azure Functions backend, and Supabase (PostgreSQL) data layer.
 
 ## Stack
 
@@ -103,7 +109,7 @@ Use `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md` for t
 
 ## Agentic feature architecture docs
 
-For the planned agent chat + MCP functionality, see:
+For the agent experience, current tool guidance, and MCP architecture, see:
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_OVERVIEW.md`
 - `/home/runner/work/family-butler-v2/family-butler-v2/docs/agentic/AGENTIC_CHAT_ARCHITECTURE.md`

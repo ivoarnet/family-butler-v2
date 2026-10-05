@@ -44,3 +44,9 @@
 - After UI changes, create and include at least one updated screenshot in the PR comment.
 - Document UI screenshot-related updates in the changelog.
 - If CI/build issues are reported, inspect workflow runs and logs before changing code.
+
+## Product module documentation
+
+- Treat `/home/runner/work/family-butler-v2/family-butler-v2/docs/PRODUCT_OVERVIEW.md` as the canonical product/module index.
+- When changing module scope or status, update that overview and any focused module document under `/home/runner/work/family-butler-v2/family-butler-v2/docs/modules/`.
+- Keep planned capabilities distinct from shipped behavior, including which workflows are currently available through agents.
