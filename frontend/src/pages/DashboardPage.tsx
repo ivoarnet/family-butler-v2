@@ -1,7 +1,7 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
-import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
+import ChildCareIcon from "@mui/icons-material/ChildCare";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -35,9 +35,11 @@ interface DayCellDecorations {
 function ChildcareCalendarEntry({
   occurrence,
   members,
+  className,
 }: {
   occurrence: ResolvedChildcareOccurrence;
   members: FamilyMember[];
+  className?: string;
 }) {
   const memberById = new Map(members.map((member) => [member.id, member]));
   const childNames = occurrence.childIds
@@ -55,11 +57,11 @@ function ChildcareCalendarEntry({
 
   return (
     <div
-      className="calendar-childcare-entry"
+      className={`calendar-childcare-entry ${className ?? ""}`.trim()}
       title={`${providerName} · ${details}`}
       aria-label={`Childcare: ${providerName}. ${details}`}
     >
-      <span className="calendar-childcare-label" aria-hidden="true">CARE</span>
+      <ChildCareIcon className="calendar-childcare-icon" fontSize="small" aria-hidden="true" />
       <strong>{providerName}</strong>
     </div>
   );
@@ -811,14 +813,7 @@ export function DashboardPage({
                     </th>
                   ))}
                   <th className="shared-events-column" scope="col">Events</th>
-                  <th className="birthday-column-header">
-                    <div className="member-header">
-                      <span className="avatar avatar-birthday">
-                        <CakeRoundedIcon fontSize="small" />
-                      </span>
-                      <span>Birthdays</span>
-                    </div>
-                  </th>
+                  <th className="specials-column-header" scope="col">Specials</th>
                 </tr>
               </thead>
               <tbody>
@@ -911,6 +906,7 @@ export function DashboardPage({
                               key={occurrence.id}
                               occurrence={occurrence}
                               members={orderedMembers}
+                              className="calendar-childcare-entry--compact-only"
                             />
                           ))}
                         {(eventsByDateAndMember.get(isoDate) ?? [])
@@ -927,12 +923,20 @@ export function DashboardPage({
                           ))}
                         {birthdayEntries.map((entry) => (
                           <span className="birthday-item" key={entry.id}>
-                            <CakeRoundedIcon fontSize="inherit" aria-hidden="true" /> Birthday: {formatBirthdayLabel(entry)}
+                            Birthday: {formatBirthdayLabel(entry)}
                           </span>
                         ))}
                       </td>
 
-                      <td className="birthday-cell">
+                      <td className="specials-cell">
+                        {(childcareByDate.get(isoDate) ?? []).map((occurrence) => (
+                          <ChildcareCalendarEntry
+                            key={occurrence.id}
+                            occurrence={occurrence}
+                            members={orderedMembers}
+                            className="calendar-childcare-entry--specials"
+                          />
+                        ))}
                         {birthdayEntries.map((entry) => (
                           <span className="birthday-item" key={entry.id}>
                             {formatBirthdayLabel(entry)}

@@ -639,8 +639,8 @@ body,
   background: var(--surface-strong);
 }
 
-.birthday-column-header,
-.birthday-cell {
+.specials-column-header,
+.specials-cell {
   width: 11rem;
 }
 
@@ -738,9 +738,13 @@ body,
   .calendar-grid .week-number-cell,
   .calendar-grid .member-column-header,
   .calendar-grid .member-event-cell,
-  .calendar-grid .birthday-column-header,
-  .calendar-grid .birthday-cell {
+  .calendar-grid .specials-column-header,
+  .calendar-grid .specials-cell {
     display: none;
+  }
+
+  .calendar-grid .calendar-childcare-entry--compact-only {
+    display: flex;
   }
 
   .calendar-grid .shared-events-column {
@@ -922,11 +926,10 @@ body,
   cursor: help;
 }
 
-.calendar-childcare-label {
+.calendar-childcare-icon {
   flex-shrink: 0;
   color: #15803d;
-  font-size: 0.62rem;
-  font-weight: 800;
+  font-size: 1rem !important;
 }
 
 .calendar-childcare-entry strong {
@@ -934,6 +937,16 @@ body,
   overflow: hidden;
   font-size: 0.75rem;
   text-overflow: ellipsis;
+}
+
+.calendar-childcare-entry--compact-only {
+  display: none;
+}
+
+.calendar-childcare-entry--specials {
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px dotted rgba(34, 197, 94, 0.55);
 }
 
 .event-item-title {

@@ -110,10 +110,16 @@ export const Desktop: Story = {
     await waitFor(() => {
       expect(memberCells).toHaveLength(2);
       const firstChildcare = memberCells[0].querySelector(".calendar-childcare-entry");
-      expect(firstChildcare?.textContent).toBe("CAREGGrandparents");
-      expect(memberCells[1].querySelector(".calendar-childcare-entry")?.textContent).toBe("CAREGGrandparents");
+      expect(firstChildcare?.textContent).toBe("Grandparents");
+      expect(firstChildcare?.querySelector(".calendar-childcare-icon")).not.toBeNull();
       expect(firstChildcare?.getAttribute("title")).toContain("All day");
       expect(firstChildcare?.textContent).not.toContain("For Alex");
+      const specialsCell = todayRow.querySelector(".specials-cell")!;
+      expect(specialsCell.querySelector(".calendar-childcare-entry")?.textContent).toBe("Grandparents");
+      expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Taylor"));
+      expect(canvasElement.querySelector(".specials-column-header")?.textContent).toBe("Specials");
+      expect(canvasElement.querySelector(".specials-column-header svg")).toBeNull();
+      expect(todayRow.querySelector(".shared-events-column .calendar-childcare-entry")).not.toBeVisible();
     });
   },
 };
@@ -150,12 +156,16 @@ export const DayAndEvents: Story = {
     await expect(alex.querySelector(".avatar")?.getBoundingClientRect().height).toBe(alex.getBoundingClientRect().height);
     await expect(events()).toHaveLength(1);
     await waitFor(() => {
-      const entry = canvas.getByText("Grandparents").closest(".calendar-childcare-entry");
+      const sharedEvents = canvasElement.querySelector(".today-row .shared-events-column")!;
+      const entries = sharedEvents.querySelectorAll(".calendar-childcare-entry--compact-only");
+      const entry = entries[0];
       expect(entry).toBeVisible();
-      expect(entry?.textContent).toBe("CAREGGrandparents");
+      expect(entry?.textContent).toBe("Grandparents");
+      expect(entry?.querySelector(".calendar-childcare-icon")).not.toBeNull();
       expect(entry?.getAttribute("title")).toContain("For Alex, Sam");
       expect(entry?.getAttribute("title")).toContain(`Moved from ${yesterdayDate}`);
-      expect(canvas.getByText("Daycare").closest(".calendar-childcare-entry")?.textContent).toBe("CAREGDaycare");
+      expect(entries[1]?.textContent).toBe("Daycare");
+      expect(sharedEvents.textContent.indexOf("Grandparents")).toBeLessThan(sharedEvents.textContent.indexOf("Birthday: Taylor"));
     });
     await expect(canvas.getByRole("button", { name: "Open event Hidden member event" })).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Filter events for Hidden" })).toBeNull();
