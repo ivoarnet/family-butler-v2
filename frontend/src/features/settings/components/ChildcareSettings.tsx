@@ -41,19 +41,6 @@ const validDate = (date: string) => /^\d{4}-\d{2}-\d{2}$/.test(date) && !date.st
   && Number.isFinite(Date.parse(`${date}T00:00:00Z`)) && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
 const validRange = (start: string, end: string) => validDate(start) && validDate(end) && end >= start
   && (Date.parse(end) - Date.parse(start)) / 86400000 < 366;
-const presetRange = (preset: "week" | "month" | "upcoming") => {
-  const start = new Date();
-  const end = new Date(start);
-  if (preset === "week") {
-    start.setDate(start.getDate() - ((start.getDay() + 6) % 7));
-    end.setTime(start.getTime());
-    end.setDate(end.getDate() + 6);
-  } else if (preset === "month") {
-    start.setDate(1);
-    end.setMonth(end.getMonth() + 1, 0);
-  } else end.setDate(end.getDate() + 29);
-  return { startDate: localDate(start), endDate: localDate(end) };
-};
 const validTiming = (item: Timing) => item.allDay || (
   /^([01]\d|2[0-3]):[0-5]\d$/.test(item.startTime ?? "") &&
   /^([01]\d|2[0-3]):[0-5]\d$/.test(item.endTime ?? "") && item.startTime! < item.endTime!
@@ -303,13 +290,6 @@ export function ChildcareSettings({ householdId, members, request }: {
           <MenuItem value="list">List</MenuItem>
           <MenuItem value="calendar">Calendar</MenuItem>
         </FormField>
-      </Stack>
-      <Stack direction="row" spacing={1} useFlexGap sx={{ flexWrap: "wrap" }}>
-        {([["week", "This week"], ["month", "This month"], ["upcoming", "Upcoming 30 days"]] as const).map(([preset, label]) =>
-          <Button key={preset} disabled={disabled} onClick={() => {
-            const dates = presetRange(preset);
-            setRange(dates); setPreview(null); setError(""); void load(dates);
-          }}>{label}</Button>)}
       </Stack>
       <Stack component="form" direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }} onSubmit={(event) => {
         event.preventDefault();

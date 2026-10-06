@@ -202,16 +202,12 @@ export const ProviderSchedule: Story = {
     await expect(canvas.getByText("No care occurrences in this range.")).toBeInTheDocument();
     await chooseScheduleOption(canvasElement, "Schedule view", "List");
     await expect(canvas.queryByRole("table", { name: "Childcare occurrences" })).not.toBeInTheDocument();
-    for (const [label, days] of [["This week", 7], ["Upcoming 30 days", 30]] as const) {
-      await userEvent.click(canvas.getByRole("button", { name: label }));
-      await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
-      const start = (canvas.getByLabelText("Range start") as HTMLInputElement).value;
-      const end = (canvas.getByLabelText("Range end") as HTMLInputElement).value;
-      await expect((Date.parse(end) - Date.parse(start)) / 86400000 + 1).toBe(days);
+    for (const label of ["This week", "This month", "Upcoming 30 days"]) {
+      await expect(canvas.queryByRole("button", { name: label })).not.toBeInTheDocument();
+      await expect(canvas.queryByRole("link", { name: label })).not.toBeInTheDocument();
     }
-    await userEvent.click(canvas.getByRole("button", { name: "This month" }));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
-    await expect((canvas.getByLabelText("Range start") as HTMLInputElement).value).toBe(`${date().slice(0, 7)}-01`);
+    await expect(canvas.getByLabelText("Range start")).toHaveValue("2026-10-01");
+    await expect(canvas.getByLabelText("Range end")).toHaveValue("2026-10-31");
     await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2020-01-01" } });
     await expect(canvas.getByRole("button", { name: "Show care" })).toBeDisabled();
     await showOctoberSchedule(canvasElement);
