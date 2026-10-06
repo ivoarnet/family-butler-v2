@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Defaulted childcare schedules to List with a three-calendar-month range starting today. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/provider-childcare-defaults.png`.
+
 - Added provider-centred resolved childcare lists and calendars in Settings, including inactive providers, custom date ranges, shared children, and effective one-off changes. Removed date-preset links in favour of the range controls. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/provider-childcare-schedule.png`.
 
 - Added an arrangement-specific one-off action to add childcare on an unscheduled date without changing the weekly arrangement. Updated Settings screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-childcare.png`.

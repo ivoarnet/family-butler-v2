@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import dayjs from "dayjs";
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
@@ -29,11 +30,7 @@ const providerTypes = [
 ];
 const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const today = () => localDate(new Date());
-const defaultEnd = () => {
-  const end = new Date();
-  end.setDate(end.getDate() + 27);
-  return localDate(end);
-};
+const defaultEnd = () => dayjs().add(3, "month").subtract(1, "day").format("YYYY-MM-DD");
 const emptyData: ChildcareData = { providers: [], arrangements: [], overrides: [] };
 const timingText = (item: Timing) => item.allDay ? "All day" : `${item.startTime}–${item.endTime}`;
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Childcare request failed. Please try again.";

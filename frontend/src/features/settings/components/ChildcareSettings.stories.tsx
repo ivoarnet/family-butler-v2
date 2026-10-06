@@ -305,8 +305,18 @@ export const LocalDateDefaults: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await canvas.findByRole("table", { name: "Childcare occurrences" });
+    const end = new Date();
+    const day = end.getDate();
+    end.setDate(1);
+    end.setMonth(end.getMonth() + 3);
+    const lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
+    end.setDate(Math.min(day, lastDay) - 1);
+    const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
     await expect(canvas.getByLabelText("Range start")).toHaveValue(date());
-    await expect(canvas.getByLabelText("Range end")).toHaveValue(date(27));
+    await expect(canvas.getByLabelText("Range end")).toHaveValue(endDate);
+    await expect(canvas.getByRole("combobox", { name: "Schedule view" })).toHaveTextContent("List");
+    await expect(canvas.queryByRole("table", { name: /Provider care calendar/ })).not.toBeInTheDocument();
+    await expect(calls.mock.calls.some(([path]) => String(path).includes(`/occurrences?startDate=${date()}&endDate=${endDate}`))).toBe(true);
   },
 };
 export const HistoricalCareReadOnly: Story = {
@@ -442,18 +452,18 @@ export const FutureArrangementPreviewRange: Story = {
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
     await userEvent.click(dialog.getByRole("checkbox", { name: "Alex" }));
     await userEvent.click(dialog.getByRole("checkbox", { name: "Monday" }));
-    await fireEvent.change(dialog.getByLabelText(/Effective start/), { target: { value: date(60) } });
+    await fireEvent.change(dialog.getByLabelText(/Effective start/), { target: { value: date(120) } });
     await userEvent.click(dialog.getByRole("button", { name: "Preview care" }));
     await dialog.findByText("No care occurrences in this range.");
     await waitFor(() => expect(dialog.getByRole("button", { name: "Save arrangement" })).toBeEnabled());
-    await fireEvent.change(dialog.getByLabelText("Preview start"), { target: { value: date(60) } });
-    await fireEvent.change(dialog.getByLabelText("Preview end"), { target: { value: date(87) } });
+    await fireEvent.change(dialog.getByLabelText("Preview start"), { target: { value: date(120) } });
+    await fireEvent.change(dialog.getByLabelText("Preview end"), { target: { value: date(147) } });
     await expect(dialog.getByRole("button", { name: "Save arrangement" })).toBeDisabled();
     await userEvent.click(dialog.getByRole("button", { name: "Preview care" }));
     await dialog.findByRole("table", { name: "Childcare preview" });
     const previews = calls.mock.calls.filter(([path]) => String(path).endsWith("/preview"));
     await expect(JSON.parse(previews[previews.length - 1][1].body)).toMatchObject({
-      startDate: date(60), endDate: date(87), arrangement: { startDate: date(60) },
+      startDate: date(120), endDate: date(147), arrangement: { startDate: date(120) },
     });
     await userEvent.click(dialog.getByRole("button", { name: "Save arrangement" }));
     await canvas.findByRole("table", { name: "Childcare arrangements" });
