@@ -12,7 +12,7 @@ const members = [
 ];
 const calls = fn();
 
-function ParentingTimeStory() {
+function ParentingTimeStory({ withPlan = false }: { withPlan?: boolean }) {
   const request = useMemo(() => {
     const data: {
       parties: Array<{ id: string; name: string; memberId: string | null; active: boolean }>;
@@ -23,7 +23,16 @@ function ParentingTimeStory() {
         { id: fatherId, name: "Dad", memberId: fatherId, active: true },
         { id: motherId, name: "Mum", memberId: motherId, active: true },
       ],
-      plan: null,
+      plan: withPlan ? {
+        id: "00000000-0000-0000-0000-000000000006",
+        effectiveFrom: "2026-01-01",
+        effectiveTo: null,
+        timeZone: "Europe/Zurich",
+        recurrenceMode: "alternating",
+        rules: [],
+        handovers: [],
+        active: true,
+      } : null,
       changes: [],
     };
     return (async (path, init = {}) => {
@@ -54,7 +63,7 @@ function ParentingTimeStory() {
       }
       return structuredClone(data);
     }) as ParentingTimeRequest;
-  }, []);
+  }, [withPlan]);
   return <div className="app-shell" style={{ padding: 24 }}>
     <section className="settings-section">
       <ParentingTimeSettings householdId={householdId} members={members} request={request} />
@@ -111,5 +120,24 @@ export const HouseholdPlan: Story = {
     const changeDialog = page.getByRole("dialog", { name: "Add change for this period" });
     await expect(changeDialog).toBeInTheDocument();
     await userEvent.click(within(changeDialog).getByRole("button", { name: "Cancel" }));
+  },
+};
+
+export const ChangeDateTimePicker: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Add change" })).toBeEnabled());
+    await userEvent.click(canvas.getByRole("button", { name: "Add change" }));
+    const changeDialog = within(page.getByRole("dialog", { name: "Add change for this period" }));
+    await expect(changeDialog.getByRole("textbox", { name: "From" })).toBeInTheDocument();
+    await expect(changeDialog.getByRole("textbox", { name: "Until" })).toBeInTheDocument();
+    await userEvent.click(changeDialog.getByRole("button", { name: "pick date" }));
+    await waitFor(() => expect(page.getByRole("grid")).toBeInTheDocument());
+    expect(page.getAllByRole("columnheader").slice(0, 7).map((header) => header.getAttribute("aria-label")))
+      .toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
+    await userEvent.click(page.getByRole("button", { name: "pick time" }));
+    await expect(page.getByRole("option", { name: "13 hours" })).toBeInTheDocument();
   },
 };

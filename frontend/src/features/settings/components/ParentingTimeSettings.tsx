@@ -1,10 +1,15 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
+import { Alert, Box, Button, Checkbox, Chip, FormControl, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import dayjs, { type Dayjs } from "dayjs";
+import "dayjs/locale/en-gb";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { MobileDateTimePicker } from "@mui/x-date-pickers/MobileDateTimePicker";
 import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton,
 } from "../../../shared/ui/GlassFormDialog";
@@ -53,6 +58,8 @@ const dateTimeInput = (value?: string) => {
   const date = new Date(value);
   return `${localDate(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 };
+const pickerDateTime = (value: string) => value ? dayjs(value) : null;
+const dateTimePickerValue = (value: Dayjs | null) => value?.isValid() ? value.format("YYYY-MM-DDTHH:mm") : "";
 const toIso = (value: string) => new Date(value).toISOString();
 const formatInterval = (value: string) => new Intl.DateTimeFormat(undefined, {
   weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
@@ -82,6 +89,47 @@ const selectMenuProps = {
     },
   },
 };
+const dateTimePickerSlotProps = {
+  textField: {
+    fullWidth: true,
+    sx: {
+      "& .MuiPickersOutlinedInput-root": {
+        minHeight: 52,
+        borderRadius: "12px",
+        background: "var(--dialog-field)",
+        color: "var(--text-primary)",
+      },
+      "& .MuiInputLabel-root": { color: "var(--dialog-muted)" },
+      "& .MuiInputLabel-root.Mui-focused": { color: "var(--accent-strong)" },
+      "& .MuiPickersOutlinedInput-notchedOutline": { borderColor: "var(--dialog-border)" },
+      "& .MuiPickersOutlinedInput-root:hover .MuiPickersOutlinedInput-notchedOutline": {
+        borderColor: "var(--accent-strong)",
+      },
+      "& .MuiPickersOutlinedInput-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline": {
+        borderColor: "var(--accent-strong)",
+        boxShadow: "0 0 0 2px rgba(127, 139, 255, 0.2)",
+      },
+      "& .MuiSvgIcon-root": { color: "var(--text-primary)" },
+    },
+  },
+  mobilePaper: {
+    sx: {
+      background: "var(--dialog-surface)",
+      color: "var(--text-primary)",
+      border: "1px solid var(--dialog-border)",
+    },
+  },
+  layout: {
+    sx: {
+      "& .MuiTypography-root, & .MuiClockNumber-root, & .MuiClockPointer-thumb, & .MuiClock-pin": {
+        color: "var(--text-primary)",
+      },
+      "& .MuiPickersArrowSwitcher-button .MuiSvgIcon-root, & .MuiButton-root, & .MuiIconButton-root .MuiSvgIcon-root": {
+        color: "var(--text-primary)",
+      },
+    },
+  },
+} as const;
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
   && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
   && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -433,8 +481,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           </div></td>
         </tr>)}</tbody>
       </table></div>
-      <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
-        aria-labelledby="parenting-change-title" maxWidth="sm" fullWidth>
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
+        <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
+          aria-labelledby="parenting-change-title" maxWidth="sm" fullWidth>
         {changeDraft && <Box component="form" onSubmit={saveChange}>
           <DialogHeader><Typography id="parenting-change-title" variant="h6">
             {changeDraft.id ? "Edit change for this period" : "Add change for this period"}
@@ -449,12 +498,18 @@ export function ParentingTimeSettings({ householdId, members, request }: {
               {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
             </FormField>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <FormField required label="From" type="datetime-local" value={changeDraft.startAt}
-                slotProps={{ inputLabel: { shrink: true } }}
-                onChange={(event) => setChangeDraft({ ...changeDraft, startAt: event.target.value })} />
-              <FormField required label="Until" type="datetime-local" value={changeDraft.endAt}
-                slotProps={{ inputLabel: { shrink: true } }}
-                onChange={(event) => setChangeDraft({ ...changeDraft, endAt: event.target.value })} />
+              <FormControl fullWidth>
+                <MobileDateTimePicker label="From" ampm={false} views={["day", "hours", "minutes"]}
+                  minutesStep={5} format="DD.MM.YYYY HH:mm" value={pickerDateTime(changeDraft.startAt)}
+                  onChange={(value) => setChangeDraft({ ...changeDraft, startAt: dateTimePickerValue(value) })}
+                  slotProps={dateTimePickerSlotProps} />
+              </FormControl>
+              <FormControl fullWidth>
+                <MobileDateTimePicker label="Until" ampm={false} views={["day", "hours", "minutes"]}
+                  minutesStep={5} format="DD.MM.YYYY HH:mm" value={pickerDateTime(changeDraft.endAt)}
+                  onChange={(value) => setChangeDraft({ ...changeDraft, endAt: dateTimePickerValue(value) })}
+                  slotProps={dateTimePickerSlotProps} />
+              </FormControl>
             </Stack>
             <FormField required label="Reason or agreement" value={changeDraft.label}
               onChange={(event) => setChangeDraft({ ...changeDraft, label: event.target.value })} />
@@ -466,7 +521,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             </GradientButton>
           </DialogActionsBar>
         </Box>}
-      </GlassDialog>
+        </GlassDialog>
+      </LocalizationProvider>
     </section>
     <section className="settings-card">
       <div className="section-toolbar"><h2>Upcoming schedule preview</h2></div>
