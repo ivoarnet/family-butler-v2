@@ -281,9 +281,11 @@ export const ParentingTime: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")).toHaveLength(3));
-    const changed = canvas.getByText("One-off change · Agreed swap");
-    await expect(changed).toBeVisible();
-    const parentingEntry = changed.closest(".calendar-parenting-entry")!;
+    const parentingEntry = canvas.getByText("Parenting · Dad").closest(".calendar-parenting-entry")!;
+    await expect(parentingEntry).toBeVisible();
+    await expect(parentingEntry.textContent).toBe("Parenting · Dad12:00 – 18:00");
+    await expect(canvas.queryByText("One-off change · Agreed swap")).toBeNull();
+    await expect(parentingEntry.querySelector("summary")).toBeNull();
     const childcareEntry = canvasElement.querySelector(".today-row .calendar-childcare-entry")!;
     await expect(getComputedStyle(parentingEntry).borderLeftWidth).toBe("0px");
     await expect(getComputedStyle(parentingEntry).borderTopWidth).toBe("0px");
@@ -293,9 +295,16 @@ export const ParentingTime: Story = {
       .toBe(getComputedStyle(childcareEntry.querySelector(".calendar-childcare-icon")!).color);
     await expect(getComputedStyle(parentingEntry.querySelector("small")!).paddingLeft)
       .toBe(getComputedStyle(childcareEntry.querySelector("small")!).paddingLeft);
-    await userEvent.click(changed.closest("summary")!);
-    await expect(canvas.getByText("Handover from Mum at 12:00")).toBeVisible();
-    await expect(canvas.getByText("Handover to Mum at 18:00")).toBeVisible();
+    await userEvent.hover(parentingEntry);
+    await expect(parentingEntry.getAttribute("title")).toContain("One-off change · Agreed swap");
+    await expect(parentingEntry.getAttribute("title")).toContain("Handover from Mum at 12:00");
+    await expect(parentingEntry.getAttribute("title")).toContain("Handover to Mum at 18:00");
+    await expect(parentingEntry.getAttribute("aria-label")).toContain("Adjusted responsibility");
+    await expect(canvas.queryByText("Handover from Mum at 12:00")).toBeNull();
+    await expect(canvas.queryByText("Handover to Mum at 18:00")).toBeNull();
+    const normalEntry = canvasElement.querySelector(".today-row .calendar-parenting-entry")!;
+    await expect(normalEntry.textContent).toBe("Parenting · Mum00:00 – 12:00");
+    await expect(normalEntry.getAttribute("title")).toContain("Normal plan");
     await expect(canvas.queryByRole("button", { name: "Open event Parenting · Dad" })).toBeNull();
     await userEvent.click(canvas.getByTitle("Create event"));
     await fireEvent.change(await page.findByRole("textbox", { name: /^Title/ }), { target: { value: "Personal appointment" } });

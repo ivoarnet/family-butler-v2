@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Simplified parenting entries in Specials to show only title and time, with interval, adjustment, and handover details on hover like childcare records. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+
 - Removed parenting-time card borders in Specials and matched childcare's compact icon, text, and separator styling while retaining expandable handover details. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
 
 - Displayed persisted parenting responsibility in the household calendar, with distinct expandable entries, handovers, and one-off adjustment labels. Added authorized, read-only API/agent responsibility checks and optional non-blocking personal-event warnings with explicit development-only party selection. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.

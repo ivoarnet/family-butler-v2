@@ -93,18 +93,24 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
   const previous = intervals.find((item) => item.endAt === interval.startAt && item.partyId !== interval.partyId);
   const next = intervals.find((item) => item.startAt === interval.endAt && item.partyId !== interval.partyId);
   const change = interval.source.type === "change";
+  const partyName = interval.partyName ?? "Parenting party";
+  const timeLabel = start <= day && end >= nextDay ? "All day"
+    : `${start <= day ? "00:00" : time(start)} – ${end >= nextDay ? "24:00" : time(end)}`;
+  const details = [
+    timeLabel,
+    `${change ? "Adjusted responsibility" : "Normal plan"}: ${start.toLocaleString()} – ${end.toLocaleString()}`,
+    change && `One-off change${interval.source.type === "change" && interval.source.label ? ` · ${interval.source.label}` : ""}`,
+    previous && start >= day && start < nextDay && `Handover from ${previous.partyName} at ${time(start)}`,
+    next && end > day && end <= nextDay && `Handover to ${next.partyName} at ${time(end)}`,
+  ].filter(Boolean).join(" · ");
   return (
-    <details className="specials-entry calendar-parenting-entry">
-      <summary>
-        <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
-        <strong>Parenting · {interval.partyName ?? "Parenting party"}</strong>
-        <small>{start <= day && end >= nextDay ? "All day" : `${start <= day ? "00:00" : time(start)} – ${end >= nextDay ? "24:00" : time(end)}`}</small>
-        {change && <small>One-off change{interval.source.type === "change" && interval.source.label ? ` · ${interval.source.label}` : ""}</small>}
-      </summary>
-      <small>{change ? "Adjusted responsibility" : "Normal plan"}: {start.toLocaleString()} – {end.toLocaleString()}</small>
-      {previous && start >= day && start < nextDay && <small>Handover from {previous.partyName} at {time(start)}</small>}
-      {next && end > day && end <= nextDay && <small>Handover to {next.partyName} at {time(end)}</small>}
-    </details>
+    <div className="specials-entry calendar-parenting-entry"
+      title={`Parenting · ${partyName} · ${details}`}
+      aria-label={`Parenting: ${partyName}. ${details}`}>
+      <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
+      <strong>Parenting · {partyName}</strong>
+      <small>{timeLabel}</small>
+    </div>
   );
 }
 

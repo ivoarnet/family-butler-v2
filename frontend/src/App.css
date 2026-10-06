@@ -918,25 +918,9 @@ body,
   cursor: help;
 }
 
-.calendar-childcare-entry {
+.calendar-childcare-entry,
+.calendar-parenting-entry {
   flex-wrap: wrap;
-}
-
-.specials-cell .calendar-parenting-entry {
-  display: block;
-  white-space: normal;
-}
-
-.calendar-parenting-entry summary {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: 0.35rem;
-  cursor: pointer;
-}
-
-.calendar-parenting-entry small {
-  display: block;
 }
 
 .calendar-parenting-entry small,
