@@ -2,7 +2,7 @@ const test = require("node:test");
 const assert = require("node:assert/strict");
 const { randomUUID } = require("crypto");
 const {
-  validateParty, validatePlan, validateChange, resolveParentingTime, isoWeekNumber,
+  validateParty, validatePlan, validateHandovers, compileHandovers, validateChange, resolveParentingTime, isoWeekNumber,
 } = require("./shared/parentingTime");
 const parentingTimeHandler = require("./parenting-time");
 
@@ -58,6 +58,60 @@ test("resolves the odd/even ISO-week example without artificial handovers", () =
   ]);
 });
 
+test("compiles a variable handover list into the requested odd/even parenting schedule", () => {
+  const handovers = validateHandovers([
+    { weekday: 1, time: "19:30", fromPartyId: fatherId, toPartyId: motherId },
+    { weekday: 4, time: "19:30", fromPartyId: motherId, toPartyId: fatherId },
+    { weekday: 5, time: "17:00", fromPartyId: fatherId, toPartyId: motherId, weekParity: "even" },
+    { weekday: 7, time: "19:30", fromPartyId: motherId, toPartyId: fatherId, weekParity: "even" },
+  ], parties);
+  const plan = validatePlan({
+    effectiveFrom: "2026-01-01", recurrenceMode: "alternating",
+    rules: compileHandovers(handovers),
+  }, parties);
+  const odd = resolve(plan, "2026-10-08T19:30:00Z", "2026-10-12T19:30:00Z");
+  assert.deepEqual(odd.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]), [
+    ["2026-10-08T19:30:00.000Z", "2026-10-12T19:30:00.000Z", fatherId],
+  ]);
+  const even = resolve(plan, "2026-10-16T17:00:00Z", "2026-10-19T19:30:00Z");
+  assert.deepEqual(even.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]), [
+    ["2026-10-16T17:00:00.000Z", "2026-10-18T19:30:00.000Z", motherId],
+    ["2026-10-18T19:30:00.000Z", "2026-10-19T19:30:00.000Z", fatherId],
+  ]);
+  const oneHandover = validateHandovers(handovers.slice(0, 1), parties);
+  assert.equal(oneHandover.length, 1);
+  assert.throws(() => compileHandovers(oneHandover), { status: 400 });
+  const isoWeekBoundaryConflict = validateHandovers([
+    { weekday: 1, time: "08:00", fromPartyId: fatherId, toPartyId: motherId, weekParity: "odd" },
+    { weekday: 5, time: "17:00", fromPartyId: motherId, toPartyId: fatherId, weekParity: "even" },
+  ], parties);
+  assert.throws(() => compileHandovers(isoWeekBoundaryConflict), { status: 400, message: /from-party must match/ });
+});
+
+test("validates the four-handover alternating plan used by Settings", () => {
+  const plan = validatePlan({
+    effectiveFrom: "2026-01-01",
+    recurrenceMode: "alternating",
+    timeZone: "UTC",
+    rules: [
+      { partyId: motherId, weekday: 1, startTime: "19:30", endWeekday: 4, endTime: "19:30" },
+      { partyId: fatherId, weekday: 4, startTime: "19:30", endWeekday: 5, endTime: "17:00" },
+      { partyId: fatherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "odd" },
+      { partyId: motherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
+      { partyId: fatherId, weekday: 7, startTime: "19:30", endWeekday: 1, endTime: "19:30" },
+    ],
+  }, parties);
+  const odd = resolve(plan, "2026-10-08T19:30:00Z", "2026-10-12T19:30:00Z");
+  assert.deepEqual(odd.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]), [
+    ["2026-10-08T19:30:00.000Z", "2026-10-12T19:30:00.000Z", fatherId],
+  ]);
+  const even = resolve(plan, "2026-10-16T17:00:00Z", "2026-10-19T19:30:00Z");
+  assert.deepEqual(even.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]), [
+    ["2026-10-16T17:00:00.000Z", "2026-10-18T19:30:00.000Z", motherId],
+    ["2026-10-18T19:30:00.000Z", "2026-10-19T19:30:00.000Z", fatherId],
+  ]);
+});
+
 test("supports weekly overnight and week-boundary intervals and ISO year transitions", () => {
   const plan = validatePlan({
     effectiveFrom: "2020-01-01",
@@ -110,6 +164,16 @@ test("resolves household-local recurring times across daylight-saving transition
     ],
   }, parties);
   assert.throws(() => resolve(nonexistent, "2026-03-08T05:00:00Z", "2026-03-08T09:00:00Z"), { status: 400 });
+});
+
+test("limits plan resolution to its inclusive effective date range", () => {
+  const plan = { ...representativePlan(), effectiveTo: "2026-10-08" };
+  const intervals = resolve(plan, "2026-10-07T00:00:00Z", "2026-10-10T00:00:00Z");
+  assert.ok(intervals.length > 0);
+  assert.equal(intervals.at(-1).endAt, "2026-10-09T00:00:00.000Z");
+  assert.throws(() => validatePlan({
+    effectiveFrom: "2026-10-09", effectiveTo: "2026-10-08", recurrenceMode: "weekly", rules: [],
+  }, parties), { status: 400, message: /effectiveTo must be on or after effectiveFrom/ });
 });
 
 test("one-off changes override only their interval and report the source", () => {
@@ -224,6 +288,11 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
       rows.forEach((row) => Object.assign(row, JSON.parse(options.body)));
       return Response.json(rows);
     }
+    if (options.method === "DELETE") {
+      const rows = matching();
+      tables[table] = (tables[table] ?? []).filter((row) => !rows.includes(row));
+      return new Response(null, { status: 204 });
+    }
     return Response.json(matching());
   };
 
@@ -246,26 +315,57 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
   assert.equal(father.body.memberId, fatherId);
   assert.equal(mother.body.memberId, motherId);
   assert.equal(tables.parenting_time_parties[0].member_id, fatherId);
+  const renamedMother = await invoke("PUT", "parties", { ...mother.body, name: "Mum", active: false });
+  assert.equal(renamedMother.status, 200);
+  assert.equal(renamedMother.body.name, "Mum");
+  assert.equal(renamedMother.body.active, false);
+  await invoke("PUT", "parties", { ...renamedMother.body, active: true });
   assert.equal((await invoke("POST", "plan", {
     effectiveFrom: "2026-01-01",
+    effectiveTo: "2026-12-31",
     recurrenceMode: "alternating",
-    rules: [
-      { partyId: father.body.id, weekday: 7, startTime: "19:30", endWeekday: 1, endTime: "19:30" },
-      { partyId: father.body.id, weekday: 4, startTime: "19:30", endWeekday: 5, endTime: "17:00" },
-      { partyId: father.body.id, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "odd" },
-      { partyId: mother.body.id, weekday: 7, startTime: "00:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
-      { partyId: mother.body.id, weekday: 1, startTime: "19:30", endWeekday: 4, endTime: "19:30" },
-      { partyId: mother.body.id, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
+    handovers: [
+      { weekday: 1, time: "19:30", fromPartyId: father.body.id, toPartyId: mother.body.id },
+      { weekday: 4, time: "19:30", fromPartyId: mother.body.id, toPartyId: father.body.id },
+      { weekday: 5, time: "17:00", fromPartyId: father.body.id, toPartyId: mother.body.id, weekParity: "even" },
+      { weekday: 7, time: "19:30", fromPartyId: mother.body.id, toPartyId: father.body.id, weekParity: "even" },
     ],
   })).status, 200);
+  assert.equal(tables.parenting_time_plans[0].effective_to, "2026-12-31");
+  const draftPreview = await invoke("POST", "preview", {
+    plan: {
+      effectiveFrom: tables.parenting_time_plans[0].effective_from,
+      timeZone: tables.parenting_time_plans[0].time_zone,
+      recurrenceMode: tables.parenting_time_plans[0].recurrence_mode,
+      handovers: tables.parenting_time_plans[0].handover_rules,
+      rules: tables.parenting_time_plans[0].rules,
+    },
+    startAt: "2026-10-08T19:00:00Z",
+    endAt: "2026-10-09T21:00:00Z",
+  });
+  assert.equal(draftPreview.status, 200);
+  assert.ok(draftPreview.body.intervals.some((interval) => interval.partyId === father.body.id));
+  assert.equal(tables.parenting_time_plans[0].handover_rules.length, 4);
+  const persistedPreview = await invoke("GET", "resolve", undefined, {
+    startAt: "2026-10-08T19:00:00Z", endAt: "2026-10-09T21:00:00Z",
+  });
+  assert.deepEqual(draftPreview.body.intervals.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]),
+    persistedPreview.body.intervals.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]));
   const oneOff = await invoke("POST", "changes", {
     partyId: mother.body.id, startAt: "2026-10-09T18:00:00Z", endAt: "2026-10-09T20:00:00Z", label: "Swap",
   });
   assert.equal(oneOff.status, 201);
   assert.equal(tables.parenting_time_changes[0].plan_id, tables.parenting_time_plans[0].id);
+  assert.equal((await invoke("DELETE", "changes", undefined, { id: oneOff.body.id })).status, 204);
+  assert.equal(tables.parenting_time_changes.length, 0);
+  await invoke("POST", "changes", {
+    partyId: mother.body.id, startAt: "2026-10-09T18:00:00Z", endAt: "2026-10-09T20:00:00Z", label: "Swap",
+  });
   const loaded = await invoke("GET", undefined);
   assert.equal(loaded.body.parties.length, 2);
-  assert.equal(loaded.body.plan.rules.length, 6);
+  assert.equal(loaded.body.plan.rules.length, 8);
+  assert.equal(loaded.body.plan.handovers.length, 4);
+  assert.equal(loaded.body.plan.effectiveTo, "2026-12-31");
   assert.equal(loaded.body.changes.length, 1);
   const resolved = await invoke("GET", "resolve", undefined, {
     startAt: "2026-10-08T19:00:00Z", endAt: "2026-10-09T21:00:00Z",

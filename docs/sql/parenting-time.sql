@@ -6,9 +6,13 @@ create table if not exists public.parenting_time_parties (
   household_id uuid not null references public.households(id) on delete cascade,
   member_id uuid references public.household_members(id) on delete set null,
   name text not null check (length(trim(name)) between 1 and 100),
+  active boolean not null default true,
   created_at timestamptz not null default now(),
   unique (household_id, id)
 );
+
+alter table public.parenting_time_parties
+  add column if not exists active boolean not null default true;
 
 alter table public.parenting_time_parties
   add column if not exists member_id uuid references public.household_members(id) on delete set null;
@@ -17,14 +21,22 @@ create table if not exists public.parenting_time_plans (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null unique references public.households(id) on delete cascade,
   effective_from date not null,
+  effective_to date,
   time_zone text not null default 'UTC',
   recurrence_mode text not null check (recurrence_mode in ('weekly', 'alternating')),
   rules jsonb not null default '[]'::jsonb check (jsonb_typeof(rules) = 'array'),
+  handover_rules jsonb not null default '[]'::jsonb check (jsonb_typeof(handover_rules) = 'array'),
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (household_id, id)
+  unique (household_id, id),
+  check (effective_to is null or effective_to >= effective_from)
 );
+
+alter table public.parenting_time_plans
+  add column if not exists effective_to date;
+alter table public.parenting_time_plans
+  add column if not exists handover_rules jsonb not null default '[]'::jsonb;
 
 -- Keep databases that applied an earlier draft migration writable without
 -- relying on or requiring the former default-party column.
@@ -64,12 +76,21 @@ create or replace function public.validate_parenting_time_plan()
 returns trigger language plpgsql set search_path = public as $$
 declare
   rule jsonb;
+  handover jsonb;
   rule_party uuid;
+  handover_from uuid;
+  handover_to uuid;
   start_minute integer;
   end_minute integer;
 begin
+  if new.effective_to is not null and new.effective_to < new.effective_from then
+    raise exception 'parenting-time plan effective_to cannot be before effective_from';
+  end if;
   if jsonb_typeof(new.rules) <> 'array' or jsonb_array_length(new.rules) > 100 then
     raise exception 'parenting-time rules must be an array with at most 100 entries';
+  end if;
+  if jsonb_typeof(new.handover_rules) <> 'array' or jsonb_array_length(new.handover_rules) > 100 then
+    raise exception 'parenting-time handovers must be an array with at most 100 entries';
   end if;
   for rule in select value from jsonb_array_elements(new.rules)
   loop
@@ -101,6 +122,32 @@ begin
     if end_minute <= start_minute then end_minute := end_minute + 7 * 1440; end if;
     if end_minute - start_minute >= 7 * 1440 then
       raise exception 'parenting-time rule must end within seven days';
+    end if;
+  end loop;
+  for handover in select value from jsonb_array_elements(new.handover_rules)
+  loop
+    if coalesce(handover->>'id', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      or coalesce(handover->>'fromPartyId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      or coalesce(handover->>'toPartyId', '') !~* '^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$'
+      or coalesce(handover->>'weekday', '') !~ '^[1-7]$'
+      or coalesce(handover->>'time', '') !~ '^([01][0-9]|2[0-3]):[0-5][0-9]$'
+      or (handover->>'weekParity' is not null and handover->>'weekParity' not in ('odd', 'even'))
+    then
+      raise exception 'parenting-time handover is invalid';
+    end if;
+    handover_from := (handover->>'fromPartyId')::uuid;
+    handover_to := (handover->>'toPartyId')::uuid;
+    if handover_from = handover_to
+      or not exists (
+        select 1 from public.parenting_time_parties p
+        where p.id = handover_from and p.household_id = new.household_id and p.active
+      )
+      or not exists (
+        select 1 from public.parenting_time_parties p
+        where p.id = handover_to and p.household_id = new.household_id and p.active
+      )
+    then
+      raise exception 'parenting-time handover parties must be different active parties in this household';
     end if;
   end loop;
   return new;

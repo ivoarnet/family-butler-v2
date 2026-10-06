@@ -44,7 +44,9 @@ module.exports = {
   getParentingTimeHousehold: (...args) => getProvider().getParentingTimeHousehold(...args),
   getParentingTime: (...args) => getProvider().getParentingTime(...args),
   createParentingParty: (...args) => getProvider().createParentingParty(...args),
+  updateParentingParty: (...args) => getProvider().updateParentingParty(...args),
   saveParentingPlan: (...args) => getProvider().saveParentingPlan(...args),
   createParentingChange: (...args) => getProvider().createParentingChange(...args),
   updateParentingChange: (...args) => getProvider().updateParentingChange(...args),
+  deleteParentingChange: (...args) => getProvider().deleteParentingChange(...args),
 };

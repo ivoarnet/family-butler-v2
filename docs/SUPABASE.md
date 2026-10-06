@@ -177,9 +177,9 @@ See [Childcare model and API](DATA_MODEL.md#childcare--implemented) for request 
 
 ### Parenting-time migration
 
-After the core tables above, run `docs/sql/parenting-time.sql` in the Supabase SQL Editor before using parenting-time endpoints. It creates household-scoped parenting parties, one household-wide plan, and dated changes, with same-household party/plan references and owner-scoped RLS. A party may optionally link to a same-household member; co-parents are not required to be `household_members`. Parenting time is not stored in `events` or `day_configurations`.
+After the core tables above, run `docs/sql/parenting-time.sql` in the Supabase SQL Editor before using parenting-time endpoints. It creates household-scoped parenting parties, one household-wide plan with an optional effective-through date, and dated changes, with same-household party/plan references and owner-scoped RLS. A party may optionally link to a same-household member; co-parents are not required to be `household_members`. Parenting time is not stored in `events` or `day_configurations`.
 
-The Azure Function verifies household ownership before using the server-side Supabase secret key. To verify the migration, create parties with `POST /api/households/{householdId}/parenting-time/parties`, save a plan with `POST .../plan`, reload it with `GET .../parenting-time`, and request `/resolve?startAt=...&endAt=...`. The resolver reads persisted plan and change data. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver) for payloads and the ISO-week resolution contract.
+The Azure Function verifies household ownership before using the server-side Supabase secret key. Settings → Parenting Time uses this API to manage and archive parties, save plans and one-off changes, and preview drafts with `POST .../preview`; saved intervals are reloaded from `/resolve?startAt=...&endAt=...`. The resolver reads persisted plan and change data. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver) for payloads and the ISO-week resolution contract.
 
 ## 5) Seed an initial household
 

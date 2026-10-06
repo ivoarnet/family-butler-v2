@@ -82,6 +82,118 @@ const validateRule = (rule, index, parties, recurrenceMode) => {
     endTime: rule.endTime, weekParity };
 };
 
+const validateHandovers = (handovers, parties) => {
+  assert(Array.isArray(handovers) && handovers.length > 0 && handovers.length <= 100,
+    "handovers must be an array with between 1 and 100 entries");
+  const result = handovers.map((handover, index) => {
+    assert(handover && typeof handover === "object" && !Array.isArray(handover),
+      `handovers[${index}] must be an object`);
+    const id = handover.id == null ? randomUUID() : validateId(handover.id, `handovers[${index}].id`);
+    const fromPartyId = validateId(handover.fromPartyId, `handovers[${index}].fromPartyId`);
+    const toPartyId = validateId(handover.toPartyId, `handovers[${index}].toPartyId`);
+    assert(parties.some((party) => party.id === fromPartyId && party.active !== false),
+      `handovers[${index}].fromPartyId must be an active parenting party in this household`);
+    assert(parties.some((party) => party.id === toPartyId && party.active !== false),
+      `handovers[${index}].toPartyId must be an active parenting party in this household`);
+    assert(fromPartyId !== toPartyId, `handovers[${index}] must change parenting parties`);
+    assert(Number.isInteger(handover.weekday) && handover.weekday >= 1 && handover.weekday <= 7,
+      `handovers[${index}].weekday must be an ISO weekday from 1 to 7`);
+    assert(typeof handover.time === "string" && TIME.test(handover.time),
+      `handovers[${index}].time must be HH:MM`);
+    const weekParity = handover.weekParity ?? null;
+    assert([null, "odd", "even"].includes(weekParity),
+      `handovers[${index}].weekParity must be null, odd, or even`);
+    return { id, weekday: handover.weekday, time: handover.time, fromPartyId, toPartyId, weekParity };
+  });
+  assert(new Set(result.map((handover) => handover.id)).size === result.length, "handover IDs must be unique");
+  return result;
+};
+
+const compileHandovers = (handovers) => {
+  const weekMinutes = 7 * 1440;
+  const cycleMinutes = 2 * weekMinutes;
+  const assertContinuousHandoverSequence = (parityForWeek) => {
+    const sequence = [];
+    for (let week = -3; week <= 3; week += 1) {
+      const weekParity = parityForWeek(week);
+      for (const handover of handovers) {
+        if (handover.weekParity && handover.weekParity !== weekParity) continue;
+        const [hour, minute] = handover.time.split(":").map(Number);
+        sequence.push({
+          at: week * weekMinutes + (handover.weekday - 1) * 1440 + hour * 60 + minute,
+          fromPartyId: handover.fromPartyId,
+          toPartyId: handover.toPartyId,
+        });
+      }
+    }
+    sequence.sort((left, right) => left.at - right.at);
+    for (let index = 1; index < sequence.length; index += 1) {
+      const previous = sequence[index - 1];
+      const current = sequence[index];
+      assert(previous.at !== current.at, "only one parenting-time handover can occur at a time");
+      assert(previous.toPartyId === current.fromPartyId,
+        "handover from-party must match the party responsible after the previous handover");
+    }
+    return sequence;
+  };
+  const occurrences = [];
+  const regularSequence = assertContinuousHandoverSequence((week) =>
+    ((week % 2) + 2) % 2 === 0 ? "odd" : "even");
+  const isoYearBoundarySequence = assertContinuousHandoverSequence((week) => {
+    if (week === 0) return "odd";
+    if (week < 0) return (-week) % 2 === 1 ? "odd" : "even";
+    return week % 2 === 0 ? "odd" : "even";
+  });
+  assert(regularSequence.length > 0 && isoYearBoundarySequence.length > 0, "handovers must define a recurring sequence");
+  for (let week = -3; week <= 3; week += 1) {
+    const weekParity = ((week % 2) + 2) % 2 === 0 ? "odd" : "even";
+    for (const handover of handovers) {
+      if (handover.weekParity && handover.weekParity !== weekParity) continue;
+      const [hour, minute] = handover.time.split(":").map(Number);
+      occurrences.push({
+        at: week * weekMinutes + (handover.weekday - 1) * 1440 + hour * 60 + minute,
+        fromPartyId: handover.fromPartyId,
+        toPartyId: handover.toPartyId,
+        id: handover.id,
+      });
+    }
+  }
+  occurrences.sort((left, right) => left.at - right.at);
+  const events = occurrences.filter(({ at }) => at >= 0 && at < cycleMinutes);
+  const boundaries = [...new Set([0, weekMinutes, cycleMinutes, ...events.map(({ at }) => at)])].sort((a, b) => a - b);
+  const rules = [];
+  const maxPeriodMinutes = 6 * 1440;
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    let start = boundaries[index];
+    const end = boundaries[index + 1];
+    const previousEvent = [...occurrences].reverse().find(({ at }) => at <= start);
+    assert(previousEvent, "handovers must establish a responsible parenting party before the plan cycle begins");
+    const partyId = previousEvent.toPartyId;
+    while (start < end) {
+      const periodEnd = Math.min(end, start + maxPeriodMinutes);
+      const weekIndex = Math.floor(start / weekMinutes);
+      const weekStart = weekIndex * weekMinutes;
+      const startInWeek = start - weekStart;
+      const endInWeek = periodEnd - weekStart;
+      const startDay = Math.floor(startInWeek / 1440) + 1;
+      const normalizedEnd = endInWeek % weekMinutes;
+      const endDay = Math.floor(normalizedEnd / 1440) + 1;
+      const timeFromMinutes = (minutes) => `${String(Math.floor((minutes % 1440) / 60)).padStart(2, "0")}:${String(minutes % 60).padStart(2, "0")}`;
+      rules.push({
+        id: randomUUID(),
+        partyId,
+        weekday: startDay,
+        startTime: timeFromMinutes(startInWeek),
+        endWeekday: endDay,
+        endTime: timeFromMinutes(normalizedEnd),
+        weekParity: weekIndex % 2 === 0 ? "odd" : "even",
+      });
+      start = periodEnd;
+    }
+  }
+  return rules;
+};
+
 const ruleEndOffset = (rule) => (rule.endWeekday - rule.weekday + 7) % 7
   + (rule.endWeekday === rule.weekday && rule.endTime <= rule.startTime ? 7 : 0);
 
@@ -119,6 +231,8 @@ const assertRulesCoverSchedule = (rules, recurrenceMode) => {
 const validatePlan = (data, parties) => {
   assert(["weekly", "alternating"].includes(data.recurrenceMode), "recurrenceMode must be weekly or alternating");
   const effectiveFrom = validateDate(data.effectiveFrom, "effectiveFrom");
+  const effectiveTo = data.effectiveTo == null || data.effectiveTo === "" ? null : validateDate(data.effectiveTo, "effectiveTo");
+  assert(effectiveTo === null || effectiveTo >= effectiveFrom, "effectiveTo must be on or after effectiveFrom");
   const timeZone = data.timeZone ?? "UTC";
   assert(typeof timeZone === "string" && validTimeZone(timeZone), "timeZone must be a valid IANA time zone");
   assert(Array.isArray(data.rules) && data.rules.length <= 100, "rules must be an array with at most 100 entries");
@@ -128,7 +242,7 @@ const validatePlan = (data, parties) => {
     "recurring rules must assign time to at least two parenting parties");
   assertRulesCoverSchedule(rules, data.recurrenceMode);
   assert(data.active === undefined || typeof data.active === "boolean", "active must be a boolean");
-  return { effectiveFrom, timeZone, recurrenceMode: data.recurrenceMode, rules, active: data.active ?? true };
+  return { effectiveFrom, effectiveTo, timeZone, recurrenceMode: data.recurrenceMode, rules, active: data.active ?? true };
 };
 
 const validateChange = (data, parties, changes = [], ignoredId = null) => {
@@ -206,6 +320,8 @@ const shiftDate = (date, days) => {
 };
 
 const getPlanStartTimestamp = (plan) => localDateTimeToTimestamp(plan.effectiveFrom, "00:00", plan.timeZone);
+const getPlanEndTimestamp = (plan) => plan.effectiveTo
+  ? localDateTimeToTimestamp(shiftDate(plan.effectiveTo, 1), "00:00", plan.timeZone) : null;
 
 const rangeTimestamp = (value, name) => validateDateTime(value, name);
 
@@ -215,13 +331,15 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
   const end = rangeTimestamp(endAt, "endAt");
   assert(end > start && end - start <= 366 * DAY_MS, "date-time range must be ordered and at most 366 days");
   const effectiveStart = getPlanStartTimestamp(plan);
+  const effectiveEnd = getPlanEndTimestamp(plan);
   const resolutionStart = Math.max(start, effectiveStart);
-  if (end <= resolutionStart) return [];
+  const resolutionEnd = effectiveEnd === null ? end : Math.min(end, effectiveEnd);
+  if (resolutionEnd <= resolutionStart) return [];
   const startDate = shiftDate(localDate(resolutionStart, plan.timeZone), -8);
-  const endDate = shiftDate(localDate(end, plan.timeZone), 1);
+  const endDate = shiftDate(localDate(resolutionEnd, plan.timeZone), 1);
   const intervals = [];
   const addInterval = (interval) => {
-    if (interval.end > resolutionStart && interval.start < end) intervals.push(interval);
+    if (interval.end > resolutionStart && interval.start < resolutionEnd) intervals.push(interval);
   };
   for (const change of changes) {
     addInterval({ start: Date.parse(change.startAt), end: Date.parse(change.endAt), partyId: change.partyId,
@@ -239,8 +357,8 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
         source: { type: "recurring", ruleId: rule.id } });
     }
   }
-  const boundaries = [...new Set([resolutionStart, end,
-    ...intervals.flatMap((item) => [Math.max(resolutionStart, item.start), Math.min(end, item.end)])])]
+  const boundaries = [...new Set([resolutionStart, resolutionEnd,
+    ...intervals.flatMap((item) => [Math.max(resolutionStart, item.start), Math.min(resolutionEnd, item.end)])])]
     .sort((a, b) => a - b);
   const result = [];
   for (let index = 0; index < boundaries.length - 1; index += 1) {
@@ -286,6 +404,7 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
 };
 
 module.exports = {
-  assert, validateId, validateParty, validatePlan, validateChange, resolveParentingTime, isoWeekNumber,
-  getPlanStartTimestamp,
+  assert, validateId, validateParty, validatePlan, validateHandovers, compileHandovers,
+  validateChange, resolveParentingTime, isoWeekNumber,
+  getPlanStartTimestamp, getPlanEndTimestamp,
 };
