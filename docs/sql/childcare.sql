@@ -42,7 +42,7 @@ create table if not exists public.childcare_overrides (
   household_id uuid not null references public.households(id) on delete cascade,
   arrangement_id uuid not null,
   original_date date not null,
-  action text not null check (action in ('cancel', 'replace', 'move')),
+  action text not null check (action in ('add', 'cancel', 'replace', 'move')),
   moved_date date,
   provider_id uuid,
   all_day boolean,
@@ -63,8 +63,20 @@ create table if not exists public.childcare_overrides (
     or (all_day is false and start_time is not null and end_time is not null and end_time > start_time)
   ),
   check (action <> 'cancel' or (provider_id is null and all_day is null)),
-  check (action <> 'replace' or provider_id is not null or all_day is not null)
+  check (action <> 'replace' or provider_id is not null or all_day is not null),
+  constraint childcare_overrides_added_fields_check
+    check (action <> 'add' or (provider_id is null and all_day is null and start_time is null and end_time is null))
 );
+
+alter table public.childcare_overrides
+  drop constraint if exists childcare_overrides_action_check;
+alter table public.childcare_overrides
+  add constraint childcare_overrides_action_check check (action in ('add', 'cancel', 'replace', 'move'));
+alter table public.childcare_overrides
+  drop constraint if exists childcare_overrides_added_fields_check;
+alter table public.childcare_overrides
+  add constraint childcare_overrides_added_fields_check
+  check (action <> 'add' or (provider_id is null and all_day is null and start_time is null and end_time is null));
 
 -- Arrays match the existing event member model; validate every child against its household.
 create or replace function public.validate_childcare_children()
@@ -83,7 +95,7 @@ begin
   end if;
   if exists (
     select 1 from public.childcare_overrides o
-    where o.arrangement_id = new.id and o.household_id = new.household_id
+    where o.arrangement_id = new.id and o.household_id = new.household_id and o.action <> 'add'
       and (o.original_date < new.start_date
         or (new.end_date is not null and o.original_date > new.end_date)
         or not (extract(isodow from o.original_date)::smallint = any(new.weekdays)))
@@ -128,7 +140,15 @@ begin
   -- Serialize override validation with edits to its weekly arrangement.
   perform 1 from public.childcare_arrangements
   where id = new.arrangement_id and household_id = new.household_id for update;
-  if not exists (
+  if (new.action = 'add' and exists (
+    select 1 from public.childcare_arrangements a
+    where a.id = new.arrangement_id and a.household_id = new.household_id
+      and new.original_date >= a.start_date
+      and (a.end_date is null or new.original_date <= a.end_date)
+      and extract(isodow from new.original_date)::smallint = any(a.weekdays)
+  )) then
+    raise exception 'added date is already a scheduled occurrence';
+  elsif new.action <> 'add' and not exists (
     select 1 from public.childcare_arrangements a
     where a.id = new.arrangement_id and a.household_id = new.household_id
       and new.original_date >= a.start_date
