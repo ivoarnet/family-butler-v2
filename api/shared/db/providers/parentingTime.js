@@ -4,7 +4,14 @@ const TABLES = {
   parties: "parenting_time_parties",
   plans: "parenting_time_plans",
   changes: "parenting_time_changes",
+  calendarSettings: "parenting_time_calendar_settings",
 };
+
+const mapCalendarSettings = (row) => ({
+  showAwayHatching: row.show_away_hatching,
+  householdPartyId: row.household_party_id,
+  childMemberIds: row.child_member_ids,
+});
 
 const mapParty = (row) => ({
   id: row.id, householdId: row.household_id, name: row.name, memberId: row.member_id, active: row.active !== false,
@@ -88,6 +95,29 @@ module.exports = function createParentingTimeProvider(request) {
         list(TABLES.changes, householdId, mapChange),
       ]);
       return { parties, plan: plans[0] ?? null, changes };
+    },
+    getParentingParties: (householdId) => list(TABLES.parties, householdId, mapParty),
+    async getParentingCalendarSettings(householdId) {
+      const rows = await request(TABLES.calendarSettings, {
+        params: { select: "*", household_id: `eq.${householdId}`, limit: 1 },
+      });
+      return rows[0] ? mapCalendarSettings(rows[0])
+        : { showAwayHatching: false, householdPartyId: null, childMemberIds: [] };
+    },
+    async saveParentingCalendarSettings(householdId, data) {
+      const rows = await request(TABLES.calendarSettings, {
+        method: "POST",
+        params: { on_conflict: "household_id" },
+        headers: { Prefer: "return=representation,resolution=merge-duplicates" },
+        body: {
+          household_id: householdId,
+          show_away_hatching: data.showAwayHatching,
+          household_party_id: data.householdPartyId,
+          child_member_ids: data.childMemberIds,
+        },
+      });
+      if (!rows?.[0]) throw new Error("Failed to persist parenting calendar settings");
+      return mapCalendarSettings(rows[0]);
     },
     createParentingParty: (householdId, data) => save(TABLES.parties, householdId, null, {
       name: data.name,

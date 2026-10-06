@@ -42,6 +42,31 @@ const validateParty = (data, memberIds = []) => {
   return { name: data.name.trim(), memberId };
 };
 
+const validateCalendarSettings = (data, parties, memberIds) => {
+  assert(data && typeof data === "object" && !Array.isArray(data), "JSON object body is required");
+  assert(typeof data.showAwayHatching === "boolean", "showAwayHatching must be a boolean");
+  const householdPartyId = data.householdPartyId === null
+    ? null : validateId(data.householdPartyId, "householdPartyId");
+  const activeParty = parties.some((party) => party.id === householdPartyId && party.active !== false);
+  assert(Array.isArray(data.childMemberIds), "childMemberIds must be an array");
+  const childMemberIds = data.childMemberIds.map((id) => validateId(id, "childMemberIds entry"));
+  assert(new Set(childMemberIds).size === childMemberIds.length, "childMemberIds must be distinct");
+  // Opting out must remain possible after a selected party or member is removed.
+  if (!data.showAwayHatching) {
+    return {
+      showAwayHatching: false,
+      householdPartyId: activeParty ? householdPartyId : null,
+      childMemberIds: childMemberIds.filter((id) => memberIds.includes(id)),
+    };
+  }
+  assert(householdPartyId === null || activeParty,
+    "householdPartyId must be an active parenting party in this household");
+  assert(childMemberIds.every((id) => memberIds.includes(id)), "childMemberIds must be members of this household");
+  assert(!data.showAwayHatching || (householdPartyId !== null && childMemberIds.length > 0),
+    "enabling away hatching requires a household party and selected children");
+  return { showAwayHatching: data.showAwayHatching, householdPartyId, childMemberIds };
+};
+
 const validTimeZone = (timeZone) => {
   try {
     new Intl.DateTimeFormat("en", { timeZone }).format(0);
@@ -487,7 +512,7 @@ const checkParentingResponsibility = (data, partyId, startAt, endAt) => {
 };
 
 module.exports = {
-  assert, validateId, validateParty, validatePlan, validateHandovers, compileHandovers,
+  assert, validateId, validateParty, validateCalendarSettings, validatePlan, validateHandovers, compileHandovers,
   validateChange, resolveParentingTime, isoWeekNumber,
   getPlanStartTimestamp, getPlanEndTimestamp,
   validateParentingRange, resolvePersistedParentingTime, checkParentingResponsibility,

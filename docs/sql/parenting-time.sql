@@ -72,6 +72,50 @@ create table if not exists public.parenting_time_changes (
 create index if not exists idx_parenting_time_changes_household_range
   on public.parenting_time_changes (household_id, start_at, end_at);
 
+-- Calendar display preferences are independent of parenting plans and user identity.
+create table if not exists public.parenting_time_calendar_settings (
+  household_id uuid primary key references public.households(id) on delete cascade,
+  show_away_hatching boolean not null default false,
+  household_party_id uuid,
+  child_member_ids uuid[] not null default '{}'::uuid[],
+  -- Removing the comparison party resets the opt-in preferences to their defaults.
+  foreign key (household_id, household_party_id)
+    references public.parenting_time_parties(household_id, id) on delete cascade
+);
+
+create or replace function public.validate_parenting_time_calendar_settings()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.household_party_id is not null and not exists (
+    select 1 from public.parenting_time_parties p
+    where p.id = new.household_party_id and p.household_id = new.household_id and p.active
+  ) then
+    raise exception 'calendar comparison party must be active in this household';
+  end if;
+  if coalesce(array_ndims(new.child_member_ids), 1) <> 1 or exists (
+    select 1 from unnest(new.child_member_ids) as child(member_id)
+    where child.member_id is null or not exists (
+      select 1 from public.household_members m
+      where m.id = child.member_id and m.household_id = new.household_id
+    )
+  ) or cardinality(new.child_member_ids) <> (
+    select count(distinct member_id) from unnest(new.child_member_ids) as child(member_id)
+  ) then
+    raise exception 'calendar children must be distinct members of this household';
+  end if;
+  if new.show_away_hatching and
+    (new.household_party_id is null or cardinality(new.child_member_ids) = 0) then
+    raise exception 'away hatching requires a comparison party and selected children';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists parenting_time_calendar_settings_valid on public.parenting_time_calendar_settings;
+create trigger parenting_time_calendar_settings_valid
+before insert or update on public.parenting_time_calendar_settings
+for each row execute function public.validate_parenting_time_calendar_settings();
+
 create or replace function public.validate_parenting_time_plan()
 returns trigger language plpgsql set search_path = public as $$
 declare
@@ -184,6 +228,12 @@ begin
   ) then
     raise exception 'member is linked to a parenting party';
   end if;
+  if (new.id <> old.id or new.household_id <> old.household_id) and exists (
+    select 1 from public.parenting_time_calendar_settings s
+    where s.household_id = old.household_id and old.id = any(s.child_member_ids)
+  ) then
+    raise exception 'member is selected in parenting calendar settings';
+  end if;
   return new;
 end;
 $$;
@@ -219,7 +269,9 @@ for each row execute function public.protect_parenting_time_party();
 do $$
 declare table_name text;
 begin
-  foreach table_name in array array['parenting_time_parties', 'parenting_time_plans', 'parenting_time_changes']
+  foreach table_name in array array[
+    'parenting_time_parties', 'parenting_time_plans', 'parenting_time_changes', 'parenting_time_calendar_settings'
+  ]
   loop
     execute format('alter table public.%I enable row level security', table_name);
     execute format('drop policy if exists parenting_time_household_owner on public.%I', table_name);

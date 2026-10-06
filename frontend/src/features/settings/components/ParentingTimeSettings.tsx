@@ -13,6 +13,7 @@ import { MobileDateTimePicker } from "@mui/x-date-pickers/MobileDateTimePicker";
 import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton,
 } from "../../../shared/ui/GlassFormDialog";
+import { ParentingCalendarSettings } from "./ParentingCalendarSettings";
 
 export type ParentingTimeRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 type Party = { id: string; name: string; memberId: string | null; active: boolean };
@@ -254,6 +255,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     <Alert severity="info">This first version applies one household-wide schedule to all children. It is for practical planning, not legal advice or proof of custody.</Alert>
     {error && <Alert severity="error">{error}</Alert>}
     {loading && <Typography role="status">Loading parenting time…</Typography>}
+
+    <ParentingCalendarSettings householdId={householdId} parties={data.parties} members={members} request={request} />
 
     <section className="settings-card">
       <div className="section-toolbar"><h2>Parenting parties</h2>

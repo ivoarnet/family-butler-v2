@@ -65,6 +65,12 @@ export interface ParentingParty {
   active: boolean;
 }
 
+export interface ParentingCalendarPreferences {
+  showAwayHatching: boolean;
+  householdPartyId: string | null;
+  childMemberIds: string[];
+}
+
 export interface ResolvedParentingInterval {
   startAt: string;
   endAt: string;

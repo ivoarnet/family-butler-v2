@@ -79,7 +79,11 @@ const household: HouseholdData = {
   dayConfigurations: [{ id: "holiday", category: "school_off", startDate: date, endDate: date }],
 };
 
-function DashboardStory({ width, unknownResponsibility = false }: { width: number; unknownResponsibility?: boolean }) {
+function DashboardStory({ width, unknownResponsibility = false, hatching = false, archivedHouseholdParty = false,
+  staleChildSelection = false, preferencesUnavailable = false }: {
+  width: number; unknownResponsibility?: boolean; hatching?: boolean; archivedHouseholdParty?: boolean;
+  staleChildSelection?: boolean; preferencesUnavailable?: boolean;
+}) {
   const [householdData, setHouseholdData] = useState(household);
   useLayoutEffect(() => {
     const originalFetch = window.fetch;
@@ -90,8 +94,18 @@ function DashboardStory({ width, unknownResponsibility = false }: { width: numbe
       }
       if (url.includes("/parenting-time/resolve?")) {
         const range = new URL(url, window.location.origin).searchParams;
-        return Response.json({ intervals: parentingIntervals.filter((interval) =>
-          interval.startAt < range.get("endAt")! && interval.endAt > range.get("startAt")!) });
+        return Response.json({
+          intervals: unknownResponsibility ? [] : parentingIntervals.filter((interval) =>
+            interval.startAt < range.get("endAt")! && interval.endAt > range.get("startAt")!),
+          status: unknownResponsibility ? "cannot_determine" : "determined",
+          parties: [
+            { id: momId, name: "Mum", active: !archivedHouseholdParty }, { id: dadId, name: "Dad", active: true },
+          ],
+        });
+      }
+      if (url.endsWith("/parenting-time/calendar-settings")) {
+        return preferencesUnavailable ? Response.json({ error: "Calendar settings unavailable" }, { status: 500 })
+          : Response.json({ showAwayHatching: hatching, householdPartyId: momId, childMemberIds: staleChildSelection ? ["alex", "removed-member"] : ["alex"] });
       }
       if (url.endsWith("/parenting-time/check")) {
         const body = JSON.parse(String(init?.body)) as { partyId: string; startAt: string; endAt: string };
@@ -111,7 +125,7 @@ function DashboardStory({ width, unknownResponsibility = false }: { width: numbe
     return () => {
       window.fetch = originalFetch;
     };
-  }, [unknownResponsibility]);
+  }, [unknownResponsibility, hatching, archivedHouseholdParty, staleChildSelection, preferencesUnavailable]);
   return (
     <div style={{ maxWidth: width, margin: "auto" }}>
       <DashboardPage
@@ -363,5 +377,102 @@ export const UnknownParentingResponsibility: Story = {
     await waitFor(() => expect(page.getByText("Cannot determine responsibility: no active valid plan covers this range.")).toBeVisible());
     await expect(page.queryByRole("alert")).toBeNull();
     await expect(page.getByRole("button", { name: "Add event" })).toBeEnabled();
+  },
+};
+
+export const AwayHatching: Story = {
+  args: { width: 1440, hatching: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .member-event-cell .parenting-away-segment")).toHaveLength(1));
+    const cells = canvasElement.querySelectorAll(".today-row .member-event-cell");
+    const segment = cells[0].querySelector(".parenting-away-segment") as HTMLElement;
+    await expect(segment.style.top).toBe("50%");
+    await expect(segment.style.height).toBe("25%");
+    await expect(getComputedStyle(segment).backgroundImage).toContain("repeating-linear-gradient");
+    await expect(getComputedStyle(segment.parentElement!).pointerEvents).toBe("none");
+    await expect(cells[1].querySelector(".parenting-away-background")).toBeNull();
+    await expect(canvasElement.querySelector(".today-row .day-cell .parenting-away-background")).toBeNull();
+    await expect(canvasElement.querySelector(".today-row .specials-cell .parenting-away-background")).toBeNull();
+    const continuingRow = canvasElement.querySelector(".today-row")!.nextElementSibling!;
+    await expect(continuingRow.querySelector(".parenting-away-segment")).toBeNull();
+    await expect(cells[0].textContent).toContain("12:00 → Dad");
+    await expect(cells[0].textContent).toContain("18:00 → Mum");
+    const allDay = Array.from(canvasElement.querySelectorAll(".parenting-away-segment"))
+      .find((entry) => (entry as HTMLElement).style.height === "100%");
+    if (today.getDay() !== 1) {
+      await expect(allDay).toBeDefined();
+      await expect((allDay as HTMLElement).style.top).toBe("0%");
+    }
+    const isCompact = (canvasElement.querySelector(".dashboard-page")?.getBoundingClientRect().width ?? Infinity) <= 960;
+    if (!isCompact) {
+      await userEvent.click(within(cells[0] as HTMLElement).getByRole("button", { name: "Open event Music lesson" }));
+      await waitFor(() => expect(page.getByRole("dialog")).toBeVisible());
+      await userEvent.click(page.getByRole("button", { name: /Close/ }));
+    } else {
+      await expect(canvasElement.querySelector(".today-row .shared-events-column .parenting-away-background")).toBeNull();
+      await userEvent.click(canvas.getByRole("button", { name: "Filter events for Alex" }));
+      await expect(canvasElement.querySelector(".today-row .shared-events-column .parenting-away-segment")).not.toBeNull();
+      await userEvent.click(canvas.getByRole("button", { name: "Open event Music lesson" }));
+      await waitFor(() => expect(page.getByRole("dialog")).toBeVisible());
+      await userEvent.click(page.getByRole("button", { name: /Close/ }));
+      await userEvent.click(canvas.getByRole("button", { name: "Filter events for Sam" }));
+      await expect(canvasElement.querySelector(".today-row .shared-events-column .parenting-away-background")).toBeNull();
+      await userEvent.click(canvas.getByRole("button", { name: "Filter events for Alex" }));
+    }
+    const navigation = canvasElement.querySelector(`${isCompact && (canvasElement.querySelector(".dashboard-page")?.getBoundingClientRect().width ?? Infinity) <= 760
+      ? ".calendar-period-navigation" : ".header-controls .period-navigation"} [title="Next two-week period"]`)!;
+    await userEvent.click(navigation);
+    await waitFor(() => expect(canvasElement.querySelector(".parenting-away-segment")).toBeNull());
+  },
+};
+
+export const AwayHatchingMobile: Story = {
+  args: { width: 390, hatching: true },
+  play: AwayHatching.play,
+};
+
+export const UnknownAwayHatching: Story = {
+  args: { width: 1440, hatching: true, unknownResponsibility: true },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(within(canvasElement).getByText(/Parenting responsibility cannot be determined:/)).toBeVisible());
+    await expect(canvasElement.querySelector(".parenting-away-segment")).toBeNull();
+    await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
+  },
+};
+
+export const ArchivedAwayParty: Story = {
+  args: { width: 1440, hatching: true, archivedHouseholdParty: true },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector(".calendar-parenting-entry")).not.toBeNull());
+    await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
+  },
+};
+
+export const StaleChildHatching: Story = {
+  args: { width: 1440, hatching: true, staleChildSelection: true },
+  play: ArchivedAwayParty.play,
+};
+
+export const UnavailableHatchingPreferences: Story = {
+  args: { width: 1440, hatching: true, preferencesUnavailable: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByText(/Parenting calendar display settings could not be loaded/)).toBeVisible());
+    await waitFor(() => expect(canvasElement.querySelector(".calendar-parenting-entry")).not.toBeNull());
+    await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
+    await expect(canvas.getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
+  },
+};
+
+export const HatchingDisabledByDefault: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector(".calendar-parenting-entry")).not.toBeNull());
+    await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
+    await expect(canvasElement.querySelector(".today-row .calendar-childcare-entry")).not.toBeNull();
+    await expect(canvasElement.querySelector(".today-row .calendar-birthday-entry")).not.toBeNull();
+    await expect(canvasElement.querySelector(".today-row .day-special-corner")).not.toBeNull();
   },
 };

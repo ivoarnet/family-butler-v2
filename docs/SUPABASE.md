@@ -179,6 +179,8 @@ See [Childcare model and API](DATA_MODEL.md#childcare--implemented) for request 
 
 After the core tables above, run `docs/sql/parenting-time.sql` in the Supabase SQL Editor before using parenting-time endpoints. It creates household-scoped parenting parties, one household-wide plan with an optional effective-through date, and dated changes, with same-household party/plan references and owner-scoped RLS. A party may optionally link to a same-household member; co-parents are not required to be `household_members`. Parenting time is not stored in `events` or `day_configurations`.
 
+Existing installations must rerun the updated migration to create `parenting_time_calendar_settings` for the optional hatched child-column display. The preference is household-scoped, disabled by default, and stores an explicit display party and selected child member IDs. It is independent of plans and event data. If this migration has not been applied, the optional display-settings request reports an error and hatching stays off; the calendar still loads events and resolved parenting time.
+
 The Azure Function verifies household ownership before using the server-side Supabase secret key. Settings → Parenting Time uses this API to manage and archive parties, save plans and one-off changes, and preview drafts with `POST .../preview`; saved intervals are reloaded from `/resolve?startAt=...&endAt=...`. The resolver reads persisted plan and change data. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver) for payloads and the ISO-week resolution contract.
 
 ## 5) Seed an initial household
