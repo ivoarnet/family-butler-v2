@@ -46,7 +46,8 @@ function ChildcareCalendarEntry({
     .filter((name): name is string => Boolean(name));
   const changeLabel = occurrence.overrideAction === "move"
     ? `Moved from ${occurrence.originalDate}`
-    : occurrence.overrideAction === "replace" ? "One-off adjustment" : null;
+    : occurrence.overrideAction === "add" ? "Added care day"
+      : occurrence.overrideAction === "replace" ? "One-off adjustment" : null;
   const details = [
     occurrence.allDay ? "All day" : `${occurrence.startTime} – ${occurrence.endTime}`,
     `For ${childNames.join(", ") || "household children"}`,

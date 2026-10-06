@@ -29,9 +29,10 @@ function resolve(data: ChildcareData, startDate: string, endDate: string): Child
       sourceDates.add(new Date(timestamp).toISOString().slice(0, 10));
     }
     for (const originalDate of sourceDates) {
-      if (originalDate < arrangement.startDate || (arrangement.endDate && originalDate > arrangement.endDate)
-        || !arrangement.weekdays.includes(new Date(`${originalDate}T00:00:00Z`).getUTCDay() || 7)) continue;
       const override = data.overrides.find((item) => item.arrangementId === arrangement.id && item.originalDate === originalDate);
+      const scheduled = originalDate >= arrangement.startDate && (!arrangement.endDate || originalDate <= arrangement.endDate)
+        && arrangement.weekdays.includes(new Date(`${originalDate}T00:00:00Z`).getUTCDay() || 7);
+      if (!scheduled && override?.action !== "add") continue;
       const effectiveDate = override?.action === "move" ? override.movedDate! : originalDate;
       if (override?.action === "cancel" || effectiveDate < startDate || effectiveDate > endDate) continue;
       results.push({
@@ -47,11 +48,11 @@ function resolve(data: ChildcareData, startDate: string, endDate: string): Child
   return results.sort((a, b) => a.date.localeCompare(b.date));
 }
 
-function createMockRequest(empty: boolean, fail: boolean): ChildcareRequest {
+function createMockRequest(empty: boolean, fail: boolean, weekdays = [1, 2, 3, 4, 5, 6, 7]): ChildcareRequest {
   const data: ChildcareData = {
     providers: [{ id: providerId, name: "Grandma Jo", type: "grandparent", active: true }],
     arrangements: empty ? [] : [{
-      id: arrangementId, providerId, childIds: members.map((member) => member.id), weekdays: [1, 2, 3, 4, 5, 6, 7],
+      id: arrangementId, providerId, childIds: members.map((member) => member.id), weekdays,
       startDate: date(-30), endDate: null, allDay: false, startTime: "09:00", endTime: "16:00",
     }],
     overrides: empty ? [] : [
@@ -61,7 +62,11 @@ function createMockRequest(empty: boolean, fail: boolean): ChildcareRequest {
     ],
   };
   const validateSavedOverrides = (draft: ChildcareArrangement) => {
-    if (draft.id && data.overrides.some((item) => item.arrangementId === draft.id &&
+    const current = data.arrangements.find((item) => item.id === draft.id);
+    if (draft.id && data.overrides.some((item) => item.arrangementId === draft.id && item.action !== "add"
+      && !(item.action === "cancel" && current && !(item.originalDate >= current.startDate
+        && (!current.endDate || item.originalDate <= current.endDate)
+        && current.weekdays.includes(new Date(`${item.originalDate}T00:00:00Z`).getUTCDay() || 7))) &&
       (item.originalDate < draft.startDate || (draft.endDate && item.originalDate > draft.endDate) ||
         !draft.weekdays.includes(new Date(`${item.originalDate}T00:00:00Z`).getUTCDay() || 7)))) {
       throw new Error("schedule change would remove an occurrence with a one-off change; keep its weekday and effective dates");
@@ -103,8 +108,8 @@ function createMockRequest(empty: boolean, fail: boolean): ChildcareRequest {
   };
 }
 
-function ChildcareStory({ empty = false, fail = false }: { empty?: boolean; fail?: boolean }) {
-  const request = useMemo(() => createMockRequest(empty, fail), [empty, fail]);
+function ChildcareStory({ empty = false, fail = false, weekdays }: { empty?: boolean; fail?: boolean; weekdays?: number[] }) {
+  const request = useMemo(() => createMockRequest(empty, fail, weekdays), [empty, fail, weekdays]);
   return <div className="app-shell" style={{ padding: 24 }}>
     <section className="settings-section">
       <ChildcareSettings householdId={householdId} members={members} request={request} />
@@ -261,6 +266,35 @@ export const OneOffCancellation: Story = {
     await expect(canvas.queryByRole("button", { name: `Change care on ${date()} for Grandma Jo` })).not.toBeInTheDocument();
     const overrideCall = calls.mock.calls.find(([path, init]) => String(path).endsWith("/overrides") && init.method === "PUT");
     await expect(JSON.parse(overrideCall![1].body)).toEqual({ arrangementId, originalDate: date(), action: "cancel" });
+  },
+};
+export const AddAnExtraCareDay: Story = {
+  args: { weekdays: [1] },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const add = await canvas.findByRole("button", { name: "Add care day to arrangement for Grandma Jo" });
+    await waitFor(() => expect(add).toBeEnabled());
+    await userEvent.click(add);
+    const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
+    const dateInput = dialog.getByLabelText("Added care date");
+    const addedDate = dateInput.getAttribute("value") ?? (dateInput as HTMLInputElement).value;
+    expect(new Date(`${addedDate}T00:00:00Z`).getUTCDay()).not.toBe(1);
+    await expect(dialog.getByText("Using Grandma Jo for Alex, Sam · 09:00–16:00. The weekly arrangement stays unchanged.")).toBeInTheDocument();
+    const scheduledDate = Array.from({ length: 8 }, (_, offset) => date(offset))
+      .find((candidate) => new Date(`${candidate}T00:00:00Z`).getUTCDay() === 1)!;
+    await fireEvent.change(dateInput, { target: { value: scheduledDate } });
+    await expect(dialog.getByText("This date is already covered by the arrangement.")).toBeInTheDocument();
+    await expect(dialog.getByRole("button", { name: "Add childcare day" })).toBeDisabled();
+    await fireEvent.change(dateInput, { target: { value: addedDate } });
+    await expect(dialog.getByRole("button", { name: "Add childcare day" })).toBeEnabled();
+    await userEvent.click(dialog.getByRole("button", { name: "Add childcare day" }));
+    const care = within(await canvas.findByRole("table", { name: "Childcare occurrences" }));
+    await care.findByText(addedDate);
+    await expect(care.getByText("Added day")).toBeInTheDocument();
+    const saved = calls.mock.calls.find(([path, init]) => String(path).endsWith("/overrides") && init.method === "PUT");
+    await expect(JSON.parse(saved![1].body)).toEqual({
+      arrangementId, originalDate: addedDate, action: "add",
+    });
   },
 };
 export const FutureArrangementPreviewRange: Story = {

@@ -61,6 +61,28 @@ test("cancellation and provider/time replacement affect only the original occurr
   assert.equal(resolve([timed], [allDay])[0].startTime, null);
 });
 
+test("added care days attach to an arrangement without changing its weekly schedule", () => {
+  const added = validateOverride({
+    arrangementId, originalDate: "2026-10-06", action: "add",
+  }, [arrangement], providers);
+  const occurrences = resolve([arrangement], [added], "2026-10-05", "2026-10-12");
+  assert.deepEqual(occurrences.map((item) => item.date), ["2026-10-05", "2026-10-06", "2026-10-12"]);
+  assert.equal(occurrences[1].overrideAction, "add");
+  assert.equal(occurrences[1].providerId, providerId);
+  assert.deepEqual(occurrences[1].childIds, [childId, secondChildId]);
+  const customized = validateOverride({
+    arrangementId, originalDate: "2026-10-06", action: "add",
+    providerId: replacementId, allDay: false, startTime: "10:00", endTime: "12:00",
+  }, [arrangement], providers);
+  assert.equal(resolve([arrangement], [customized], "2026-10-06", "2026-10-06")[0].startTime, "10:00");
+  assert.throws(() => override({ action: "add", originalDate: "2026-10-05" }), { status: 400 });
+  assert.throws(() => override({ action: "cancel", originalDate: "2026-10-06" }), { status: 400 });
+  const removed = validateOverride({
+    arrangementId, originalDate: "2026-10-06", action: "cancel",
+  }, [arrangement], providers, [added]);
+  assert.equal(resolve([arrangement], [removed], "2026-10-06", "2026-10-06").length, 0);
+});
+
 test("moves resolve into and out of the range without duplicates, retaining original identity", () => {
   const moved = override({ action: "move", movedDate: "2026-11-03" });
   assert.equal(resolve([arrangement], [moved]).length, 3);
@@ -212,10 +234,26 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
       ...created.body, id: replacementId,
     })).status, 400);
     assert.equal((await invoke("PUT", "arrangements", created.body)).status, 200);
+    const addedDate = "2026-10-06";
+    const addedCare = await invoke("PUT", "overrides", {
+      arrangementId: created.body.id, originalDate: addedDate, action: "add",
+    });
+    assert.equal(addedCare.status, 200);
+    const resolvedAdded = await invoke("GET", "occurrences", null, { startDate: addedDate, endDate: addedDate });
+    assert.equal(resolvedAdded.body.occurrences.length, 1);
+    assert.equal(resolvedAdded.body.occurrences[0].overrideAction, "add");
+    assert.equal(resolvedAdded.body.occurrences[0].providerId, provider.body.id);
+    assert.equal((await invoke("PUT", "overrides", {
+      arrangementId: created.body.id, originalDate: addedDate, action: "cancel",
+    })).status, 200);
+    assert.equal((await invoke("GET", "occurrences", null, { startDate: addedDate, endDate: addedDate })).body.occurrences.length, 0);
+    assert.equal((await invoke("PUT", "overrides", {
+      arrangementId: created.body.id, originalDate: "2026-10-12", action: "add",
+    })).status, 400);
     const overrideBody = { arrangementId: created.body.id, originalDate: "2026-10-05", action: "cancel" };
     assert.equal((await invoke("PUT", "overrides", overrideBody)).status, 200);
     assert.equal((await invoke("PUT", "overrides", { ...overrideBody, action: "move", movedDate: "2026-11-03" })).status, 200);
-    assert.equal(tables.childcare_overrides.length, 1);
+    assert.equal(tables.childcare_overrides.length, 2);
     const previewEdit = await invoke("POST", "preview", {
       arrangement: { ...created.body, allDay: false, startTime: "08:00", endTime: "16:00" },
       startDate: "2026-11-03", endDate: "2026-11-03",

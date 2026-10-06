@@ -9,7 +9,7 @@ module.exports = function createGetChildcareCoverageTool({ db, householdId, hous
       description: [
         "Read effective, persisted childcare coverage for the current household and a requested date range.",
         "Use this whenever users ask who is caring for which children, when care starts or ends, or about changed care dates/providers.",
-        "Cancelled occurrences are excluded. Moves and replacements include their original date and change action.",
+        "Cancelled occurrences are excluded. Added days, moves, and replacements include their original date and change action.",
         "This tool reports scheduled care only and does not infer parenting-time responsibility or availability.",
       ].join(" "),
       parameters: {

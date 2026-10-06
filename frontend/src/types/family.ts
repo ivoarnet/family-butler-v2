@@ -56,7 +56,7 @@ export interface ResolvedChildcareOccurrence {
   allDay: boolean;
   startTime: string | null;
   endTime: string | null;
-  overrideAction: "replace" | "move" | null;
+  overrideAction: "add" | "replace" | "move" | null;
 }
 
 export type DayConfigurationCategory = "school_off" | "bank_holiday" | "bridge_day";

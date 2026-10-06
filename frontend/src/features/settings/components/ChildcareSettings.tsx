@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import type { FamilyMember } from "../../../types/family";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton } from "../../../shared/ui/GlassFormDialog";
@@ -13,7 +14,7 @@ export type ChildcareArrangement = Timing & {
   id?: string; providerId: string; childIds: string[]; weekdays: number[]; startDate: string; endDate: string | null;
 };
 export type ChildcareOverride = Partial<Timing> & {
-  arrangementId: string; originalDate: string; action: "cancel" | "replace" | "move"; movedDate?: string | null; providerId?: string | null;
+  arrangementId: string; originalDate: string; action: "add" | "cancel" | "replace" | "move"; movedDate?: string | null; providerId?: string | null;
 };
 export type ChildcareOccurrence = Timing & {
   id: string; arrangementId: string; originalDate: string; date: string; providerId: string; childIds: string[]; overrideAction: string | null;
@@ -42,6 +43,9 @@ const validTiming = (item: Timing) => item.allDay || (
   /^([01]\d|2[0-3]):[0-5]\d$/.test(item.startTime ?? "") &&
   /^([01]\d|2[0-3]):[0-5]\d$/.test(item.endTime ?? "") && item.startTime! < item.endTime!
 );
+const isScheduled = (arrangement: ChildcareArrangement, date: string) => validDate(date)
+  && date >= arrangement.startDate && (!arrangement.endDate || date <= arrangement.endDate)
+  && arrangement.weekdays.includes(new Date(`${date}T00:00:00Z`).getUTCDay() || 7);
 
 function TimingFields({ value, onChange, disabled }: { value: Timing; onChange: (value: Timing) => void; disabled: boolean }) {
   return <>
@@ -71,6 +75,7 @@ export function ChildcareSettings({ householdId, members, request }: {
   const [draft, setDraft] = useState<ChildcareArrangement | null>(null);
   const [preview, setPreview] = useState<ChildcareOccurrence[] | null>(null);
   const [override, setOverride] = useState<(ChildcareOverride & Timing) | null>(null);
+  const [addDay, setAddDay] = useState<{ arrangementId: string; date: string } | null>(null);
   const alive = useRef(false);
   const operation = useRef(false);
   const loadVersion = useRef(0);
@@ -129,16 +134,43 @@ export function ChildcareSettings({ householdId, members, request }: {
     && (!draft.endDate || (validDate(draft.endDate) && draft.endDate >= draft.startDate)) && validTiming(draft);
   const cancellations = data.overrides.filter((item) => item.action === "cancel"
     && item.originalDate >= loadedRange.startDate && item.originalDate <= loadedRange.endDate)
-    .filter((item) => {
-      const arrangement = data.arrangements.find((record) => record.id === item.arrangementId);
-      return arrangement && item.originalDate >= arrangement.startDate && (!arrangement.endDate || item.originalDate <= arrangement.endDate)
-        && arrangement.weekdays.includes(new Date(`${item.originalDate}T00:00:00Z`).getUTCDay() || 7);
-    });
+    .filter((item) => data.arrangements.some((record) => record.id === item.arrangementId));
+  const addDayArrangement = addDay
+    ? data.arrangements.find((item) => item.id === addDay.arrangementId) ?? null
+    : null;
+  const addDayError = !addDayArrangement || !validDate(addDay?.date ?? "")
+    ? "Choose a valid date."
+    : addDay!.date < today() ? "Added care days must be today or in the future."
+      : isScheduled(addDayArrangement, addDay!.date) ? "This date is already covered by the arrangement."
+        : data.overrides.some((item) => item.arrangementId === addDay!.arrangementId
+          && item.originalDate === addDay!.date && item.action === "add")
+          ? "An added care day already exists on this date." : "";
+  const nextUnscheduledDate = (arrangement: ChildcareArrangement) => {
+    const candidateDate = new Date();
+    const hasAddedDate = (date: string) => data.overrides.some((item) => item.arrangementId === arrangement.id
+      && item.originalDate === date && item.action === "add");
+    for (let offset = 0; offset <= data.overrides.length + 7; offset += 1) {
+      candidateDate.setDate(candidateDate.getDate() + (offset === 0 ? 0 : 1));
+      const candidate = localDate(candidateDate);
+      if (candidate >= today() && !isScheduled(arrangement, candidate) && !hasAddedDate(candidate)) return candidate;
+    }
+    if (arrangement.endDate && arrangement.endDate >= today()) {
+      const afterEnd = new Date(`${arrangement.endDate}T00:00:00Z`);
+      afterEnd.setUTCDate(afterEnd.getUTCDate() + 1);
+      for (let offset = 0; offset <= data.overrides.length; offset += 1) {
+        const candidate = afterEnd.toISOString().slice(0, 10);
+        if (!hasAddedDate(candidate)) return candidate;
+        afterEnd.setUTCDate(afterEnd.getUTCDate() + 1);
+      }
+    }
+    return "";
+  };
   const openOverride = (item: ChildcareOccurrence) => {
     if (item.date < today()) return;
     setError("");
     setOverride({
-      arrangementId: item.arrangementId, originalDate: item.originalDate, action: item.overrideAction === "move" ? "move" : "replace",
+      arrangementId: item.arrangementId, originalDate: item.originalDate,
+      action: item.overrideAction === "add" ? "add" : item.overrideAction === "move" ? "move" : "replace",
       movedDate: item.date, providerId: item.providerId, allDay: item.allDay, startTime: item.startTime, endTime: item.endTime,
     });
   };
@@ -148,7 +180,7 @@ export function ChildcareSettings({ householdId, members, request }: {
       <tbody>{items.map((item) => <tr key={item.id}>
         <td>{item.date}{item.date !== item.originalDate && <div>Originally {item.originalDate}</div>}</td>
         <td>{providerName(item.providerId)}</td><td>{participantNames(item.childIds)}</td><td>{timingText(item)}</td>
-        <td><Chip size="small" label={item.overrideAction ? `Changed · ${item.overrideAction}` : "Recurring"} /></td>
+        <td><Chip size="small" label={item.overrideAction === "add" ? "Added day" : item.overrideAction ? `Changed · ${item.overrideAction}` : "Recurring"} /></td>
         {editable && <td className="actions-cell">{item.date >= today()
           ? <div className="icon-actions"><button type="button" className="icon-button compact-icon-button" disabled={disabled}
             onClick={() => openOverride(item)} aria-label={`Change care on ${item.date} for ${providerName(item.providerId)}`}
@@ -209,10 +241,17 @@ export function ChildcareSettings({ householdId, members, request }: {
           <td>{providerName(item.providerId)}</td><td>{participantNames(item.childIds)}</td>
           <td>{item.weekdays.map((day) => weekdays[day - 1]).join(", ")}</td><td>{timingText(item)}</td>
           <td>{item.startDate} – {item.endDate ?? "Ongoing"}</td>
-          <td className="actions-cell"><div className="icon-actions"><button type="button" className="icon-button compact-icon-button"
-            disabled={disabled} aria-label={`Edit arrangement for ${providerName(item.providerId)}`} title="Edit arrangement" onClick={() => {
-            setError(""); setDraft(item); setPreview(null);
-          }}><EditOutlinedIcon fontSize="small" /></button></div></td>
+          <td className="actions-cell"><div className="icon-actions">
+            <button type="button" className="icon-button compact-icon-button" disabled={disabled || !nextUnscheduledDate(item)}
+              aria-label={`Add care day to arrangement for ${providerName(item.providerId)}`} title="Add care day" onClick={() => {
+              setError("");
+              setAddDay({ arrangementId: item.id!, date: nextUnscheduledDate(item) });
+            }}><AddCircleOutlineIcon fontSize="small" /></button>
+            <button type="button" className="icon-button compact-icon-button"
+              disabled={disabled} aria-label={`Edit arrangement for ${providerName(item.providerId)}`} title="Edit arrangement" onClick={() => {
+              setError(""); setDraft(item); setPreview(null);
+            }}><EditOutlinedIcon fontSize="small" /></button>
+          </div></td>
         </tr>)}</tbody>
       </table></div>}
     </section>
@@ -236,7 +275,7 @@ export function ChildcareSettings({ householdId, members, request }: {
       {!loading && (cancellations.length ? <Stack spacing={1}>{cancellations.map((item) => {
         const arrangement = data.arrangements.find((record) => record.id === item.arrangementId)!;
         return <Typography key={`${item.arrangementId}:${item.originalDate}`}>
-          {item.originalDate} · {providerName(arrangement.providerId)} · {participantNames(arrangement.childIds)} · Cancelled
+          {item.originalDate} · {providerName(arrangement.providerId)} · {participantNames(arrangement.childIds)} · {isScheduled(arrangement, item.originalDate) ? "Cancelled" : "Added day removed"}
         </Typography>;
       })}</Stack> : <Typography>No cancellations in this range.</Typography>)}
     </section>
@@ -332,11 +371,14 @@ export function ChildcareSettings({ householdId, members, request }: {
         <DialogHeader><Typography id="childcare-override-title" variant="h6">Change one occurrence</Typography></DialogHeader>
         <DialogContentPanel><Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
           {error && <Alert severity="error">{error}</Alert>}
-          <Typography>Original scheduled date: {override.originalDate}. Weekly care remains unchanged.</Typography>
+          <Typography>{override.action === "add" ? `Added care date: ${override.originalDate}. Weekly care remains unchanged.`
+            : `Original scheduled date: ${override.originalDate}. Weekly care remains unchanged.`}</Typography>
           {override.action === "move" && <Typography>Effective care date: {override.movedDate || "Choose a moved date"}.</Typography>}
           <Typography>Participants: {participantNames(data.arrangements.find((item) => item.id === override.arrangementId)?.childIds ?? [])}</Typography>
           <FormField select disabled={busy} label="One-off action" value={override.action} onChange={(event) => setOverride({ ...override, action: event.target.value as ChildcareOverride["action"] })}>
-            <MenuItem value="cancel">Cancel care</MenuItem><MenuItem value="replace">Replace provider / time</MenuItem><MenuItem value="move">Move care date</MenuItem>
+            {override.action === "add" && <MenuItem value="add">Keep added care day</MenuItem>}
+            <MenuItem value="cancel">Cancel care</MenuItem>
+            {override.action !== "add" && <><MenuItem value="replace">Replace provider / time</MenuItem><MenuItem value="move">Move care date</MenuItem></>}
           </FormField>
           {override.action === "move" && <FormField label="Moved date" type="date" required value={override.movedDate ?? ""}
             slotProps={{ inputLabel: { shrink: true } }} onChange={(event) => setOverride({ ...override, movedDate: event.target.value })} />}
@@ -350,7 +392,32 @@ export function ChildcareSettings({ householdId, members, request }: {
         </Box></DialogContentPanel>
         <DialogActionsBar><Button disabled={busy} onClick={() => setOverride(null)}>Close</Button>
           <GradientButton type="submit" disabled={busy || (override.action !== "cancel" && (!validTiming(override) ||
-            (override.action === "move" && (!validDate(override.movedDate ?? "") || override.movedDate === override.originalDate))))}>Save one-off change</GradientButton></DialogActionsBar>
+            (override.action === "move" && (!validDate(override.movedDate ?? "") || override.movedDate === override.originalDate))))}>
+            {override.action === "add" ? "Save added care day" : "Save one-off change"}
+          </GradientButton></DialogActionsBar>
+      </Box>}
+    </GlassDialog>
+    <GlassDialog open={!!addDay} onClose={() => { if (!busy) setAddDay(null); }}
+      aria-labelledby="childcare-add-day-title" maxWidth="sm" fullWidth>
+      {addDay && addDayArrangement && <Box component="form" onSubmit={(event) => {
+        event.preventDefault();
+        if (disabled || addDayError) return;
+        void mutate("overrides", "PUT", {
+          arrangementId: addDay.arrangementId, originalDate: addDay.date, action: "add",
+        }, () => setAddDay(null));
+      }}>
+        <DialogHeader><Typography id="childcare-add-day-title" variant="h6">Add childcare day</Typography></DialogHeader>
+        <DialogContentPanel><Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <Typography>Using {providerName(addDayArrangement.providerId)} for {participantNames(addDayArrangement.childIds)} · {timingText(addDayArrangement)}. The weekly arrangement stays unchanged.</Typography>
+          <FormField autoFocus label="Added care date" type="date" required value={addDay.date}
+            slotProps={{ inputLabel: { shrink: true } }}
+            onChange={(event) => setAddDay({ ...addDay, date: event.target.value })} />
+          {addDayError && <Typography role="alert" color="error">{addDayError}</Typography>}
+        </Box></DialogContentPanel>
+        <DialogActionsBar><Button disabled={busy} onClick={() => setAddDay(null)}>Cancel</Button>
+          <GradientButton type="submit" disabled={busy || Boolean(addDayError)}>Add childcare day</GradientButton>
+        </DialogActionsBar>
       </Box>}
     </GlassDialog>
   </Stack>;

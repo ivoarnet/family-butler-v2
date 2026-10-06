@@ -48,7 +48,8 @@ module.exports = async function childcare(context, req) {
       } else {
         const data = await db.getChildcare(householdId);
         if (resource === "overrides") {
-          result = await db.saveChildcareOverride(householdId, validateOverride(body, data.arrangements, data.providers));
+          result = await db.saveChildcareOverride(householdId,
+            validateOverride(body, data.arrangements, data.providers, data.overrides));
         } else {
           const draft = resource === "preview" ? body.arrangement : body;
           assert(draft && typeof draft === "object" && !Array.isArray(draft), "arrangement object is required");
@@ -57,7 +58,9 @@ module.exports = async function childcare(context, req) {
             ? validateId(draft.id, "id") : null;
           if (id) {
             assert(data.arrangements.some((item) => item.id === id), "arrangement is not part of this household");
-            assert(data.overrides.filter((item) => item.arrangementId === id)
+            const currentArrangement = data.arrangements.find((item) => item.id === id);
+            assert(data.overrides.filter((item) => item.arrangementId === id && item.action !== "add"
+              && !(item.action === "cancel" && !isScheduled(currentArrangement, item.originalDate)))
               .every((item) => isScheduled(arrangement, item.originalDate)),
             "schedule change would remove an occurrence with a one-off change; keep its weekday and effective dates");
           }
