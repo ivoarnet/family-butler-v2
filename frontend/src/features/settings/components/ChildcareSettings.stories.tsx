@@ -126,6 +126,145 @@ export default meta;
 type Story = StoryObj<typeof ChildcareStory>;
 
 export const ProvidersAndCare: Story = {};
+const providerScheduleData: ChildcareData = {
+  providers: [
+    { id: providerId, name: "Grandma Jo", type: "grandparent", active: false },
+    { id: "daycare", name: "Sunny daycare", type: "daycare", active: true },
+    { id: "empty-provider", name: "Unscheduled carer", type: "other", active: true },
+  ],
+  arrangements: [
+    { id: arrangementId, providerId, childIds: members.map((member) => member.id), weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startDate: "2026-10-01", endDate: "2026-10-05", allDay: false, startTime: "09:00", endTime: "16:00" },
+    { id: "outside-range", providerId: "daycare", childIds: members.map((member) => member.id), weekdays: [3],
+      startDate: "2026-09-30", endDate: "2026-09-30", allDay: true, startTime: null, endTime: null },
+    { id: "all-day", providerId, childIds: [members[0].id], weekdays: [5],
+      startDate: "2026-10-09", endDate: "2026-10-09", allDay: true, startTime: null, endTime: null },
+  ],
+  overrides: [
+    { arrangementId, originalDate: "2026-10-02", action: "cancel" },
+    { arrangementId, originalDate: "2026-10-03", action: "replace", providerId: "daycare", allDay: true },
+    { arrangementId, originalDate: "2026-10-04", action: "move", movedDate: "2026-10-07", providerId: "daycare" },
+    { arrangementId, originalDate: "2026-10-08", action: "add", allDay: true },
+    { arrangementId: "outside-range", originalDate: "2026-09-30", action: "move", movedDate: "2026-10-06", providerId },
+  ],
+};
+const providerScheduleRequest: ChildcareRequest = async (path) => {
+  const url = new URL(path, "http://storybook.local");
+  return url.pathname.endsWith("/occurrences")
+    ? { occurrences: resolve(providerScheduleData, url.searchParams.get("startDate")!, url.searchParams.get("endDate")!) }
+    : structuredClone(providerScheduleData);
+};
+const chooseScheduleOption = async (canvasElement: HTMLElement, label: string, option: string) => {
+  await userEvent.click(within(canvasElement).getByRole("combobox", { name: label }));
+  await userEvent.click(within(canvasElement.ownerDocument.body).getByRole("option", { name: option }));
+};
+const showOctoberSchedule = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await waitFor(() => expect(canvas.getByLabelText("Range start")).toBeEnabled());
+  await fireEvent.change(canvas.getByLabelText("Range start"), { target: { value: "2026-10-01" } });
+  await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2026-10-31" } });
+  await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
+  await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
+};
+export const ProviderSchedule: Story = {
+  render: () => <div className="app-shell" style={{ padding: 24 }}><section className="settings-section">
+    <ChildcareSettings householdId={householdId} members={members} request={providerScheduleRequest} />
+  </section></div>,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await showOctoberSchedule(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "View schedule for Grandma Jo" }));
+    const list = within(canvas.getByRole("table", { name: "Childcare occurrences" }));
+    await expect(list.getAllByRole("row")).toHaveLength(6);
+    for (const day of ["2026-10-01", "2026-10-05", "2026-10-06", "2026-10-08", "2026-10-09"]) {
+      await expect(list.getByText(day)).toBeInTheDocument();
+    }
+    for (const day of ["2026-10-02", "2026-10-03", "2026-10-04", "2026-10-07"]) {
+      await expect(list.queryByText(day)).not.toBeInTheDocument();
+    }
+    await expect(list.getAllByText("Alex, Sam")).toHaveLength(4);
+    await expect(list.getByText("Added day")).toBeInTheDocument();
+    await expect(list.getAllByText("All day")).toHaveLength(3);
+    await expect(list.getAllByText("09:00–16:00")).toHaveLength(2);
+    await chooseScheduleOption(canvasElement, "Schedule view", "Calendar");
+    const calendar = within(canvas.getByRole("table", { name: /Provider care calendar/ }));
+    await expect(calendar.getAllByText("Grandma Jo")).toHaveLength(5);
+    await expect(calendar.getAllByText("Alex, Sam")).toHaveLength(4);
+    await expect(calendar.getAllByText("All day")).toHaveLength(3);
+    await expect(calendar.getAllByText("09:00–16:00")).toHaveLength(2);
+    await expect(within(calendar.getByRole("cell", { name: "2026-10-06" })).getByText("Originally 2026-09-30")).toBeInTheDocument();
+    await expect(within(calendar.getByRole("cell", { name: "2026-10-02" })).queryByText("Grandma Jo")).not.toBeInTheDocument();
+    await chooseScheduleOption(canvasElement, "Schedule provider", "Sunny daycare");
+    await expect(calendar.getAllByText("Sunny daycare")).toHaveLength(2);
+    await expect(within(calendar.getByRole("cell", { name: "2026-10-03" })).getByText("Changed · replace")).toBeInTheDocument();
+    await expect(within(calendar.getByRole("cell", { name: "2026-10-07" })).getByText("Originally 2026-10-04")).toBeInTheDocument();
+    await chooseScheduleOption(canvasElement, "Schedule provider", "Unscheduled carer");
+    await expect(canvas.getByText("No care occurrences in this range.")).toBeInTheDocument();
+    await chooseScheduleOption(canvasElement, "Schedule view", "List");
+    await expect(canvas.queryByRole("table", { name: "Childcare occurrences" })).not.toBeInTheDocument();
+    for (const [label, days] of [["This week", 7], ["Upcoming 30 days", 30]] as const) {
+      await userEvent.click(canvas.getByRole("button", { name: label }));
+      await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
+      const start = (canvas.getByLabelText("Range start") as HTMLInputElement).value;
+      const end = (canvas.getByLabelText("Range end") as HTMLInputElement).value;
+      await expect((Date.parse(end) - Date.parse(start)) / 86400000 + 1).toBe(days);
+    }
+    await userEvent.click(canvas.getByRole("button", { name: "This month" }));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
+    await expect((canvas.getByLabelText("Range start") as HTMLInputElement).value).toBe(`${date().slice(0, 7)}-01`);
+    await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2020-01-01" } });
+    await expect(canvas.getByRole("button", { name: "Show care" })).toBeDisabled();
+    await showOctoberSchedule(canvasElement);
+    await chooseScheduleOption(canvasElement, "Schedule provider", "Grandma Jo (Inactive)");
+    await chooseScheduleOption(canvasElement, "Schedule view", "Calendar");
+  },
+};
+export const ProviderScheduleRetry: Story = {
+  render: () => {
+    const request = useMemo(() => {
+      let failed = false;
+      return async (path: string) => {
+        if (path.includes("endDate=2026-11-30") && !failed) {
+          failed = true;
+          throw new Error("Schedule connection lost.");
+        }
+        return providerScheduleRequest(path);
+      };
+    }, []);
+    return <ChildcareSettings householdId={householdId} members={members} request={request} />;
+  },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await showOctoberSchedule(canvasElement);
+    await expect(canvas.getByRole("table", { name: "Childcare occurrences" })).toBeInTheDocument();
+    await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2026-11-30" } });
+    await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
+    await canvas.findByText("Schedule connection lost.");
+    await expect(canvas.queryByRole("table", { name: "Childcare occurrences" })).not.toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
+    await canvas.findByRole("table", { name: "Childcare occurrences" });
+    await expect(canvas.getByText("Showing 2026-10-01 – 2026-11-30")).toBeInTheDocument();
+    await expect(canvas.queryByText("Schedule connection lost.")).not.toBeInTheDocument();
+  },
+};
+export const ProviderCalendarBoundaries: Story = {
+  render: () => <ChildcareSettings householdId={householdId} members={members} request={providerScheduleRequest} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByLabelText("Range start")).toBeEnabled());
+    await chooseScheduleOption(canvasElement, "Schedule view", "Calendar");
+    for (const [start, end, months] of [
+      ["2028-02-01", "2028-03-01", 2], ["9999-12-01", "9999-12-31", 1],
+    ] as const) {
+      await fireEvent.change(canvas.getByLabelText("Range start"), { target: { value: start } });
+      await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: end } });
+      await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
+      await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
+      await expect(canvas.getAllByRole("table", { name: /Provider care calendar/ })).toHaveLength(months);
+      await expect(canvas.getByRole("cell", { name: start === "2028-02-01" ? "2028-02-29" : end })).toBeInTheDocument();
+    }
+  },
+};
 export const SettingsGridStyling: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);

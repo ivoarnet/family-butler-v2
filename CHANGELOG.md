@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added provider-centred resolved childcare lists and calendars in Settings, including inactive providers, date-range presets, shared children, and effective one-off changes. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/provider-childcare-schedule.png`.
+
 - Added an arrangement-specific one-off action to add childcare on an unscheduled date without changing the weekly arrangement. Updated Settings screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-childcare.png`.
 - Displayed persisted resolved childcare in the household calendar with provider/child labels and one-off move/replacement details, and added the read-only `get_childcare_coverage` agent tool. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-childcare.png`.
 - Replaced card-style childcare calendar entries with compact inline care indicators and placed occurrences in each participating child’s wide-calendar column. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-childcare.png`.

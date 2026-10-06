@@ -491,6 +491,16 @@ body,
   min-width: 680px;
 }
 
+.settings-table.provider-care-calendar {
+  min-width: 840px;
+}
+
+.settings-table.provider-care-calendar td {
+  height: 100px;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
 .calendar-grid {
   min-width: 860px;
 }
