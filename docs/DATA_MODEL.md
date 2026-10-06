@@ -46,14 +46,14 @@ Apply `docs/sql/parenting-time.sql` after the core Supabase schema.
 ### Persisted model
 
 - `parenting_time_parties`: household-owned named parties (for example, Mum and Dad), with an optional `memberId` link to a same-household `HouseholdMember` and an `active` flag. Parties can be renamed, linked, archived, and restored; archive preserves references from existing plans and changes. Standalone parties remain supported.
-- `parenting_time_plans`: at most one household-wide plan, local effective-from date, optional inclusive effective-through date, IANA time zone, recurrence mode (`weekly` or `alternating`), activation state, and an array of validated recurring rules. Every period of the weekly or two-week cycle must be assigned by a rule; gaps and overlaps between different parties are rejected. Each rule has a stable UUID, ISO start weekday (Monday = 1 through Sunday = 7), start time, ISO end weekday/time, responsible party, and optional `weekParity` (`odd` or `even`). A lower end weekday means the following week; a same-day end must be later than its start. Intervals are shorter than seven days.
+- `parenting_time_plans`: at most one household-wide plan, local effective-from date, optional inclusive effective-through date, IANA time zone, recurrence mode (`weekly` or `alternating`), activation state, compiled recurring rules, and the editable handover list. A handover has a stable UUID, ISO weekday (Monday = 1 through Sunday = 7), local time, `fromPartyId`, `toPartyId`, and optional `weekParity` (`odd` or `even`). Add one or more handovers; the resolver requires their recurring sequence to be consistent and to define responsibility across the entire week/two-week cycle. Handovers compile server-side into recurring rules, so gaps and overlaps between different parties are rejected. The legacy period-rule format remains supported for existing plans.
 - `parenting_time_changes`: dated, half-open `[startAt, endAt)` timestamp interval, responsible party, and explanatory label. Changes must not overlap one another and take precedence over the recurring plan only within their interval.
 
 Recurring rule times are household-local wall-clock times in the plan's IANA time zone. When a wall time occurs twice at a daylight-saving transition the resolver uses the earlier occurrence; a nonexistent wall time is reported as invalid for that requested range. One-off change timestamps and resolver range bounds are timezone-bearing ISO 8601 date-times and are normalized to UTC.
 
 Resolution starts at the plan's `effectiveFrom` local midnight; requests wholly before that date return no intervals. Existing dated changes prevent moving a plan's effective date past their start.
 
-Alternating rules match the ISO calendar-week number of the rule's start date: odd means weeks 1, 3, 5, etc.; even means weeks 2, 4, 6, etc. This intentionally follows ISO week numbering across year boundaries. The rule's start weekday determines parity, so an alternating weekend beginning Friday is selected by the Friday's week number. An omitted parity applies every week. Weekly plans cannot specify parity.
+Alternating rules and handovers match the ISO calendar-week number of their start date: odd means weeks 1, 3, 5, etc.; even means weeks 2, 4, 6, etc. This intentionally follows ISO week numbering across year boundaries. The handover weekday determines parity, so an alternating weekend beginning Friday is selected by the Friday's week number. An omitted parity applies every week. Weekly plans cannot specify parity.
 
 On save/activation, the API rejects invalid party references, weekday/time ranges, duplicate rule IDs, uncovered times, and recurring rules assigning different parties to overlapping times. The resolver also reports any persisted gaps or ambiguity rather than returning a partial schedule. Adjacent intervals with the same responsible party are coalesced, so a seamless same-party handover boundary is not shown as a change of responsibility. Each returned plan interval retains source parts identifying the recurring rule IDs; a one-off interval identifies its change ID and label.
 
@@ -72,7 +72,7 @@ All paths are relative to `/api/households/{householdId}/parenting-time`. Reques
 | POST | `/preview` | Resolve a draft plan without saving: `{ plan, startAt, endAt }` → `{ intervals }`, using the same server resolver and persisted changes. |
 | GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return `{ intervals }` for a range of at most 366 days. |
 
-Create the representative plan (using returned party UUIDs) with explicit rules for both parties. Mother is assigned the remaining periods by these complementary rules:
+Create the representative plan (using returned party UUIDs) with its handover events:
 
 ```json
 {
@@ -80,13 +80,11 @@ Create the representative plan (using returned party UUIDs) with explicit rules 
   "timeZone": "Europe/Zurich",
   "recurrenceMode": "alternating",
   "active": true,
-  "rules": [
-    { "partyId": "<father UUID>", "weekday": 7, "startTime": "19:30", "endWeekday": 1, "endTime": "19:30" },
-    { "partyId": "<father UUID>", "weekday": 4, "startTime": "19:30", "endWeekday": 5, "endTime": "17:00" },
-    { "partyId": "<father UUID>", "weekday": 5, "startTime": "17:00", "endWeekday": 7, "endTime": "19:30", "weekParity": "odd" },
-    { "partyId": "<mother UUID>", "weekday": 7, "startTime": "00:00", "endWeekday": 7, "endTime": "19:30" },
-    { "partyId": "<mother UUID>", "weekday": 1, "startTime": "19:30", "endWeekday": 4, "endTime": "19:30" },
-    { "partyId": "<mother UUID>", "weekday": 5, "startTime": "17:00", "endWeekday": 7, "endTime": "19:30", "weekParity": "even" }
+  "handovers": [
+    { "weekday": 1, "time": "19:30", "fromPartyId": "<father UUID>", "toPartyId": "<mother UUID>" },
+    { "weekday": 4, "time": "19:30", "fromPartyId": "<mother UUID>", "toPartyId": "<father UUID>" },
+    { "weekday": 5, "time": "17:00", "fromPartyId": "<father UUID>", "toPartyId": "<mother UUID>", "weekParity": "even" },
+    { "weekday": 7, "time": "19:30", "fromPartyId": "<mother UUID>", "toPartyId": "<father UUID>", "weekParity": "even" }
   ]
 }
 ```
@@ -97,7 +95,7 @@ On an odd ISO Friday-week, Father's Thursday period continues through Sunday and
 { "partyId": "<mother>", "startAt": "2026-10-09T18:00:00Z", "endAt": "2026-10-09T20:00:00Z", "label": "Agreed swap" }
 ```
 
-Settings → Parenting Time provides household-wide party, recurring-period, and dated-change management. Add as many periods as needed, each with start/end weekdays and times, a parenting party, and a weekly, odd ISO-week, or even ISO-week recurrence. The period list supports schedules such as one parent having only odd weekends or weekday periods combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
+Settings → Parenting Time provides household-wide party, recurring-handover, and dated-change management. Add or remove handovers as needed; each has a weekday/time, from/to parties, and a weekly, odd ISO-week, or even ISO-week recurrence. The handover list supports schedules such as weekday handovers combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
 
 ## Childcare — implemented
 

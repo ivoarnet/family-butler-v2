@@ -32,7 +32,7 @@ Payments, booking, capacity, and attendance are outside this implementation. See
 
 ## Parenting Time — Settings management and resolver implemented
 
-Parenting Time helps separated or divorced parents plan when all children in a household are scheduled to be with each parenting party. Settings → Parenting Time supports creating, editing, archiving, and restoring parties; building a recurring schedule from any number of periods (weekly, odd ISO weeks, or even ISO weeks); previewing the upcoming schedule through the server-side resolver; and adding, editing, or removing dated changes for a selected period. The plan applies to all children in the household and is for practical planning, not legal advice or proof of custody. Calendar display and agent workflows are not shipped. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
+Parenting Time helps separated or divorced parents plan when all children in a household are scheduled to be with each parenting party. Settings → Parenting Time supports creating, editing, archiving, and restoring parties; defining a recurring schedule from one or more handovers (weekly, odd ISO weeks, or even ISO weeks); previewing the upcoming schedule through the server-side resolver; and adding, editing, or removing dated changes for a selected period. The plan applies to all children in the household and is for practical planning, not legal advice or proof of custody. Calendar display and agent workflows are not shipped. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
 
 ## Planned modules
 

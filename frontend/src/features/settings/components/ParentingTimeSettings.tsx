@@ -336,7 +336,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
               }}>Add handover</Button>
             </Stack>
             <Typography variant="body2">
-              Each handover changes responsibility from one party to another. Choose odd or even ISO weeks for alternating handovers; handovers must form a consistent recurring sequence.
+              Add at least one handover, and as many as your schedule needs. Each changes responsibility from one party to another. Choose odd or even ISO weeks for alternating handovers; handovers must form a consistent recurring sequence.
             </Typography>
             {planDraft.handovers?.map((handover, index) => <Box key={handover.id} sx={{
               display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr)) auto" },

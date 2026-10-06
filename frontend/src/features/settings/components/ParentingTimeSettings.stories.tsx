@@ -82,9 +82,9 @@ export const HouseholdPlan: Story = {
     await userEvent.click(within(partyDialog).getByRole("button", { name: "Cancel" }));
     await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
     const planDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
-    for (let index = 0; index < 4; index += 1) {
-      await userEvent.click(planDialog.getByRole("button", { name: "Add handover" }));
-    }
+    await userEvent.click(planDialog.getByRole("button", { name: "Add handover" }));
+    await expect(planDialog.getAllByRole("button", { name: "Remove handover" })).toHaveLength(5);
+    await userEvent.click(planDialog.getAllByRole("button", { name: "Remove handover" })[4]);
     await userEvent.click(planDialog.getByRole("button", { name: "Preview next 14 days" }));
     await waitFor(() => expect(planDialog.getAllByText("Regular plan").length).toBeGreaterThan(0));
     const previewCall = calls.mock.calls.find(([path, init]) => String(path).endsWith("/preview") && init?.method === "POST");
