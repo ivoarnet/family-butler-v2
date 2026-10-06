@@ -30,9 +30,9 @@ Settings → Childcare also provides a provider-centred resolved list and monthl
 
 Payments, booking, capacity, and attendance are outside this implementation. See [Childcare model and API](DATA_MODEL.md#childcare--implemented) and [Supabase setup](SUPABASE.md#childcare-migration).
 
-## Parenting Time — household API and resolver implemented
+## Parenting Time — Settings management and resolver implemented
 
-Parenting Time helps separated or divorced parents plan when all children in a household are scheduled to be with each parenting party. The authenticated household API persists parties, one weekly or alternating ISO-week plan with timed handovers, and one-off changes. A server-side resolver derives explainable effective intervals from persisted data. No management UI, calendar display, or agent workflow is currently shipped. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
+Parenting Time helps separated or divorced parents plan when all children in a household are scheduled to be with each parenting party. Settings → Parenting Time supports creating, editing, archiving, and restoring parties; saving weekly or alternating ISO-week plans with four configurable handover weekdays and times; previewing the upcoming schedule through the server-side resolver; and adding, editing, or removing dated changes for a selected period. The plan applies to all children in the household and is for practical planning, not legal advice or proof of custody. Calendar display and agent workflows are not shipped. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
 
 ## Planned modules
 

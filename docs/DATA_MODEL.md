@@ -45,8 +45,8 @@ Apply `docs/sql/parenting-time.sql` after the core Supabase schema.
 
 ### Persisted model
 
-- `parenting_time_parties`: household-owned named parties (for example, Mother and Father), with an optional `memberId` link to a same-household `HouseholdMember`. The link allows a visible resident parent and an invisible/non-resident parent represented in the household to share the existing member identity and settings. Standalone parties remain supported. Removing a linked member clears the optional link without deleting the parenting party; transferring a linked member to another household is rejected until the link is removed.
-- `parenting_time_plans`: at most one household-wide plan, local effective-from date, IANA time zone, recurrence mode (`weekly` or `alternating`), activation state, and an array of validated recurring rules. Every period of the weekly or two-week cycle must be assigned by a rule; gaps and overlaps between different parties are rejected. Each rule has a stable UUID, ISO start weekday (Monday = 1 through Sunday = 7), start time, ISO end weekday/time, responsible party, and optional `weekParity` (`odd` or `even`). A lower end weekday means the following week; a same-day end must be later than its start. Intervals are shorter than seven days.
+- `parenting_time_parties`: household-owned named parties (for example, Mum and Dad), with an optional `memberId` link to a same-household `HouseholdMember` and an `active` flag. Parties can be renamed, linked, archived, and restored; archive preserves references from existing plans and changes. Standalone parties remain supported.
+- `parenting_time_plans`: at most one household-wide plan, local effective-from date, optional inclusive effective-through date, IANA time zone, recurrence mode (`weekly` or `alternating`), activation state, and an array of validated recurring rules. Every period of the weekly or two-week cycle must be assigned by a rule; gaps and overlaps between different parties are rejected. Each rule has a stable UUID, ISO start weekday (Monday = 1 through Sunday = 7), start time, ISO end weekday/time, responsible party, and optional `weekParity` (`odd` or `even`). A lower end weekday means the following week; a same-day end must be later than its start. Intervals are shorter than seven days.
 - `parenting_time_changes`: dated, half-open `[startAt, endAt)` timestamp interval, responsible party, and explanatory label. Changes must not overlap one another and take precedence over the recurring plan only within their interval.
 
 Recurring rule times are household-local wall-clock times in the plan's IANA time zone. When a wall time occurs twice at a daylight-saving transition the resolver uses the earlier occurrence; a nonexistent wall time is reported as invalid for that requested range. One-off change timestamps and resolver range bounds are timezone-bearing ISO 8601 date-times and are normalized to UTC.
@@ -65,8 +65,11 @@ All paths are relative to `/api/households/{householdId}/parenting-time`. Reques
 | --- | --- | --- |
 | GET | (none) | Reload persisted `{ parties, plan, changes }`. |
 | POST | `/parties` | Create `{ "name": "Father", "memberId": "<optional same-household member UUID>" }` (repeat for Mother). |
-| POST or PUT | `/plan` | Persist/replace and validate the household plan. Use `active: false` to save an inactive plan. |
+| PUT | `/parties` | Edit `{ id, name, memberId, active }`; set `active: false` to archive or `true` to restore. |
+| POST or PUT | `/plan` | Persist/replace and validate the household plan. `effectiveTo` is an optional inclusive end date; use `active: false` to save an inactive plan. |
 | POST or PUT | `/changes` | Create a one-off interval or update one using its `id`. |
+| DELETE | `/changes?id=<change UUID>` | Remove a one-off change. |
+| POST | `/preview` | Resolve a draft plan without saving: `{ plan, startAt, endAt }` → `{ intervals }`, using the same server resolver and persisted changes. |
 | GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return `{ intervals }` for a range of at most 366 days. |
 
 Create the representative plan (using returned party UUIDs) with explicit rules for both parties. Mother is assigned the remaining periods by these complementary rules:
@@ -94,7 +97,7 @@ On an odd ISO Friday-week, Father's Thursday period continues through Sunday and
 { "partyId": "<mother>", "startAt": "2026-10-09T18:00:00Z", "endAt": "2026-10-09T20:00:00Z", "label": "Agreed swap" }
 ```
 
-The resolver derives slots from the persisted plan and changes; it does not pre-generate future occurrences or create generic events. Results include `startAt`, `endAt`, `partyId`, `partyName`, and source details. Ordinary household saves do not replace parenting-time data. This first iteration exposes a development/test-ready API only; calendar presentation and agent tools are not included.
+Settings → Parenting Time provides household-wide party, plan, and dated-change management. Its first plan editor starts with the common Sunday/Monday/Thursday/Friday handover pattern, allows the four ordered handover weekdays and times to be configured, and supports weekly or alternating ISO-weekend assignments rather than a generic recurrence-rule editor. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
 
 ## Childcare — implemented
 

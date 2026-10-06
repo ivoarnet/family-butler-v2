@@ -21,14 +21,19 @@ create table if not exists public.parenting_time_plans (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null unique references public.households(id) on delete cascade,
   effective_from date not null,
+  effective_to date,
   time_zone text not null default 'UTC',
   recurrence_mode text not null check (recurrence_mode in ('weekly', 'alternating')),
   rules jsonb not null default '[]'::jsonb check (jsonb_typeof(rules) = 'array'),
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (household_id, id)
+  unique (household_id, id),
+  check (effective_to is null or effective_to >= effective_from)
 );
+
+alter table public.parenting_time_plans
+  add column if not exists effective_to date;
 
 -- Keep databases that applied an earlier draft migration writable without
 -- relying on or requiring the former default-party column.
@@ -72,6 +77,9 @@ declare
   start_minute integer;
   end_minute integer;
 begin
+  if new.effective_to is not null and new.effective_to < new.effective_from then
+    raise exception 'parenting-time plan effective_to cannot be before effective_from';
+  end if;
   if jsonb_typeof(new.rules) <> 'array' or jsonb_array_length(new.rules) > 100 then
     raise exception 'parenting-time rules must be an array with at most 100 entries';
   end if;

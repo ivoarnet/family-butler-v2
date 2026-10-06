@@ -18,12 +18,13 @@ import { EventTypeDialog, EventTypeDialogFormState } from "../features/settings/
 import { HouseholdDialog } from "../features/settings/components/HouseholdDialog";
 import { MemberDialog } from "../features/settings/components/MemberDialog";
 import { ChildcareSettings, type ChildcareRequest } from "../features/settings/components/ChildcareSettings";
+import { ParentingTimeSettings } from "../features/settings/components/ParentingTimeSettings";
 import { DEFAULT_MEMBER_COLOR, getMemberColorLabel, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
-type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare";
+type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare" | "parenting-time";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
 const DAY_CONFIGURATION_OPTIONS: Array<{
   value: DayConfigurationCategory;
@@ -692,6 +693,7 @@ export function SettingsPage({
               <Tab value="events" label="Events" />
               <Tab value="calendar" label="Calendar" />
               <Tab value="childcare" label="Childcare" />
+              <Tab value="parenting-time" label="Parenting Time" />
             </Tabs>
           </div>
         ) : null}
@@ -852,6 +854,15 @@ export function SettingsPage({
               : childcareRequest ? <ChildcareSettings key={activeHouseholdId} householdId={activeHouseholdId}
                 members={householdData.familyMembers} request={childcareRequest} />
               : <div role="alert">Sign in to manage childcare.</div>}
+          </section>
+        ) : null}
+        {showSettingsWorkspace && settingsWorkspaceTab === "parenting-time" ? (
+          <section className="settings-section">
+            {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to manage parenting time.</div>
+              : isContextLoading || householdData.householdId !== activeHouseholdId ? <div role="status">Loading selected household…</div>
+              : childcareRequest ? <ParentingTimeSettings key={activeHouseholdId} householdId={activeHouseholdId}
+                members={householdData.familyMembers} request={childcareRequest} />
+              : <div role="alert">Sign in to manage parenting time.</div>}
           </section>
         ) : null}
         {showSettingsWorkspace && settingsWorkspaceTab === "members" ? (

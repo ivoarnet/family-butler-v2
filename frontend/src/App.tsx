@@ -308,7 +308,7 @@ export function App() {
     }
     const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
     if (!response.ok) throw new Error(await parseResponseError(response, "Childcare request failed."));
-    return response.json();
+    return response.status === 204 ? null : response.json();
   }, [authClient]);
 
   useEffect(() => {

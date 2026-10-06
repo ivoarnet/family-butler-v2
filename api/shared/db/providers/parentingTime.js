@@ -13,6 +13,7 @@ const mapPlan = (row) => ({
   id: row.id,
   householdId: row.household_id,
   effectiveFrom: row.effective_from,
+  effectiveTo: row.effective_to,
   timeZone: row.time_zone,
   recurrenceMode: row.recurrence_mode,
   rules: row.rules,
@@ -102,6 +103,7 @@ module.exports = function createParentingTimeProvider(request) {
       });
       const body = {
         effective_from: data.effectiveFrom,
+        effective_to: data.effectiveTo,
         time_zone: data.timeZone,
         recurrence_mode: data.recurrenceMode,
         rules: data.rules,

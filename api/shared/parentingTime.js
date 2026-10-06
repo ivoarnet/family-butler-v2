@@ -119,6 +119,8 @@ const assertRulesCoverSchedule = (rules, recurrenceMode) => {
 const validatePlan = (data, parties) => {
   assert(["weekly", "alternating"].includes(data.recurrenceMode), "recurrenceMode must be weekly or alternating");
   const effectiveFrom = validateDate(data.effectiveFrom, "effectiveFrom");
+  const effectiveTo = data.effectiveTo == null || data.effectiveTo === "" ? null : validateDate(data.effectiveTo, "effectiveTo");
+  assert(effectiveTo === null || effectiveTo >= effectiveFrom, "effectiveTo must be on or after effectiveFrom");
   const timeZone = data.timeZone ?? "UTC";
   assert(typeof timeZone === "string" && validTimeZone(timeZone), "timeZone must be a valid IANA time zone");
   assert(Array.isArray(data.rules) && data.rules.length <= 100, "rules must be an array with at most 100 entries");
@@ -128,7 +130,7 @@ const validatePlan = (data, parties) => {
     "recurring rules must assign time to at least two parenting parties");
   assertRulesCoverSchedule(rules, data.recurrenceMode);
   assert(data.active === undefined || typeof data.active === "boolean", "active must be a boolean");
-  return { effectiveFrom, timeZone, recurrenceMode: data.recurrenceMode, rules, active: data.active ?? true };
+  return { effectiveFrom, effectiveTo, timeZone, recurrenceMode: data.recurrenceMode, rules, active: data.active ?? true };
 };
 
 const validateChange = (data, parties, changes = [], ignoredId = null) => {
@@ -206,6 +208,8 @@ const shiftDate = (date, days) => {
 };
 
 const getPlanStartTimestamp = (plan) => localDateTimeToTimestamp(plan.effectiveFrom, "00:00", plan.timeZone);
+const getPlanEndTimestamp = (plan) => plan.effectiveTo
+  ? localDateTimeToTimestamp(shiftDate(plan.effectiveTo, 1), "00:00", plan.timeZone) : null;
 
 const rangeTimestamp = (value, name) => validateDateTime(value, name);
 
@@ -215,13 +219,15 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
   const end = rangeTimestamp(endAt, "endAt");
   assert(end > start && end - start <= 366 * DAY_MS, "date-time range must be ordered and at most 366 days");
   const effectiveStart = getPlanStartTimestamp(plan);
+  const effectiveEnd = getPlanEndTimestamp(plan);
   const resolutionStart = Math.max(start, effectiveStart);
-  if (end <= resolutionStart) return [];
+  const resolutionEnd = effectiveEnd === null ? end : Math.min(end, effectiveEnd);
+  if (resolutionEnd <= resolutionStart) return [];
   const startDate = shiftDate(localDate(resolutionStart, plan.timeZone), -8);
-  const endDate = shiftDate(localDate(end, plan.timeZone), 1);
+  const endDate = shiftDate(localDate(resolutionEnd, plan.timeZone), 1);
   const intervals = [];
   const addInterval = (interval) => {
-    if (interval.end > resolutionStart && interval.start < end) intervals.push(interval);
+    if (interval.end > resolutionStart && interval.start < resolutionEnd) intervals.push(interval);
   };
   for (const change of changes) {
     addInterval({ start: Date.parse(change.startAt), end: Date.parse(change.endAt), partyId: change.partyId,
@@ -239,8 +245,8 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
         source: { type: "recurring", ruleId: rule.id } });
     }
   }
-  const boundaries = [...new Set([resolutionStart, end,
-    ...intervals.flatMap((item) => [Math.max(resolutionStart, item.start), Math.min(end, item.end)])])]
+  const boundaries = [...new Set([resolutionStart, resolutionEnd,
+    ...intervals.flatMap((item) => [Math.max(resolutionStart, item.start), Math.min(resolutionEnd, item.end)])])]
     .sort((a, b) => a - b);
   const result = [];
   for (let index = 0; index < boundaries.length - 1; index += 1) {
@@ -287,5 +293,5 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
 
 module.exports = {
   assert, validateId, validateParty, validatePlan, validateChange, resolveParentingTime, isoWeekNumber,
-  getPlanStartTimestamp,
+  getPlanStartTimestamp, getPlanEndTimestamp,
 };
