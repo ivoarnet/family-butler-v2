@@ -1,5 +1,6 @@
 const { randomUUID } = require("crypto");
 const createChildcareProvider = require("./childcare");
+const createParentingTimeProvider = require("./parentingTime");
 
 const TABLES = {
   households: "households",
@@ -169,6 +170,7 @@ module.exports = function createSupabaseProvider() {
 
   return {
     ...createChildcareProvider(request),
+    ...createParentingTimeProvider(request),
     async listHouseholds(userId) {
       const households = await request(TABLES.households, {
         params: {
