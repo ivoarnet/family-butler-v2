@@ -110,8 +110,8 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
       title={`Parenting · ${partyName} · ${details}`}
       aria-label={`Parenting: ${partyName}. ${details}`}>
       <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
-      <strong>Parenting · {partyName}</strong>
-      {handOffTime && <small>Hand-off {handOffTime}</small>}
+      <strong>Parenting</strong>
+      {handOffTime && <small>{handOffTime} → {partyName}</small>}
     </div>
   );
 }
@@ -921,7 +921,9 @@ export function DashboardPage({
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
                   const childcareEntries = childcareByDate.get(isoDate) ?? [];
                   const parentingEntries = parentingIntervals.filter((interval) =>
-                    new Date(interval.startAt) < addDays(day, 1) && new Date(interval.endAt) > day);
+                    new Date(interval.startAt) >= day && new Date(interval.startAt) < addDays(day, 1)
+                    && parentingIntervals.some((previous) =>
+                      previous.endAt === interval.startAt && previous.partyId !== interval.partyId));
                   const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
                   const isFirstDayOfWeek = dayIndex % 7 === 0;
                   const weekNumber = getIsoWeekNumber(day);

@@ -32,6 +32,15 @@ const parentingIntervals: ResolvedParentingInterval[] = [
     endAt: followingMidnight.toISOString(),
     partyId: momId, partyName: "Mum", source: { type: "change", changeId: "same-party", label: "Same-party adjustment" } },
 ];
+const periodStart = new Date(`${date}T00:00`);
+periodStart.setDate(periodStart.getDate() - (periodStart.getDay() + 6) % 7);
+const boundaryIntervals: ResolvedParentingInterval[] = [
+  { ...parentingIntervals[1], startAt: periodStart.toISOString() },
+  ...parentingIntervals.slice(2),
+  { startAt: followingMidnight.toISOString(), endAt: new Date(followingMidnight.getFullYear(),
+    followingMidnight.getMonth(), followingMidnight.getDate() + 1).toISOString(),
+    partyId: dadId, partyName: "Dad", source: { type: "plan", planId: "plan" } },
+];
 const childcareOccurrences = [
   {
     id: "grandparents-care",
@@ -85,11 +94,12 @@ const household: HouseholdData = {
 function DashboardStory({ width, unknownResponsibility = false, hatching = false, archivedHouseholdParty = false,
   parentingUnavailable = false, classificationControls = false, noChildren = false, noHouseholdLinks = false,
   invalidHouseholdLink = false, invalidOutsideLink = false, inactiveOutsideParty = false,
-  multipleHouseholdLinks = false, secondChildOptedOut = false, additionalOutsideParty = false }: {
+  multipleHouseholdLinks = false, secondChildOptedOut = false, additionalOutsideParty = false, parentingBoundaries = false }: {
   width: number; unknownResponsibility?: boolean; hatching?: boolean; archivedHouseholdParty?: boolean;
   parentingUnavailable?: boolean; classificationControls?: boolean; noChildren?: boolean; noHouseholdLinks?: boolean;
   invalidHouseholdLink?: boolean; invalidOutsideLink?: boolean; inactiveOutsideParty?: boolean;
   multipleHouseholdLinks?: boolean; secondChildOptedOut?: boolean; additionalOutsideParty?: boolean;
+  parentingBoundaries?: boolean;
 }) {
   const [householdData, setHouseholdData] = useState<HouseholdData>(() => ({
     ...household, familyMembers: household.familyMembers.map((member) => ({
@@ -115,7 +125,7 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
             startAt: new Date(`${date}T14:00`).toISOString(), endAt: new Date(`${date}T16:00`).toISOString() },
           { ...parentingIntervals[2], startAt: new Date(`${date}T16:00`).toISOString() },
           ...parentingIntervals.slice(3),
-        ] : parentingIntervals;
+        ] : parentingBoundaries ? boundaryIntervals : parentingIntervals;
         return Response.json({
           intervals: unknownResponsibility ? [] : intervals.filter((interval) =>
             interval.startAt < range.get("endAt")! && interval.endAt > range.get("startAt")!),
@@ -152,7 +162,7 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
       window.fetch = originalFetch;
     };
   }, [unknownResponsibility, archivedHouseholdParty, parentingUnavailable, noHouseholdLinks,
-    invalidHouseholdLink, invalidOutsideLink, inactiveOutsideParty, multipleHouseholdLinks, additionalOutsideParty]);
+    invalidHouseholdLink, invalidOutsideLink, inactiveOutsideParty, multipleHouseholdLinks, additionalOutsideParty, parentingBoundaries]);
   return (
     <div style={{ maxWidth: width, margin: "auto" }}>
       {classificationControls && <button type="button" onClick={() => setHouseholdData((current) => ({
@@ -338,15 +348,17 @@ export const MultiDayEvent: Story = {
 };
 
 export const ParentingTime: Story = {
-  args: { width: 1440 },
+  args: { width: 1440, parentingBoundaries: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")).toHaveLength(3));
+    await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")).toHaveLength(2));
     const todayRow = within(canvasElement.querySelector(".today-row") as HTMLElement);
-    const parentingEntry = todayRow.getByText("Parenting · Dad").closest(".calendar-parenting-entry")!;
+    const parentingEntry = todayRow.getByText("12:00 → Dad").closest(".calendar-parenting-entry")!;
     await expect(parentingEntry).toBeVisible();
-    await expect(parentingEntry.textContent).toBe("Parenting · DadHand-off 12:00");
+    await expect(parentingEntry.textContent).toBe("Parenting12:00 → Dad");
+    await expect(parentingEntry.querySelector("strong")?.textContent).toBe("Parenting");
+    await expect(parentingEntry.querySelector(".calendar-special-icon[data-testid='FamilyRestroomIcon']")).not.toBeNull();
     await expect(parentingEntry.getAttribute("title")).toContain("12:00 – 18:00");
     await expect(canvas.queryByText("One-off change · Agreed swap")).toBeNull();
     await expect(parentingEntry.querySelector("summary")).toBeNull();
@@ -366,20 +378,20 @@ export const ParentingTime: Story = {
     await expect(parentingEntry.getAttribute("aria-label")).toContain("Adjusted responsibility");
     await expect(canvas.queryByText("Handover from Mum at 12:00")).toBeNull();
     await expect(canvas.queryByText("Handover to Mum at 18:00")).toBeNull();
-    const normalEntry = canvasElement.querySelector(".today-row .calendar-parenting-entry")!;
-    const previousDayVisible = Boolean(canvasElement.querySelector(`[title^="Parenting · Dad · All day"]`));
-    await expect(normalEntry.textContent).toBe(previousDayVisible ? "Parenting · MumHand-off 00:00" : "Parenting · Mum");
-    await expect(normalEntry.getAttribute("title")).toContain("Normal plan");
-    const returningEntry = canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")[2]!;
-    await expect(returningEntry.textContent).toBe("Parenting · MumHand-off 18:00");
-    const continuingEntries = Array.from(canvasElement.querySelectorAll(".calendar-parenting-entry"))
-      .filter((entry) => entry.getAttribute("title")?.includes("Same-party adjustment")
-        || entry.getAttribute("title")?.startsWith("Parenting · Mum · 00:00 – 12:00 · Normal plan:")
-          && !entry.closest(".today-row"));
-    for (const entry of continuingEntries) {
-      await expect(entry.textContent).toBe("Parenting · Mum");
-      await expect(entry.querySelector("small")).toBeNull();
-    }
+    const returningEntry = todayRow.getByText("18:00 → Mum").closest(".calendar-parenting-entry")!;
+    await expect(returningEntry.textContent).toBe("Parenting18:00 → Mum");
+    await expect(returningEntry.getAttribute("title")).toContain("Normal plan");
+    const tomorrowRow = canvasElement.querySelector(".today-row")!.nextElementSibling!;
+    await expect(tomorrowRow.querySelectorAll(".calendar-parenting-entry")).toHaveLength(0);
+    const midnightRow = tomorrowRow.nextElementSibling!;
+    await expect(midnightRow.querySelectorAll(".calendar-parenting-entry")).toHaveLength(1);
+    const midnightEntry = midnightRow.querySelector(".calendar-parenting-entry")!;
+    await expect(midnightEntry.textContent).toBe("Parenting00:00 → Dad");
+    await expect(midnightEntry.getAttribute("title")).toContain("Handover from Mum at 00:00");
+    const allEntries = Array.from(canvasElement.querySelectorAll(".calendar-parenting-entry"));
+    await expect(allEntries).toHaveLength(3);
+    await expect(allEntries.some((entry) => entry.getAttribute("title")?.includes("Same-party adjustment"))).toBe(false);
+    await expect(allEntries.some((entry) => entry.textContent === "Parenting00:00 → Mum")).toBe(false);
     await expect(canvas.queryByRole("button", { name: "Open event Parenting · Dad" })).toBeNull();
     await userEvent.click(canvas.getByTitle("Create event"));
     await fireEvent.change(await page.findByRole("textbox", { name: /^Title/ }), { target: { value: "Personal appointment" } });
