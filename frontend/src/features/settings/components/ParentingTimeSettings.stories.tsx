@@ -76,17 +76,18 @@ export const HouseholdPlan: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvas.getByText("Dad")).toBeInTheDocument());
-    await userEvent.click(canvas.getAllByRole("button", { name: "Edit" })[0]);
+    await userEvent.click(canvas.getByRole("button", { name: "Edit parenting party Dad" }));
     const partyDialog = page.getByRole("dialog", { name: "Edit parenting party" });
     await expect(partyDialog).toBeInTheDocument();
     await userEvent.click(within(partyDialog).getByRole("button", { name: "Cancel" }));
     await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
     const planDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
     await userEvent.click(planDialog.getByRole("button", { name: "Add handover" }));
-    await expect(planDialog.getAllByRole("button", { name: "Remove handover" })).toHaveLength(5);
-    await userEvent.click(planDialog.getAllByRole("button", { name: "Remove handover" })[4]);
+    await expect(planDialog.getAllByRole("button", { name: /Remove handover/ })).toHaveLength(5);
+    await userEvent.click(planDialog.getAllByRole("button", { name: /Remove handover/ })[4]);
     await userEvent.click(planDialog.getByRole("button", { name: "Preview next 14 days" }));
-    await waitFor(() => expect(planDialog.getAllByText("Regular plan").length).toBeGreaterThan(0));
+    await waitFor(() => expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument());
+    await expect(page.queryByRole("dialog", { name: "Create recurring schedule" })).not.toBeInTheDocument();
     const previewCall = calls.mock.calls.find(([path, init]) => String(path).endsWith("/preview") && init?.method === "POST");
     expect(previewCall).toBeDefined();
     const payload = JSON.parse(String(previewCall?.[1]?.body));
@@ -100,7 +101,9 @@ export const HouseholdPlan: Story = {
       [5, "17:00", fatherId, motherId, "even"],
       [7, "19:30", motherId, fatherId, "even"],
     ]);
-    await userEvent.click(planDialog.getByRole("button", { name: "Save plan" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
+    const reopenedPlanDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
+    await userEvent.click(reopenedPlanDialog.getByRole("button", { name: "Save plan" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
       String(path).endsWith("/plan") && init?.method === "PUT")).toBe(true));
     await waitFor(() => expect(canvas.getByRole("button", { name: "Add change" })).toBeEnabled());

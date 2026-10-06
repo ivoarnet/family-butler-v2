@@ -1,5 +1,9 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
+import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
+import BlockIcon from "@mui/icons-material/Block";
+import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton,
@@ -166,6 +170,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       method: "POST", body: JSON.stringify({ plan, startAt, endAt }),
     }) as { intervals: Interval[] };
     setPreview(result.intervals);
+    setPlanDialogOpen(false);
   });
   const savePlan = () => run(async () => {
     const plan = planPayload();
@@ -203,19 +208,30 @@ export function ParentingTimeSettings({ householdId, members, request }: {
 
     <section className="settings-card">
       <div className="section-toolbar"><h2>Parenting parties</h2>
-        <Button onClick={() => setPartyDraft({ name: "", memberId: "", active: true })} disabled={busy}>Add party</Button>
+        <button type="button" className="primary-pill no-wrap-button" disabled={busy}
+          onClick={() => setPartyDraft({ name: "", memberId: "", active: true })}>
+          <AddCircleOutlineIcon fontSize="small" /> Add party
+        </button>
       </div>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting parties">
         <thead><tr><th>Name</th><th>Household member</th><th>Status</th><th>Actions</th></tr></thead>
         <tbody>{data.parties.map((party) => <tr key={party.id}>
           <td>{party.name}</td><td>{members.find((member) => member.id === party.memberId)?.firstName ?? "Not linked"}</td>
           <td><Chip size="small" label={party.active ? "Active" : "Archived"} /></td>
-          <td className="actions-cell"><Button size="small" startIcon={<EditOutlinedIcon />} onClick={() =>
-            setPartyDraft({ id: party.id, name: party.name, memberId: party.memberId ?? "", active: party.active })}>Edit</Button>
-            <Button size="small" disabled={busy} onClick={() => mutate("parties", "PUT",
-              { id: party.id, name: party.name, memberId: party.memberId, active: !party.active })}>
-              {party.active ? "Archive" : "Restore"}
-            </Button></td>
+          <td className="actions-cell"><div className="icon-actions">
+            <button type="button" className="icon-button compact-icon-button" disabled={busy}
+              aria-label={`Edit parenting party ${party.name}`} title="Edit party" onClick={() =>
+                setPartyDraft({ id: party.id, name: party.name, memberId: party.memberId ?? "", active: party.active })}>
+              <EditOutlinedIcon fontSize="small" />
+            </button>
+            <button type="button" className="icon-button compact-icon-button" disabled={busy}
+              aria-label={party.active ? `Archive ${party.name}` : `Restore ${party.name}`}
+              title={party.active ? "Archive party" : "Restore party"}
+              onClick={() => mutate("parties", "PUT",
+                { id: party.id, name: party.name, memberId: party.memberId, active: !party.active })}>
+              {party.active ? <BlockIcon fontSize="small" /> : <CheckCircleOutlineIcon fontSize="small" />}
+            </button>
+          </div></td>
         </tr>)}</tbody>
       </table></div>
       <GlassDialog open={!!partyDraft} onClose={() => { if (!busy) setPartyDraft(null); }}
@@ -245,14 +261,15 @@ export function ParentingTimeSettings({ householdId, members, request }: {
 
     <section className="settings-card">
       <div className="section-toolbar"><h2>Regular parenting-time handovers</h2>
-        <Button variant="contained" onClick={() => {
+        <button type="button" className="primary-pill no-wrap-button" onClick={() => {
           if (!data.plan && planDraft?.handovers?.length === 0 && planDraft) {
             setPlanDraft({ ...planDraft, handovers: defaultHandovers(data.parties) });
           }
           setPlanDialogOpen(true);
         }} disabled={busy || loading}>
+          {data.plan ? <EditOutlinedIcon fontSize="small" /> : <AddCircleOutlineIcon fontSize="small" />}
           {data.plan ? "Edit handovers" : "Create schedule"}
-        </Button>
+        </button>
       </div>
       <Typography variant="body2">Define when responsibility changes with recurring handovers. The server resolves the parenting periods between handovers.</Typography>
       {data.plan && <Typography variant="body2" sx={{ mt: 1 }}>
@@ -279,14 +296,6 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           </tr>)}</tbody>
         </table>
       </div> : <Typography variant="body2" sx={{ mt: 1 }}>No recurring handovers configured.</Typography>}
-      <Typography variant="subtitle1" sx={{ mt: 2 }}>Upcoming schedule preview</Typography>
-      {preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
-        <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
-        <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
-          <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
-          <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
-        </tr>)}</tbody>
-      </table></div> : <Typography variant="body2">Preview the schedule to see who the children are with. Changes are always resolved by the server.</Typography>}
       <GlassDialog open={planDialogOpen} onClose={() => { if (!busy) setPlanDialogOpen(false); }}
         aria-labelledby="parenting-plan-title" maxWidth="lg" fullWidth>
         {planDraft && <Box component="form" onSubmit={(event) => { event.preventDefault(); void savePlan(); }}>
@@ -312,7 +321,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             }} />} />
             <Stack sx={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
               <Typography variant="subtitle1">Recurring handovers</Typography>
-              <Button type="button" onClick={() => {
+              <button type="button" className="primary-pill no-wrap-button" onClick={() => {
                 const parties = activeParties;
                 const current = planDraft.handovers ?? [];
                 const index = current.length;
@@ -333,7 +342,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
                   }],
                 } : current);
                 setPreview([]);
-              }}>Add handover</Button>
+              }}><AddCircleOutlineIcon fontSize="small" /> Add handover</button>
             </Stack>
             <Typography variant="body2">
               Add at least one handover, and as many as your schedule needs. Each changes responsibility from one party to another. Choose odd or even ISO weeks for alternating handovers; handovers must form a consistent recurring sequence.
@@ -370,12 +379,13 @@ export function ParentingTimeSettings({ householdId, members, request }: {
                 })}>
                 {recurrenceOptions.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
               </FormField>
-              <Button type="button" color="error" onClick={() => {
+              <button type="button" className="icon-button compact-icon-button" aria-label={`Remove handover ${index + 1}`}
+                title="Remove handover" onClick={() => {
                 setPlanDraft((current) => current ? {
                   ...current, handovers: (current.handovers ?? []).filter((item) => item.id !== handover.id),
                 } : current);
                 setPreview([]);
-              }}>Remove handover</Button>
+              }}><DeleteOutlineIcon fontSize="small" /></button>
             </Box>)}
             {planDraft.handovers?.length === 0 && <Alert severity="info">Add recurring handovers to define when responsibility changes.</Alert>}
             {activeParties.length < 2 && <Alert severity="warning">Add at least two active parties before configuring a plan.</Alert>}
@@ -398,9 +408,10 @@ export function ParentingTimeSettings({ householdId, members, request }: {
 
     <section className="settings-card">
       <div className="section-toolbar"><h2>Changes for a period</h2>
-        <Button disabled={busy || !data.plan?.active || activeParties.length === 0} onClick={() => setChangeDraft({
+        <button type="button" className="primary-pill no-wrap-button"
+          disabled={busy || !data.plan?.active || activeParties.length === 0} onClick={() => setChangeDraft({
           partyId: activeParties[0]?.id ?? "", startAt: "", endAt: "", label: "",
-        })}>Add change</Button>
+        })}><AddCircleOutlineIcon fontSize="small" /> Add change</button>
       </div>
       <Typography variant="body2">Holidays, swaps, or special agreements override the regular plan only during the selected time.</Typography>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time changes">
@@ -408,12 +419,18 @@ export function ParentingTimeSettings({ householdId, members, request }: {
         <tbody>{data.changes.map((change) => <tr key={change.id}>
           <td>{formatInterval(change.startAt)} – {formatInterval(change.endAt)}</td>
           <td>{data.parties.find((party) => party.id === change.partyId)?.name ?? "Archived party"}</td><td>{change.label}</td>
-          <td className="actions-cell"><Button size="small" onClick={() => setChangeDraft({ id: change.id, partyId: change.partyId,
-            startAt: dateTimeInput(change.startAt), endAt: dateTimeInput(change.endAt), label: change.label })}>Edit</Button>
-            <Button size="small" disabled={busy} onClick={() => void run(async () => {
+          <td className="actions-cell"><div className="icon-actions">
+            <button type="button" className="icon-button compact-icon-button" aria-label={`Edit change ${change.label}`}
+              title="Edit change" onClick={() => setChangeDraft({ id: change.id, partyId: change.partyId,
+                startAt: dateTimeInput(change.startAt), endAt: dateTimeInput(change.endAt), label: change.label })}>
+              <EditOutlinedIcon fontSize="small" />
+            </button>
+            <button type="button" className="icon-button compact-icon-button" disabled={busy}
+              aria-label={`Remove change ${change.label}`} title="Remove change" onClick={() => void run(async () => {
               await request(`${base}/changes?id=${encodeURIComponent(change.id)}`, { method: "DELETE" });
               await load();
-            })}>Remove</Button></td>
+            })}><DeleteOutlineIcon fontSize="small" /></button>
+          </div></td>
         </tr>)}</tbody>
       </table></div>
       <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
@@ -450,6 +467,18 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           </DialogActionsBar>
         </Box>}
       </GlassDialog>
+    </section>
+    <section className="settings-card">
+      <div className="section-toolbar"><h2>Upcoming schedule preview</h2></div>
+      {preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
+        <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
+        <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
+          <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
+          <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
+        </tr>)}</tbody>
+      </table></div> : <Typography variant="body2">
+        Preview the schedule to see who the children are with. Changes are always resolved by the server.
+      </Typography>}
     </section>
   </Stack>;
 }
