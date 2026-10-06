@@ -96,6 +96,7 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
   const partyName = interval.partyName ?? "Parenting party";
   const timeLabel = start <= day && end >= nextDay ? "All day"
     : `${start <= day ? "00:00" : time(start)} – ${end >= nextDay ? "24:00" : time(end)}`;
+  const handOffTime = previous && start >= day && start < nextDay ? time(start) : null;
   const details = [
     timeLabel,
     `${change ? "Adjusted responsibility" : "Normal plan"}: ${start.toLocaleString()} – ${end.toLocaleString()}`,
@@ -109,7 +110,7 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
       aria-label={`Parenting: ${partyName}. ${details}`}>
       <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
       <strong>Parenting · {partyName}</strong>
-      <small>{timeLabel}</small>
+      {handOffTime && <small>Hand-off {handOffTime}</small>}
     </div>
   );
 }

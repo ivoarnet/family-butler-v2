@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced visible parenting period ranges with incoming hand-off times; continuing periods and same-party adjustments retain the party label without a time. Full intervals remain available on hover. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+
 - Simplified parenting entries in Specials to show only title and time, with interval, adjustment, and handover details on hover like childcare records. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
 
 - Removed parenting-time card borders in Specials and matched childcare's compact icon, text, and separator styling while retaining expandable handover details. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.

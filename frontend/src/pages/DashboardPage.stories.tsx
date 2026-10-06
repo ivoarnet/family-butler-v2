@@ -10,18 +10,25 @@ const date = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, 
 const tomorrow = new Date(today);
 tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
+const followingMidnight = new Date(`${tomorrowDate}T00:00`);
+followingMidnight.setDate(followingMidnight.getDate() + 1);
 const yesterday = new Date(today);
 yesterday.setDate(yesterday.getDate() - 1);
 const yesterdayDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
 const momId = "00000000-0000-0000-0000-000000000001";
 const dadId = "00000000-0000-0000-0000-000000000002";
 const parentingIntervals: ResolvedParentingInterval[] = [
+  { startAt: new Date(`${yesterdayDate}T00:00`).toISOString(), endAt: new Date(`${date}T00:00`).toISOString(),
+    partyId: dadId, partyName: "Dad", source: { type: "plan", planId: "plan" } },
   { startAt: new Date(`${date}T00:00`).toISOString(), endAt: new Date(`${date}T12:00`).toISOString(),
     partyId: momId, partyName: "Mum", source: { type: "plan", planId: "plan" } },
   { startAt: new Date(`${date}T12:00`).toISOString(), endAt: new Date(`${date}T18:00`).toISOString(),
     partyId: dadId, partyName: "Dad", source: { type: "change", changeId: "swap", label: "Agreed swap" } },
-  { startAt: new Date(`${date}T18:00`).toISOString(), endAt: new Date(`${tomorrowDate}T00:00`).toISOString(),
+  { startAt: new Date(`${date}T18:00`).toISOString(), endAt: new Date(`${tomorrowDate}T12:00`).toISOString(),
     partyId: momId, partyName: "Mum", source: { type: "plan", planId: "plan" } },
+  { startAt: new Date(`${tomorrowDate}T12:00`).toISOString(),
+    endAt: followingMidnight.toISOString(),
+    partyId: momId, partyName: "Mum", source: { type: "change", changeId: "same-party", label: "Same-party adjustment" } },
 ];
 const childcareOccurrences = [
   {
@@ -281,9 +288,11 @@ export const ParentingTime: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")).toHaveLength(3));
-    const parentingEntry = canvas.getByText("Parenting · Dad").closest(".calendar-parenting-entry")!;
+    const todayRow = within(canvasElement.querySelector(".today-row") as HTMLElement);
+    const parentingEntry = todayRow.getByText("Parenting · Dad").closest(".calendar-parenting-entry")!;
     await expect(parentingEntry).toBeVisible();
-    await expect(parentingEntry.textContent).toBe("Parenting · Dad12:00 – 18:00");
+    await expect(parentingEntry.textContent).toBe("Parenting · DadHand-off 12:00");
+    await expect(parentingEntry.getAttribute("title")).toContain("12:00 – 18:00");
     await expect(canvas.queryByText("One-off change · Agreed swap")).toBeNull();
     await expect(parentingEntry.querySelector("summary")).toBeNull();
     const childcareEntry = canvasElement.querySelector(".today-row .calendar-childcare-entry")!;
@@ -303,8 +312,19 @@ export const ParentingTime: Story = {
     await expect(canvas.queryByText("Handover from Mum at 12:00")).toBeNull();
     await expect(canvas.queryByText("Handover to Mum at 18:00")).toBeNull();
     const normalEntry = canvasElement.querySelector(".today-row .calendar-parenting-entry")!;
-    await expect(normalEntry.textContent).toBe("Parenting · Mum00:00 – 12:00");
+    const previousDayVisible = Boolean(canvasElement.querySelector(`[title^="Parenting · Dad · All day"]`));
+    await expect(normalEntry.textContent).toBe(previousDayVisible ? "Parenting · MumHand-off 00:00" : "Parenting · Mum");
     await expect(normalEntry.getAttribute("title")).toContain("Normal plan");
+    const returningEntry = canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")[2]!;
+    await expect(returningEntry.textContent).toBe("Parenting · MumHand-off 18:00");
+    const continuingEntries = Array.from(canvasElement.querySelectorAll(".calendar-parenting-entry"))
+      .filter((entry) => entry.getAttribute("title")?.includes("Same-party adjustment")
+        || entry.getAttribute("title")?.startsWith("Parenting · Mum · 00:00 – 12:00 · Normal plan:")
+          && !entry.closest(".today-row"));
+    for (const entry of continuingEntries) {
+      await expect(entry.textContent).toBe("Parenting · Mum");
+      await expect(entry.querySelector("small")).toBeNull();
+    }
     await expect(canvas.queryByRole("button", { name: "Open event Parenting · Dad" })).toBeNull();
     await userEvent.click(canvas.getByTitle("Create event"));
     await fireEvent.change(await page.findByRole("textbox", { name: /^Title/ }), { target: { value: "Personal appointment" } });
