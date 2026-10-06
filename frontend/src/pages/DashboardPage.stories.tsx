@@ -283,6 +283,16 @@ export const ParentingTime: Story = {
     await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")).toHaveLength(3));
     const changed = canvas.getByText("One-off change · Agreed swap");
     await expect(changed).toBeVisible();
+    const parentingEntry = changed.closest(".calendar-parenting-entry")!;
+    const childcareEntry = canvasElement.querySelector(".today-row .calendar-childcare-entry")!;
+    await expect(getComputedStyle(parentingEntry).borderLeftWidth).toBe("0px");
+    await expect(getComputedStyle(parentingEntry).borderTopWidth).toBe("0px");
+    await expect(getComputedStyle(parentingEntry).borderRadius).toBe("0px");
+    await expect(getComputedStyle(parentingEntry).borderBottomColor).toBe(getComputedStyle(childcareEntry).borderBottomColor);
+    await expect(getComputedStyle(parentingEntry.querySelector(".calendar-special-icon")!).color)
+      .toBe(getComputedStyle(childcareEntry.querySelector(".calendar-childcare-icon")!).color);
+    await expect(getComputedStyle(parentingEntry.querySelector("small")!).paddingLeft)
+      .toBe(getComputedStyle(childcareEntry.querySelector("small")!).paddingLeft);
     await userEvent.click(changed.closest("summary")!);
     await expect(canvas.getByText("Handover from Mum at 12:00")).toBeVisible();
     await expect(canvas.getByText("Handover to Mum at 18:00")).toBeVisible();

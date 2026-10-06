@@ -96,7 +96,7 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
   return (
     <details className="specials-entry calendar-parenting-entry">
       <summary>
-        <FamilyRestroomIcon fontSize="small" aria-hidden="true" />
+        <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
         <strong>Parenting · {interval.partyName ?? "Parenting party"}</strong>
         <small>{start <= day && end >= nextDay ? "All day" : `${start <= day ? "00:00" : time(start)} – ${end >= nextDay ? "24:00" : time(end)}`}</small>
         {change && <small>One-off change{interval.source.type === "change" && interval.source.label ? ` · ${interval.source.label}` : ""}</small>}
