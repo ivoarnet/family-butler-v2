@@ -6,9 +6,13 @@ create table if not exists public.parenting_time_parties (
   household_id uuid not null references public.households(id) on delete cascade,
   member_id uuid references public.household_members(id) on delete set null,
   name text not null check (length(trim(name)) between 1 and 100),
+  active boolean not null default true,
   created_at timestamptz not null default now(),
   unique (household_id, id)
 );
+
+alter table public.parenting_time_parties
+  add column if not exists active boolean not null default true;
 
 alter table public.parenting_time_parties
   add column if not exists member_id uuid references public.household_members(id) on delete set null;

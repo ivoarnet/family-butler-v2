@@ -224,6 +224,11 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
       rows.forEach((row) => Object.assign(row, JSON.parse(options.body)));
       return Response.json(rows);
     }
+    if (options.method === "DELETE") {
+      const rows = matching();
+      tables[table] = (tables[table] ?? []).filter((row) => !rows.includes(row));
+      return new Response(null, { status: 204 });
+    }
     return Response.json(matching());
   };
 
@@ -246,6 +251,11 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
   assert.equal(father.body.memberId, fatherId);
   assert.equal(mother.body.memberId, motherId);
   assert.equal(tables.parenting_time_parties[0].member_id, fatherId);
+  const renamedMother = await invoke("PUT", "parties", { ...mother.body, name: "Mum", active: false });
+  assert.equal(renamedMother.status, 200);
+  assert.equal(renamedMother.body.name, "Mum");
+  assert.equal(renamedMother.body.active, false);
+  await invoke("PUT", "parties", { ...renamedMother.body, active: true });
   assert.equal((await invoke("POST", "plan", {
     effectiveFrom: "2026-01-01",
     recurrenceMode: "alternating",
@@ -258,11 +268,28 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
       { partyId: mother.body.id, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
     ],
   })).status, 200);
+  const draftPreview = await invoke("POST", "preview", {
+    plan: {
+      effectiveFrom: tables.parenting_time_plans[0].effective_from,
+      timeZone: tables.parenting_time_plans[0].time_zone,
+      recurrenceMode: tables.parenting_time_plans[0].recurrence_mode,
+      rules: tables.parenting_time_plans[0].rules,
+    },
+    startAt: "2026-10-08T19:00:00Z",
+    endAt: "2026-10-09T21:00:00Z",
+  });
+  assert.equal(draftPreview.status, 200);
+  assert.ok(draftPreview.body.intervals.some((interval) => interval.partyId === father.body.id));
   const oneOff = await invoke("POST", "changes", {
     partyId: mother.body.id, startAt: "2026-10-09T18:00:00Z", endAt: "2026-10-09T20:00:00Z", label: "Swap",
   });
   assert.equal(oneOff.status, 201);
   assert.equal(tables.parenting_time_changes[0].plan_id, tables.parenting_time_plans[0].id);
+  assert.equal((await invoke("DELETE", "changes", undefined, { id: oneOff.body.id })).status, 204);
+  assert.equal(tables.parenting_time_changes.length, 0);
+  await invoke("POST", "changes", {
+    partyId: mother.body.id, startAt: "2026-10-09T18:00:00Z", endAt: "2026-10-09T20:00:00Z", label: "Swap",
+  });
   const loaded = await invoke("GET", undefined);
   assert.equal(loaded.body.parties.length, 2);
   assert.equal(loaded.body.plan.rules.length, 6);

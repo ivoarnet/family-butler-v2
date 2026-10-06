@@ -6,7 +6,9 @@ const TABLES = {
   changes: "parenting_time_changes",
 };
 
-const mapParty = (row) => ({ id: row.id, householdId: row.household_id, name: row.name, memberId: row.member_id });
+const mapParty = (row) => ({
+  id: row.id, householdId: row.household_id, name: row.name, memberId: row.member_id, active: row.active !== false,
+});
 const mapPlan = (row) => ({
   id: row.id,
   householdId: row.household_id,
@@ -87,6 +89,12 @@ module.exports = function createParentingTimeProvider(request) {
     createParentingParty: (householdId, data) => save(TABLES.parties, householdId, null, {
       name: data.name,
       member_id: data.memberId,
+      active: true,
+    }, mapParty),
+    updateParentingParty: (householdId, id, data) => update(TABLES.parties, householdId, id, {
+      name: data.name,
+      member_id: data.memberId,
+      active: data.active,
     }, mapParty),
     saveParentingPlan: async (householdId, data) => {
       const existing = await request(TABLES.plans, {
@@ -107,5 +115,11 @@ module.exports = function createParentingTimeProvider(request) {
     updateParentingChange: (householdId, id, data) => update(TABLES.changes, householdId, id, {
       plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
     }, mapChange),
+    async deleteParentingChange(householdId, id) {
+      await request(TABLES.changes, {
+        method: "DELETE",
+        params: { household_id: `eq.${householdId}`, id: `eq.${id}` },
+      });
+    },
   };
 };

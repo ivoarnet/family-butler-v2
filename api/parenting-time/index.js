@@ -31,11 +31,32 @@ module.exports = async function parentingTime(context, req) {
       return;
     }
     const body = request.body;
-    assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
-    if (method === "POST" && resource === "parties") {
+    if (method === "POST" && resource === "preview") {
+      assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
+      const data = await db.getParentingTime(householdId);
+      const plan = validatePlan(body.plan, data.parties);
       context.res = {
-        status: 201,
-        body: await db.createParentingParty(householdId, validateParty(body, household.memberIds)),
+        status: 200,
+        body: { intervals: resolveParentingTime({ plan: { ...plan, id: null }, parties: data.parties, changes: data.changes },
+          body.startAt, body.endAt) },
+      };
+      return;
+    }
+    if (method === "DELETE" && resource === "changes") {
+      const id = validateId(request.query?.id ?? body?.id, "id");
+      await db.deleteParentingChange(householdId, id);
+      context.res = { status: 204 };
+      return;
+    }
+    assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
+    if ((method === "POST" || method === "PUT") && resource === "parties") {
+      const partyId = method === "PUT" ? validateId(body.id, "id") : null;
+      const party = validateParty(body, household.memberIds);
+      context.res = {
+        status: method === "POST" ? 201 : 200,
+        body: method === "POST"
+          ? await db.createParentingParty(householdId, party)
+          : await db.updateParentingParty(householdId, partyId, { ...party, active: body.active !== false }),
       };
       return;
     }
