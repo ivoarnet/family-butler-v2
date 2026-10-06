@@ -41,4 +41,10 @@ module.exports = {
   listTasks: (...args) => getProvider().listTasks(...args),
   createTask: (...args) => getProvider().createTask(...args),
   checkConnection: (...args) => getProvider().checkConnection(...args),
+  getParentingTimeHousehold: (...args) => getProvider().getParentingTimeHousehold(...args),
+  getParentingTime: (...args) => getProvider().getParentingTime(...args),
+  createParentingParty: (...args) => getProvider().createParentingParty(...args),
+  saveParentingPlan: (...args) => getProvider().saveParentingPlan(...args),
+  createParentingChange: (...args) => getProvider().createParentingChange(...args),
+  updateParentingChange: (...args) => getProvider().updateParentingChange(...args),
 };

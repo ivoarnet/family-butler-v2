@@ -28,13 +28,13 @@ Settings → Childcare supports creating, editing, deactivating, and reactivatin
 
 Settings → Childcare also provides a provider-centred resolved list and monthly calendar. The default is List with a three-calendar-month range starting today (ending the day before the date three months later, with month-end clamping). Use a provider's **View schedule** action or the **Schedule provider** selector (including inactive providers), choose an inclusive date range, and select **Show care**. Both views show effective providers/dates, all participating children, all-day or timed care, and recurring versus one-off adjustments. Cancelled care is excluded from appointments and listed separately. These views reload persisted care through the existing resolver API; no new agent actions are added.
 
-Parenting time, payments, booking, capacity, and attendance are outside this implementation. See [Childcare model and API](DATA_MODEL.md#childcare--implemented) and [Supabase setup](SUPABASE.md#childcare-migration).
+Payments, booking, capacity, and attendance are outside this implementation. See [Childcare model and API](DATA_MODEL.md#childcare--implemented) and [Supabase setup](SUPABASE.md#childcare-migration).
+
+## Parenting Time — household API and resolver implemented
+
+Parenting Time helps separated or divorced parents plan when all children in a household are scheduled to be with each parenting party. The authenticated household API persists parties, one weekly or alternating ISO-week plan with timed handovers, and one-off changes. A server-side resolver derives explainable effective intervals from persisted data. No management UI, calendar display, or agent workflow is currently shipped. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
 
 ## Planned modules
-
-### Parenting Time — later
-
-Parenting Time helps separated or divorced parents plan and view when their children are scheduled to be with each parent. It supports repeating weekly or alternating-week arrangements, handover times, and one-off changes for holidays, swaps, or special agreements.
 
 ## Managing module documentation
 
