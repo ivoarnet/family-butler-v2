@@ -14,7 +14,6 @@ const planId = "00000000-0000-0000-0000-000000000005";
 const parties = [{ id: fatherId, name: "Father" }, { id: motherId, name: "Mother" }];
 
 const representativePlan = () => validatePlan({
-  defaultPartyId: motherId,
   effectiveFrom: "2026-01-01",
   recurrenceMode: "alternating",
   timeZone: "UTC",
@@ -22,6 +21,9 @@ const representativePlan = () => validatePlan({
     { id: randomUUID(), partyId: fatherId, weekday: 7, startTime: "19:30", endWeekday: 1, endTime: "19:30" },
     { id: randomUUID(), partyId: fatherId, weekday: 4, startTime: "19:30", endWeekday: 5, endTime: "17:00" },
     { id: randomUUID(), partyId: fatherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "odd" },
+    { id: randomUUID(), partyId: motherId, weekday: 7, startTime: "00:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
+    { id: randomUUID(), partyId: motherId, weekday: 1, startTime: "19:30", endWeekday: 4, endTime: "19:30" },
+    { id: randomUUID(), partyId: motherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
   ],
 }, parties);
 
@@ -58,20 +60,27 @@ test("resolves the odd/even ISO-week example without artificial handovers", () =
 
 test("supports weekly overnight and week-boundary intervals and ISO year transitions", () => {
   const plan = validatePlan({
-    defaultPartyId: motherId,
     effectiveFrom: "2020-01-01",
     recurrenceMode: "weekly",
-    rules: [{ partyId: fatherId, weekday: 7, startTime: "23:30", endWeekday: 1, endTime: "01:00" }],
+    rules: [
+      { partyId: fatherId, weekday: 7, startTime: "23:30", endWeekday: 1, endTime: "01:00" },
+      { partyId: motherId, weekday: 7, startTime: "00:00", endWeekday: 7, endTime: "23:30" },
+      { partyId: motherId, weekday: 1, startTime: "01:00", endWeekday: 7, endTime: "00:00" },
+    ],
   }, parties);
   assert.equal(resolve(plan, "2020-12-27T22:00:00Z", "2020-12-28T02:00:00Z")[1].startAt, "2020-12-27T23:30:00.000Z");
   assert.equal(isoWeekNumber("2021-01-01"), 53);
   assert.equal(isoWeekNumber("2021-01-04"), 1);
 
   const alternating = validatePlan({
-    defaultPartyId: motherId,
     effectiveFrom: "2020-01-01",
     recurrenceMode: "alternating",
-    rules: [{ partyId: fatherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "odd" }],
+    rules: [
+      { partyId: fatherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "odd" },
+      { partyId: motherId, weekday: 1, startTime: "00:00", endWeekday: 5, endTime: "17:00" },
+      { partyId: motherId, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
+      { partyId: motherId, weekday: 7, startTime: "19:30", endWeekday: 1, endTime: "00:00" },
+    ],
   }, parties);
   assert.equal(resolve(alternating, "2020-12-25T17:00:00Z", "2020-12-25T18:00:00Z")[0].partyId, motherId);
   assert.equal(resolve(alternating, "2021-01-01T17:00:00Z", "2021-01-01T18:00:00Z")[0].partyId, fatherId);
@@ -80,18 +89,25 @@ test("supports weekly overnight and week-boundary intervals and ISO year transit
 
 test("resolves household-local recurring times across daylight-saving transitions", () => {
   const plan = validatePlan({
-    defaultPartyId: motherId,
     effectiveFrom: "2026-01-01",
     recurrenceMode: "weekly",
     timeZone: "America/New_York",
-    rules: [{ partyId: fatherId, weekday: 7, startTime: "01:30", endWeekday: 7, endTime: "02:30" }],
+    rules: [
+      { partyId: fatherId, weekday: 7, startTime: "01:30", endWeekday: 7, endTime: "02:30" },
+      { partyId: motherId, weekday: 7, startTime: "00:00", endWeekday: 7, endTime: "01:30" },
+      { partyId: motherId, weekday: 7, startTime: "02:30", endWeekday: 7, endTime: "00:00" },
+    ],
   }, parties);
   const repeatedHour = resolve(plan, "2026-11-01T04:00:00Z", "2026-11-01T08:00:00Z");
   assert.equal(repeatedHour[1].startAt, "2026-11-01T05:30:00.000Z");
   assert.equal(repeatedHour[1].endAt, "2026-11-01T07:30:00.000Z");
   const nonexistent = validatePlan({
     ...plan,
-    rules: [{ partyId: fatherId, weekday: 7, startTime: "02:30", endWeekday: 7, endTime: "03:30" }],
+    rules: [
+      { partyId: fatherId, weekday: 7, startTime: "02:30", endWeekday: 7, endTime: "03:30" },
+      { partyId: motherId, weekday: 7, startTime: "00:00", endWeekday: 7, endTime: "02:30" },
+      { partyId: motherId, weekday: 7, startTime: "03:30", endWeekday: 7, endTime: "00:00" },
+    ],
   }, parties);
   assert.throws(() => resolve(nonexistent, "2026-03-08T05:00:00Z", "2026-03-08T09:00:00Z"), { status: 400 });
 });
@@ -127,18 +143,32 @@ test("rejects invalid parties, rules, ambiguous schedules, and invalid resolutio
     { name: "Father", memberId: fatherId });
   assert.throws(() => validateParty({ name: "Other household parent", memberId: motherId }, [fatherId]), { status: 400 });
   assert.throws(() => validatePlan({
-    defaultPartyId: "not-a-uuid", effectiveFrom: "2026-01-01", recurrenceMode: "weekly", rules: [],
+    effectiveFrom: "2026-01-01", recurrenceMode: "weekly", rules: [],
   }, parties), { status: 400 });
   assert.throws(() => validatePlan({
-    defaultPartyId: motherId, effectiveFrom: "2026-01-01", recurrenceMode: "weekly",
+    effectiveFrom: "2026-01-01", recurrenceMode: "weekly",
     rules: [
       { partyId: fatherId, weekday: 4, startTime: "19:30", endWeekday: 5, endTime: "17:00" },
       { partyId: motherId, weekday: 5, startTime: "16:00", endWeekday: 5, endTime: "18:00" },
     ],
   }, parties), { status: 400 });
   assert.throws(() => validatePlan({
-    defaultPartyId: motherId, effectiveFrom: "2026-02-30", recurrenceMode: "weekly", rules: [],
+    effectiveFrom: "2026-02-30", recurrenceMode: "weekly", rules: [],
   }, parties), { status: 400 });
+  assert.throws(() => validatePlan({
+    effectiveFrom: "2026-01-01", recurrenceMode: "weekly",
+    rules: [
+      { partyId: fatherId, weekday: 1, startTime: "09:00", endWeekday: 1, endTime: "17:00" },
+      { partyId: motherId, weekday: 2, startTime: "09:00", endWeekday: 2, endTime: "17:00" },
+    ],
+  }, parties), { status: 400, message: /must assign a party for every time/ });
+  assert.throws(() => validatePlan({
+    effectiveFrom: "2026-01-01", recurrenceMode: "weekly",
+    rules: [
+      { partyId: motherId, weekday: 1, startTime: "00:00", endWeekday: 7, endTime: "00:00" },
+      { partyId: motherId, weekday: 7, startTime: "00:00", endWeekday: 1, endTime: "00:00" },
+    ],
+  }, parties), { status: 400, message: /at least two parenting parties/ });
   assert.throws(() => resolve(representativePlan(), "2026-10-10", "2026-10-11"), { status: 400 });
   assert.throws(() => validateChange({
     partyId: fatherId, startAt: "2026-02-30T10:00:00Z", endAt: "2026-03-01T10:00:00Z", label: "Invalid date",
@@ -217,13 +247,15 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
   assert.equal(mother.body.memberId, motherId);
   assert.equal(tables.parenting_time_parties[0].member_id, fatherId);
   assert.equal((await invoke("POST", "plan", {
-    defaultPartyId: mother.body.id,
     effectiveFrom: "2026-01-01",
     recurrenceMode: "alternating",
     rules: [
       { partyId: father.body.id, weekday: 7, startTime: "19:30", endWeekday: 1, endTime: "19:30" },
       { partyId: father.body.id, weekday: 4, startTime: "19:30", endWeekday: 5, endTime: "17:00" },
       { partyId: father.body.id, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "odd" },
+      { partyId: mother.body.id, weekday: 7, startTime: "00:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
+      { partyId: mother.body.id, weekday: 1, startTime: "19:30", endWeekday: 4, endTime: "19:30" },
+      { partyId: mother.body.id, weekday: 5, startTime: "17:00", endWeekday: 7, endTime: "19:30", weekParity: "even" },
     ],
   })).status, 200);
   const oneOff = await invoke("POST", "changes", {
@@ -233,7 +265,7 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
   assert.equal(tables.parenting_time_changes[0].plan_id, tables.parenting_time_plans[0].id);
   const loaded = await invoke("GET", undefined);
   assert.equal(loaded.body.parties.length, 2);
-  assert.equal(loaded.body.plan.rules.length, 3);
+  assert.equal(loaded.body.plan.rules.length, 6);
   assert.equal(loaded.body.changes.length, 1);
   const resolved = await invoke("GET", "resolve", undefined, {
     startAt: "2026-10-08T19:00:00Z", endAt: "2026-10-09T21:00:00Z",

@@ -85,32 +85,38 @@ const validateRule = (rule, index, parties, recurrenceMode) => {
 const ruleEndOffset = (rule) => (rule.endWeekday - rule.weekday + 7) % 7
   + (rule.endWeekday === rule.weekday && rule.endTime <= rule.startTime ? 7 : 0);
 
-const assertRulesUnambiguous = (rules) => {
+const assertRulesCoverSchedule = (rules, recurrenceMode) => {
+  const weekMinutes = 7 * 1440;
+  const cycleMinutes = recurrenceMode === "alternating" ? 2 * weekMinutes : weekMinutes;
   const intervals = [];
-  for (let week = -1; week < 4; week += 1) {
+  for (let week = -2; week < 4; week += 1) {
     const parity = week % 2 === 0 ? "even" : "odd";
     for (const rule of rules) {
       if (rule.weekParity && rule.weekParity !== parity) continue;
-      const start = week * 7 * 1440 + (rule.weekday - 1) * 1440
+      const start = week * weekMinutes + (rule.weekday - 1) * 1440
         + Number(rule.startTime.slice(0, 2)) * 60 + Number(rule.startTime.slice(3));
       const end = start + ruleEndOffset(rule) * 1440
         + Number(rule.endTime.slice(0, 2)) * 60 + Number(rule.endTime.slice(3))
         - Number(rule.startTime.slice(0, 2)) * 60 - Number(rule.startTime.slice(3));
-      intervals.push({ start, end, partyId: rule.partyId });
+      if (end > 0 && start < cycleMinutes) {
+        intervals.push({ start: Math.max(0, start), end: Math.min(cycleMinutes, end), partyId: rule.partyId });
+      }
     }
   }
-  intervals.sort((a, b) => a.start - b.start || a.end - b.end);
-  for (let i = 0; i < intervals.length; i += 1) {
-    for (let j = i + 1; j < intervals.length && intervals[j].start < intervals[i].end; j += 1) {
-      assert(intervals[i].partyId === intervals[j].partyId,
-        "recurring rules assign different parenting parties at the same time");
-    }
+  const boundaries = [...new Set([0, cycleMinutes, ...intervals.flatMap(({ start, end }) => [start, end])])]
+    .sort((a, b) => a - b);
+  for (let index = 0; index < boundaries.length - 1; index += 1) {
+    const start = boundaries[index];
+    const end = boundaries[index + 1];
+    const assigned = new Set(intervals.filter((item) => item.start <= start && item.end >= end)
+      .map((item) => item.partyId));
+    assert(assigned.size > 0, `recurring rules must assign a party for every time in the schedule (${start}-${end})`);
+    assert(assigned.size === 1,
+      `recurring rules assign different parenting parties at the same time (${start}-${end})`);
   }
 };
 
 const validatePlan = (data, parties) => {
-  const defaultPartyId = validateId(data?.defaultPartyId, "defaultPartyId");
-  assert(parties.some((party) => party.id === defaultPartyId), "defaultPartyId is not a parenting party in this household");
   assert(["weekly", "alternating"].includes(data.recurrenceMode), "recurrenceMode must be weekly or alternating");
   const effectiveFrom = validateDate(data.effectiveFrom, "effectiveFrom");
   const timeZone = data.timeZone ?? "UTC";
@@ -118,9 +124,11 @@ const validatePlan = (data, parties) => {
   assert(Array.isArray(data.rules) && data.rules.length <= 100, "rules must be an array with at most 100 entries");
   const rules = data.rules.map((rule, index) => validateRule(rule, index, parties, data.recurrenceMode));
   assert(new Set(rules.map((rule) => rule.id)).size === rules.length, "rule IDs must be unique");
-  assertRulesUnambiguous(rules);
+  assert(new Set(rules.map((rule) => rule.partyId)).size >= 2,
+    "recurring rules must assign time to at least two parenting parties");
+  assertRulesCoverSchedule(rules, data.recurrenceMode);
   assert(data.active === undefined || typeof data.active === "boolean", "active must be a boolean");
-  return { defaultPartyId, effectiveFrom, timeZone, recurrenceMode: data.recurrenceMode, rules, active: data.active ?? true };
+  return { effectiveFrom, timeZone, recurrenceMode: data.recurrenceMode, rules, active: data.active ?? true };
 };
 
 const validateChange = (data, parties, changes = [], ignoredId = null) => {
@@ -220,7 +228,6 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
       source: { type: "change", changeId: change.id, label: change.label } });
   }
   for (let date = startDate; date <= endDate; date = shiftDate(date, 1)) {
-    if (date < plan.effectiveFrom) continue;
     const weekday = isoWeekday(date);
     const weekParity = isoWeekNumber(date) % 2 ? "odd" : "even";
     for (const rule of plan.rules) {
@@ -247,9 +254,9 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
       item.source.type === "recurring" && item.start <= segmentStart && item.end >= segmentEnd);
     const partiesInSegment = new Set(active.map((item) => item.partyId));
     assert(partiesInSegment.size <= 1, "active parenting-time plan is ambiguous for the requested range");
-    const partyId = active[0]?.partyId ?? plan.defaultPartyId;
-    const sources = active.length ? active.map((item) => item.source)
-      : [{ type: "default", planId: plan.id }];
+    assert(active.length > 0, "recurring plan leaves a gap in the requested range");
+    const partyId = active[0].partyId;
+    const sources = active.map((item) => item.source);
     const previous = result[result.length - 1];
     if (previous && previous.endAt === new Date(segmentStart).toISOString()
       && previous.partyId === partyId

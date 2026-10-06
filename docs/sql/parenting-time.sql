@@ -16,7 +16,6 @@ alter table public.parenting_time_parties
 create table if not exists public.parenting_time_plans (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null unique references public.households(id) on delete cascade,
-  default_party_id uuid not null,
   effective_from date not null,
   time_zone text not null default 'UTC',
   recurrence_mode text not null check (recurrence_mode in ('weekly', 'alternating')),
@@ -24,10 +23,22 @@ create table if not exists public.parenting_time_plans (
   active boolean not null default true,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (household_id, id),
-  foreign key (household_id, default_party_id)
-    references public.parenting_time_parties(household_id, id)
+  unique (household_id, id)
 );
+
+-- Keep databases that applied an earlier draft migration writable without
+-- relying on or requiring the former default-party column.
+do $$
+begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'parenting_time_plans'
+      and column_name = 'default_party_id'
+  ) then
+    alter table public.parenting_time_plans alter column default_party_id drop not null;
+  end if;
+end;
+$$;
 
 create table if not exists public.parenting_time_changes (
   id uuid primary key default gen_random_uuid(),
@@ -140,10 +151,10 @@ begin
   if exists (
     select 1 from public.parenting_time_plans p
     where p.household_id = old.household_id
-      and (p.default_party_id = old.id or exists (
+      and exists (
         select 1 from jsonb_array_elements(p.rules) as item(rule)
         where item.rule->>'partyId' = old.id::text
-      ))
+      )
   ) or exists (
     select 1 from public.parenting_time_changes c
     where c.household_id = old.household_id and c.party_id = old.id

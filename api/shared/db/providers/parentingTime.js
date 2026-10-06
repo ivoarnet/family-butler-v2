@@ -10,7 +10,6 @@ const mapParty = (row) => ({ id: row.id, householdId: row.household_id, name: ro
 const mapPlan = (row) => ({
   id: row.id,
   householdId: row.household_id,
-  defaultPartyId: row.default_party_id,
   effectiveFrom: row.effective_from,
   timeZone: row.time_zone,
   recurrenceMode: row.recurrence_mode,
@@ -94,7 +93,6 @@ module.exports = function createParentingTimeProvider(request) {
         params: { select: "id", household_id: `eq.${householdId}`, limit: 1 },
       });
       const body = {
-        default_party_id: data.defaultPartyId,
         effective_from: data.effectiveFrom,
         time_zone: data.timeZone,
         recurrence_mode: data.recurrenceMode,
