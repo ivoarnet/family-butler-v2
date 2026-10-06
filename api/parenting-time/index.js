@@ -1,8 +1,18 @@
 const db = require("../shared/db");
 const { getAuthenticatedUserId } = require("../shared/auth");
 const {
-  assert, validateId, validateParty, validatePlan, validateChange, resolveParentingTime, getPlanStartTimestamp, getPlanEndTimestamp,
+  assert, validateId, validateParty, validatePlan, validateHandovers, compileHandovers,
+  validateChange, resolveParentingTime, getPlanStartTimestamp, getPlanEndTimestamp,
 } = require("../shared/parentingTime");
+
+const validatedPlan = (body, parties) => {
+  if (Array.isArray(body.handovers) && body.handovers.length > 0) {
+    const handovers = validateHandovers(body.handovers, parties);
+    const plan = validatePlan({ ...body, recurrenceMode: "alternating", rules: compileHandovers(handovers) }, parties);
+    return { ...plan, handovers };
+  }
+  return validatePlan(body, parties);
+};
 
 module.exports = async function parentingTime(context, req) {
   try {
@@ -34,7 +44,7 @@ module.exports = async function parentingTime(context, req) {
     if (method === "POST" && resource === "preview") {
       assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
       const data = await db.getParentingTime(householdId);
-      const plan = validatePlan(body.plan, data.parties);
+      const plan = validatedPlan(body.plan, data.parties);
       context.res = {
         status: 200,
         body: { intervals: resolveParentingTime({ plan: { ...plan, id: null, active: true }, parties: data.parties, changes: data.changes },
@@ -63,7 +73,7 @@ module.exports = async function parentingTime(context, req) {
     }
     if ((method === "POST" || method === "PUT") && resource === "plan") {
       const data = await db.getParentingTime(householdId);
-      const plan = validatePlan(body, data.parties);
+      const plan = validatedPlan(body, data.parties);
       const planEnd = getPlanEndTimestamp(plan);
       assert(data.changes.every((change) => Date.parse(change.startAt) >= getPlanStartTimestamp(plan)
         && (planEnd === null || Date.parse(change.endAt) <= planEnd)),

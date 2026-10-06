@@ -17,6 +17,7 @@ const mapPlan = (row) => ({
   timeZone: row.time_zone,
   recurrenceMode: row.recurrence_mode,
   rules: row.rules,
+  handovers: row.handover_rules ?? [],
   active: row.active,
 });
 const mapChange = (row) => ({
@@ -107,6 +108,7 @@ module.exports = function createParentingTimeProvider(request) {
         time_zone: data.timeZone,
         recurrence_mode: data.recurrenceMode,
         rules: data.rules,
+        handover_rules: data.handovers ?? [],
         active: data.active,
       };
       return save(TABLES.plans, householdId, existing?.[0]?.id, body, mapPlan, "household_id");

@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState, type FormEvent } from "react";
-import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton,
@@ -10,9 +10,12 @@ type Party = { id: string; name: string; memberId: string | null; active: boolea
 type Rule = {
   id: string; partyId: string; weekday: number; startTime: string; endWeekday: number; endTime: string; weekParity: "odd" | "even" | null;
 };
+type Handover = {
+  id: string; weekday: number; time: string; fromPartyId: string; toPartyId: string; weekParity: "odd" | "even" | null;
+};
 type Plan = {
   id?: string; effectiveFrom: string; effectiveTo?: string | null; timeZone: string;
-  recurrenceMode: "weekly" | "alternating"; rules: Rule[]; active: boolean;
+  recurrenceMode: "weekly" | "alternating"; rules: Rule[]; handovers?: Handover[]; active: boolean;
 };
 type Change = { id: string; partyId: string; startAt: string; endAt: string; label: string };
 type Interval = { startAt: string; endAt: string; partyId: string; partyName: string | null; source: { type: string; label?: string } };
@@ -30,6 +33,17 @@ const rangeForPreview = (effectiveFrom?: string) => {
   end.setDate(end.getDate() + 14);
   return { startAt: start.toISOString(), endAt: end.toISOString() };
 };
+const defaultHandovers = (parties: Party[]): Handover[] => {
+  const active = parties.filter((party) => party.active);
+  if (active.length < 2) return [];
+  const [first, second] = active;
+  return [
+    { id: id(), weekday: 1, time: "19:30", fromPartyId: first.id, toPartyId: second.id, weekParity: null },
+    { id: id(), weekday: 4, time: "19:30", fromPartyId: second.id, toPartyId: first.id, weekParity: null },
+    { id: id(), weekday: 5, time: "17:00", fromPartyId: first.id, toPartyId: second.id, weekParity: "even" },
+    { id: id(), weekday: 7, time: "19:30", fromPartyId: second.id, toPartyId: first.id, weekParity: "even" },
+  ];
+};
 const dateTimeInput = (value?: string) => {
   if (!value) return "";
   const date = new Date(value);
@@ -39,8 +53,31 @@ const toIso = (value: string) => new Date(value).toISOString();
 const formatInterval = (value: string) => new Intl.DateTimeFormat(undefined, {
   weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
 }).format(new Date(value));
+const periodSummary = (rule: Rule) => {
+  const recurrence = rule.weekParity === "odd" ? "Odd ISO weeks"
+    : rule.weekParity === "even" ? "Even ISO weeks" : "Every week";
+  return `${weekdayNames[rule.weekday - 1]} ${rule.startTime} – ${weekdayNames[rule.endWeekday - 1]} ${rule.endTime}`
+    + `${rule.endWeekday < rule.weekday ? " (following week)" : ""} · ${recurrence}`;
+};
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Parenting-time request failed. Please try again.";
 const weekdayNames = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+const recurrenceOptions = [
+  { value: "weekly", label: "Every week" },
+  { value: "odd", label: "Odd ISO weeks" },
+  { value: "even", label: "Even ISO weeks" },
+] as const;
+const selectMenuProps = {
+  slotProps: {
+    paper: {
+      sx: {
+        backgroundColor: "var(--dialog-surface)",
+        color: "var(--text-primary)",
+        "& .MuiMenuItem-root": { color: "var(--text-primary)" },
+        "& .MuiMenuItem-root:hover": { backgroundColor: "var(--dialog-field)" },
+      },
+    },
+  },
+};
 const validDate = (value: string) => /^\d{4}-\d{2}-\d{2}$/.test(value)
   && Number.isFinite(Date.parse(`${value}T00:00:00Z`))
   && new Date(`${value}T00:00:00Z`).toISOString().slice(0, 10) === value;
@@ -51,37 +88,6 @@ const id = () => {
   const hex = [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 };
-const baseSchedule = (parties: Party[], plan?: Plan | null) => {
-  const active = parties.filter((party) => party.active);
-  const first = active[0]?.id ?? "";
-  const other = active.find((party) => party.id !== first)?.id ?? first;
-  const rules = plan?.rules ?? [];
-  const weekend = rules.find((rule) => rule.weekParity === "odd")
-    ?? (plan?.recurrenceMode === "weekly" ? rules[2] : undefined);
-  const firstDay = weekend?.endWeekday ?? 7;
-  const firstHandover = rules.find((rule) => rule.weekday === firstDay && rule.weekParity === null);
-  const secondDay = firstHandover?.endWeekday ?? 1;
-  const secondHandover = rules.find((rule) => rule.weekday === secondDay && rule.weekParity === null);
-  const thirdDay = secondHandover?.endWeekday ?? 4;
-  const thirdHandover = rules.find((rule) => rule.weekday === thirdDay && rule.weekParity === null);
-  const evenWeekend = rules.find((rule) => rule.weekParity === "even");
-  return {
-    weeklyStartParty: firstHandover?.partyId ?? first,
-    MondayToThursdayParty: secondHandover?.partyId ?? other,
-    ThursdayToFridayParty: thirdHandover?.partyId ?? first,
-    oddWeekendParty: weekend?.partyId ?? first,
-    evenWeekendParty: evenWeekend?.partyId ?? other,
-    firstDay,
-    secondDay,
-    thirdDay,
-    fourthDay: thirdHandover?.endWeekday ?? 5,
-    sundayTime: firstHandover?.startTime ?? "19:30",
-    mondayTime: firstHandover?.endTime ?? "19:30",
-    thursdayTime: secondHandover?.startTime ?? "19:30",
-    fridayTime: thirdHandover?.endTime ?? "17:00",
-  };
-};
-
 export function ParentingTimeSettings({ householdId, members, request }: {
   householdId: string; members: Array<{ id: string; firstName: string }>; request: ParentingTimeRequest;
 }) {
@@ -93,7 +99,6 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [partyDraft, setPartyDraft] = useState<{ id?: string; name: string; memberId: string; active: boolean } | null>(null);
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [planDraft, setPlanDraft] = useState<Plan | null>(null);
-  const [schedule, setSchedule] = useState(() => baseSchedule([]));
   const [preview, setPreview] = useState<Interval[]>([]);
   const [changeDraft, setChangeDraft] = useState<{ id?: string; partyId: string; startAt: string; endAt: string; label: string } | null>(null);
 
@@ -104,10 +109,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       setData(records);
       const draft = records.plan ?? {
         effectiveFrom: localDate(new Date()), effectiveTo: null, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
-        recurrenceMode: "alternating" as const, rules: [], active: true,
+        recurrenceMode: "alternating" as const, rules: [], handovers: [], active: true,
       };
       setPlanDraft(draft);
-      setSchedule(baseSchedule(records.parties, records.plan));
       if (records.plan?.active) {
         const { startAt, endAt } = rangeForPreview(draft.effectiveFrom);
         const resolved = await request(`${base}/resolve?${new URLSearchParams({ startAt, endAt })}`) as { intervals: Interval[] };
@@ -137,49 +141,26 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     await load();
   });
   const activeParties = data.parties.filter((party) => party.active);
-  const createRules = (): Rule[] => {
-    if (!planDraft) return [];
-    const { weeklyStartParty, MondayToThursdayParty, ThursdayToFridayParty, oddWeekendParty, evenWeekendParty,
-      firstDay, secondDay, thirdDay, fourthDay,
-      sundayTime, mondayTime, thursdayTime, fridayTime } = schedule;
-    const rule = (partyId: string, weekday: number, startTime: string, endWeekday: number, endTime: string,
-      weekParity: Rule["weekParity"] = null): Rule => ({ id: id(), partyId, weekday, startTime, endWeekday, endTime, weekParity });
-    const rules = [
-      rule(MondayToThursdayParty, secondDay, mondayTime, thirdDay, thursdayTime),
-      rule(ThursdayToFridayParty, thirdDay, thursdayTime, fourthDay, fridayTime),
-      rule(oddWeekendParty, fourthDay, fridayTime, firstDay, sundayTime, planDraft.recurrenceMode === "alternating" ? "odd" : null),
-      rule(weeklyStartParty, firstDay, sundayTime, secondDay, mondayTime),
-    ];
-    if (planDraft.recurrenceMode === "alternating") {
-      rules.splice(3, 0, rule(evenWeekendParty, fourthDay, fridayTime, firstDay, sundayTime, "even"));
-    }
-    return rules.map((rule) => ({
-      ...rule,
-      id: planDraft.rules.find((previous) => previous.partyId === rule.partyId && previous.weekday === rule.weekday
-        && previous.startTime === rule.startTime && previous.endWeekday === rule.endWeekday
-        && previous.endTime === rule.endTime && previous.weekParity === rule.weekParity)?.id ?? rule.id,
-    }));
-  };
-  const orderedHandoverDays = ((schedule.secondDay - schedule.firstDay + 7) % 7) > 0
-    && ((schedule.thirdDay - schedule.firstDay + 7) % 7) > ((schedule.secondDay - schedule.firstDay + 7) % 7)
-    && ((schedule.fourthDay - schedule.firstDay + 7) % 7) > ((schedule.thirdDay - schedule.firstDay + 7) % 7)
-    && ((schedule.fourthDay - schedule.firstDay + 7) % 7) < 7;
-  const validSchedule = planDraft && activeParties.length >= 2
-    && [schedule.weeklyStartParty, schedule.MondayToThursdayParty, schedule.ThursdayToFridayParty,
-      schedule.oddWeekendParty, planDraft.recurrenceMode === "alternating" ? schedule.evenWeekendParty : schedule.oddWeekendParty]
-      .every((partyId) => activeParties.some((party) => party.id === partyId))
-    && new Set([schedule.weeklyStartParty, schedule.MondayToThursdayParty, schedule.ThursdayToFridayParty,
-      schedule.oddWeekendParty, planDraft.recurrenceMode === "alternating" ? schedule.evenWeekendParty : schedule.oddWeekendParty]).size >= 2
-    && orderedHandoverDays
+  const handovers = planDraft?.handovers ?? [];
+  const validHandovers = handovers.length > 0 && handovers.every((handover) =>
+    activeParties.some((party) => party.id === handover.fromPartyId)
+    && activeParties.some((party) => party.id === handover.toPartyId)
+    && handover.fromPartyId !== handover.toPartyId
+    && Number.isInteger(handover.weekday) && handover.weekday >= 1 && handover.weekday <= 7
+    && /^([01]\d|2[0-3]):[0-5]\d$/.test(handover.time));
+  const legacyPeriods = handovers.length === 0 && Boolean(planDraft?.rules.length);
+  const validSchedule = planDraft && activeParties.length >= 2 && (validHandovers || legacyPeriods)
     && validDate(planDraft.effectiveFrom)
     && (!planDraft.effectiveTo || (validDate(planDraft.effectiveTo) && planDraft.effectiveTo >= planDraft.effectiveFrom))
-    && Boolean(planDraft.timeZone.trim())
-    && [schedule.sundayTime, schedule.mondayTime, schedule.thursdayTime, schedule.fridayTime]
-      .every((time) => /^([01]\d|2[0-3]):[0-5]\d$/.test(time));
-  const planPayload = () => planDraft ? { ...planDraft, rules: createRules() } : null;
+    && Boolean(planDraft.timeZone.trim());
+  const planPayload = () => planDraft ? {
+    ...planDraft,
+    recurrenceMode: handovers.length > 0 ? "alternating" as const
+      : planDraft.rules.some((rule) => rule.weekParity !== null) ? "alternating" as const : "weekly" as const,
+  } : null;
   const previewPlan = () => run(async () => {
     const plan = planPayload();
-    if (!plan || !validSchedule) throw new Error("Add two active parenting parties and complete the schedule before previewing.");
+    if (!plan || !validSchedule) throw new Error("Add recurring handovers between active parenting parties before previewing.");
     const { startAt, endAt } = rangeForPreview(plan.effectiveFrom);
     const result = await request(`${base}/preview`, {
       method: "POST", body: JSON.stringify({ plan, startAt, endAt }),
@@ -188,7 +169,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   });
   const savePlan = () => run(async () => {
     const plan = planPayload();
-    if (!plan || !validSchedule) throw new Error("Add two active parenting parties and complete the schedule before saving.");
+    if (!plan || !validSchedule) throw new Error("Add recurring handovers between active parenting parties before saving.");
     await request(`${base}/plan`, { method: "PUT", body: JSON.stringify(plan) });
     setPlanDialogOpen(false);
     await load();
@@ -206,8 +187,12 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       ...changeDraft, startAt: toIso(changeDraft.startAt), endAt: toIso(changeDraft.endAt),
     });
   };
-  const changeSchedule = (key: keyof typeof schedule, value: string | number) => {
-    setSchedule((current) => ({ ...current, [key]: value }));
+  const updateHandover = (handoverId: string, changes: Partial<Handover>) => {
+    setPlanDraft((current) => current ? {
+      ...current,
+      handovers: (current.handovers ?? []).map((handover) =>
+        handover.id === handoverId ? { ...handover, ...changes } : handover),
+    } : current);
     setPreview([]);
   };
 
@@ -244,11 +229,12 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             {error && <Alert severity="error">{error}</Alert>}
             <FormField autoFocus required label="Party name (for example, Mum or Dad)" value={partyDraft.name}
               onChange={(event) => setPartyDraft({ ...partyDraft, name: event.target.value })} />
-            <TextField select label="Link to household member (optional)" value={partyDraft.memberId}
+            <FormField select label="Link to household member (optional)" value={partyDraft.memberId}
+              slotProps={{ select: { MenuProps: selectMenuProps } }}
               onChange={(event) => setPartyDraft({ ...partyDraft, memberId: event.target.value })}>
               <MenuItem value="">No linked member</MenuItem>
               {members.map((member) => <MenuItem key={member.id} value={member.id}>{member.firstName}</MenuItem>)}
-            </TextField>
+            </FormField>
           </Box></DialogContentPanel>
           <DialogActionsBar><Button type="button" disabled={busy} onClick={() => setPartyDraft(null)}>Cancel</Button>
             <GradientButton type="submit" disabled={busy || !partyDraft.name.trim()}>Save party</GradientButton>
@@ -258,16 +244,41 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     </section>
 
     <section className="settings-card">
-      <div className="section-toolbar"><h2>Regular parenting-time plan</h2>
-        <Button variant="contained" onClick={() => setPlanDialogOpen(true)} disabled={busy || loading}>
-          {data.plan ? "Edit plan" : "Create plan"}
+      <div className="section-toolbar"><h2>Regular parenting-time handovers</h2>
+        <Button variant="contained" onClick={() => {
+          if (!data.plan && planDraft?.handovers?.length === 0 && planDraft) {
+            setPlanDraft({ ...planDraft, handovers: defaultHandovers(data.parties) });
+          }
+          setPlanDialogOpen(true);
+        }} disabled={busy || loading}>
+          {data.plan ? "Edit handovers" : "Create schedule"}
         </Button>
       </div>
-      <Typography variant="body2">Set four handovers in order through the week. Alternating weekends are determined by the ISO week number of the weekend handover day. The children are with the selected party between handovers.</Typography>
+      <Typography variant="body2">Define when responsibility changes with recurring handovers. The server resolves the parenting periods between handovers.</Typography>
       {data.plan && <Typography variant="body2" sx={{ mt: 1 }}>
-        {data.plan.active ? "Active" : "Inactive"} · {data.plan.recurrenceMode === "alternating" ? "Alternating weeks" : "Weekly"} ·
+        {data.plan.active ? "Active" : "Inactive"} ·
         {" "}from {data.plan.effectiveFrom}{data.plan.effectiveTo ? ` until ${data.plan.effectiveTo}` : ""}
       </Typography>}
+      {data.plan?.handovers?.length ? <div className="table-scroll" style={{ marginTop: 12 }}>
+        <table className="settings-table" aria-label="Regular parenting-time handovers">
+          <thead><tr><th>Handover</th><th>From</th><th>To</th><th>Repeats</th></tr></thead>
+          <tbody>{data.plan.handovers.map((handover) => <tr key={handover.id}>
+            <td>{weekdayNames[handover.weekday - 1]} · {handover.time}</td>
+            <td>{data.parties.find((party) => party.id === handover.fromPartyId)?.name ?? "Archived party"}</td>
+            <td>{data.parties.find((party) => party.id === handover.toPartyId)?.name ?? "Archived party"}</td>
+            <td>{handover.weekParity === "odd" ? "Odd ISO weeks" : handover.weekParity === "even" ? "Even ISO weeks" : "Every week"}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : data.plan?.rules.length ? <div className="table-scroll" style={{ marginTop: 12 }}>
+        <Typography variant="body2">This saved schedule uses the earlier period format.</Typography>
+        <table className="settings-table" aria-label="Regular parenting-time periods">
+          <thead><tr><th>Period</th><th>With</th></tr></thead>
+          <tbody>{data.plan.rules.map((period) => <tr key={period.id}>
+            <td>{periodSummary(period)}</td>
+            <td>{data.parties.find((party) => party.id === period.partyId)?.name ?? "Archived party"}</td>
+          </tr>)}</tbody>
+        </table>
+      </div> : <Typography variant="body2" sx={{ mt: 1 }}>No recurring handovers configured.</Typography>}
       <Typography variant="subtitle1" sx={{ mt: 2 }}>Upcoming schedule preview</Typography>
       {preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
         <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
@@ -277,22 +288,16 @@ export function ParentingTimeSettings({ householdId, members, request }: {
         </tr>)}</tbody>
       </table></div> : <Typography variant="body2">Preview the schedule to see who the children are with. Changes are always resolved by the server.</Typography>}
       <GlassDialog open={planDialogOpen} onClose={() => { if (!busy) setPlanDialogOpen(false); }}
-        aria-labelledby="parenting-plan-title" maxWidth="md" fullWidth>
+        aria-labelledby="parenting-plan-title" maxWidth="lg" fullWidth>
         {planDraft && <Box component="form" onSubmit={(event) => { event.preventDefault(); void savePlan(); }}>
           <DialogHeader><Typography id="parenting-plan-title" variant="h6">
-            {data.plan ? "Edit regular parenting-time plan" : "Create regular parenting-time plan"}
+            {data.plan ? "Edit recurring handovers" : "Create recurring schedule"}
           </Typography></DialogHeader>
           <DialogContentPanel><Box component="fieldset" disabled={busy}
             sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
             {error && <Alert severity="error">{error}</Alert>}
             <Typography variant="body2">This plan applies to all children in this household. It describes practical arrangements and is not legal advice or proof of custody.</Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <TextField select label="Pattern" value={planDraft.recurrenceMode} onChange={(event) => {
-                setPlanDraft({ ...planDraft, recurrenceMode: event.target.value as Plan["recurrenceMode"] });
-                setPreview([]);
-              }}>
-                <MenuItem value="weekly">Weekly</MenuItem><MenuItem value="alternating">Alternating weeks (ISO week)</MenuItem>
-              </TextField>
               <FormField label="Effective from" type="date" value={planDraft.effectiveFrom} slotProps={{ inputLabel: { shrink: true } }}
                 onChange={(event) => { setPlanDraft({ ...planDraft, effectiveFrom: event.target.value }); setPreview([]); }} />
               <FormField label="Effective until (optional)" type="date" value={planDraft.effectiveTo ?? ""}
@@ -305,58 +310,74 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             <FormControlLabel label="Activate this plan" control={<Checkbox checked={planDraft.active} onChange={(event) => {
               setPlanDraft({ ...planDraft, active: event.target.checked }); setPreview([]);
             }} />} />
-            <Typography variant="subtitle1">Handover times</Typography>
-            <Stack spacing={2}>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-                  <TextField select label="Handover 1 day" value={schedule.firstDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                    changeSchedule("firstDay", Number(event.target.value))}>
-                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-                  </TextField>
-                  <FormField label="Handover 1 time" type="time" value={schedule.sundayTime}
-                    onChange={(event) => changeSchedule("sundayTime", event.target.value)} />
-                </Stack>
-                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-                  <TextField select label="Handover 2 day" value={schedule.secondDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                    changeSchedule("secondDay", Number(event.target.value))}>
-                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-                  </TextField>
-                  <FormField label="Handover 2 time" type="time" value={schedule.mondayTime}
-                    onChange={(event) => changeSchedule("mondayTime", event.target.value)} />
-                </Stack>
-              </Stack>
-              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-                  <TextField select label="Handover 3 day" value={schedule.thirdDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                    changeSchedule("thirdDay", Number(event.target.value))}>
-                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-                  </TextField>
-                  <FormField label="Handover 3 time" type="time" value={schedule.thursdayTime}
-                    onChange={(event) => changeSchedule("thursdayTime", event.target.value)} />
-                </Stack>
-                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-                  <TextField select label="Handover 4 day" value={schedule.fourthDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                    changeSchedule("fourthDay", Number(event.target.value))}>
-                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-                  </TextField>
-                  <FormField label="Handover 4 time" type="time" value={schedule.fridayTime}
-                    onChange={(event) => changeSchedule("fridayTime", event.target.value)} />
-                </Stack>
-              </Stack>
+            <Stack sx={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
+              <Typography variant="subtitle1">Recurring handovers</Typography>
+              <Button type="button" onClick={() => {
+                const parties = activeParties;
+                const current = planDraft.handovers ?? [];
+                const index = current.length;
+                const fromPartyId = parties[index % 2 === 0 ? 0 : 1]?.id ?? "";
+                const toPartyId = parties[index % 2 === 0 ? 1 : 0]?.id ?? "";
+                const defaults = [
+                  { weekday: 1, time: "19:30", weekParity: null },
+                  { weekday: 4, time: "19:30", weekParity: null },
+                  { weekday: 5, time: "17:00", weekParity: "even" as const },
+                  { weekday: 7, time: "19:30", weekParity: "even" as const },
+                ];
+                const next = defaults[index % defaults.length];
+                setPlanDraft((current) => current ? {
+                  ...current,
+                  handovers: [...(current.handovers ?? []), {
+                    id: id(), weekday: next.weekday, time: next.time,
+                    fromPartyId, toPartyId, weekParity: next.weekParity,
+                  }],
+                } : current);
+                setPreview([]);
+              }}>Add handover</Button>
             </Stack>
-            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              {([
-                ["weeklyStartParty", `With ${weekdayNames[schedule.firstDay - 1]} handover`],
-                ["MondayToThursdayParty", `With ${weekdayNames[schedule.secondDay - 1]} handover`],
-                ["ThursdayToFridayParty", `With ${weekdayNames[schedule.thirdDay - 1]} handover`],
-                ["oddWeekendParty", planDraft.recurrenceMode === "alternating" ? "With handover 4 · odd ISO weeks" : "With handover 4"],
-                ...(planDraft.recurrenceMode === "alternating" ? [["evenWeekendParty", "With handover 4 · even ISO weeks"]] : []),
-              ] as Array<[keyof typeof schedule, string]>).map(([key, label]) => <TextField key={key} select label={label}
-                value={schedule[key]} onChange={(event) => changeSchedule(key, event.target.value)}>
+            <Typography variant="body2">
+              Each handover changes responsibility from one party to another. Choose odd or even ISO weeks for alternating handovers; handovers must form a consistent recurring sequence.
+            </Typography>
+            {planDraft.handovers?.map((handover, index) => <Box key={handover.id} sx={{
+              display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr)) auto" },
+              alignItems: "center", p: 2, border: "1px solid var(--dialog-border)", borderRadius: 2,
+              backgroundColor: "var(--dialog-field)",
+            }}>
+              <Typography variant="subtitle2" sx={{ color: "var(--text-primary)", gridColumn: { xs: "1", md: "1 / -1" } }}>
+                Handover {index + 1}
+              </Typography>
+              <FormField select label="Weekday" value={handover.weekday}
+                slotProps={{ select: { MenuProps: selectMenuProps } }}
+                onChange={(event) => updateHandover(handover.id, { weekday: Number(event.target.value) })}>
+                {weekdayNames.map((name, day) => <MenuItem key={name} value={day + 1}>{name}</MenuItem>)}
+              </FormField>
+              <FormField label="Time" type="time" value={handover.time}
+                onChange={(event) => updateHandover(handover.id, { time: event.target.value })} />
+              <FormField select label="From" value={handover.fromPartyId}
+                slotProps={{ select: { MenuProps: selectMenuProps } }}
+                onChange={(event) => updateHandover(handover.id, { fromPartyId: event.target.value })}>
                 {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
-              </TextField>)}
-            </Stack>
-            {!orderedHandoverDays && <Alert severity="warning">Choose four different handover weekdays in order, starting with handover 1 and wrapping into the next week if needed.</Alert>}
+              </FormField>
+              <FormField select label="To" value={handover.toPartyId}
+                slotProps={{ select: { MenuProps: selectMenuProps } }}
+                onChange={(event) => updateHandover(handover.id, { toPartyId: event.target.value })}>
+                {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
+              </FormField>
+              <FormField select label="Repeats" value={handover.weekParity ?? "weekly"}
+                slotProps={{ select: { MenuProps: selectMenuProps } }}
+                onChange={(event) => updateHandover(handover.id, {
+                  weekParity: event.target.value === "weekly" ? null : event.target.value as Rule["weekParity"],
+                })}>
+                {recurrenceOptions.map((option) => <MenuItem key={option.value} value={option.value}>{option.label}</MenuItem>)}
+              </FormField>
+              <Button type="button" color="error" onClick={() => {
+                setPlanDraft((current) => current ? {
+                  ...current, handovers: (current.handovers ?? []).filter((item) => item.id !== handover.id),
+                } : current);
+                setPreview([]);
+              }}>Remove handover</Button>
+            </Box>)}
+            {planDraft.handovers?.length === 0 && <Alert severity="info">Add recurring handovers to define when responsibility changes.</Alert>}
             {activeParties.length < 2 && <Alert severity="warning">Add at least two active parties before configuring a plan.</Alert>}
             {preview.length > 0 && <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time draft preview">
               <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
@@ -405,10 +426,11 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
             {error && <Alert severity="error">{error}</Alert>}
             <Typography variant="body2">This change overrides the regular plan only during the selected period.</Typography>
-            <TextField select label="Children with" value={changeDraft.partyId} onChange={(event) =>
+            <FormField select label="Children with" value={changeDraft.partyId}
+              slotProps={{ select: { MenuProps: selectMenuProps } }} onChange={(event) =>
               setChangeDraft({ ...changeDraft, partyId: event.target.value })}>
               {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
-            </TextField>
+            </FormField>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <FormField required label="From" type="datetime-local" value={changeDraft.startAt}
                 slotProps={{ inputLabel: { shrink: true } }}

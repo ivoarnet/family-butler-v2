@@ -97,7 +97,7 @@ On an odd ISO Friday-week, Father's Thursday period continues through Sunday and
 { "partyId": "<mother>", "startAt": "2026-10-09T18:00:00Z", "endAt": "2026-10-09T20:00:00Z", "label": "Agreed swap" }
 ```
 
-Settings → Parenting Time provides household-wide party, plan, and dated-change management. Its first plan editor starts with the common Sunday/Monday/Thursday/Friday handover pattern, allows the four ordered handover weekdays and times to be configured, and supports weekly or alternating ISO-weekend assignments rather than a generic recurrence-rule editor. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
+Settings → Parenting Time provides household-wide party, recurring-period, and dated-change management. Add as many periods as needed, each with start/end weekdays and times, a parenting party, and a weekly, odd ISO-week, or even ISO-week recurrence. The period list supports schedules such as one parent having only odd weekends or weekday periods combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
 
 ## Childcare — implemented
 

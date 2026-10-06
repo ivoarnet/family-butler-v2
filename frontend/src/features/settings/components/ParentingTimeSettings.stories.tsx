@@ -80,19 +80,26 @@ export const HouseholdPlan: Story = {
     const partyDialog = page.getByRole("dialog", { name: "Edit parenting party" });
     await expect(partyDialog).toBeInTheDocument();
     await userEvent.click(within(partyDialog).getByRole("button", { name: "Cancel" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Create plan" }));
-    const planDialog = within(page.getByRole("dialog", { name: "Create regular parenting-time plan" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
+    const planDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
+    for (let index = 0; index < 4; index += 1) {
+      await userEvent.click(planDialog.getByRole("button", { name: "Add handover" }));
+    }
     await userEvent.click(planDialog.getByRole("button", { name: "Preview next 14 days" }));
     await waitFor(() => expect(planDialog.getAllByText("Regular plan").length).toBeGreaterThan(0));
     const previewCall = calls.mock.calls.find(([path, init]) => String(path).endsWith("/preview") && init?.method === "POST");
     expect(previewCall).toBeDefined();
     const payload = JSON.parse(String(previewCall?.[1]?.body));
     expect(payload.plan.recurrenceMode).toBe("alternating");
-    expect(payload.plan.rules).toHaveLength(6);
-    expect(payload.plan.rules.find((rule: { weekday: number; startTime: string; weekParity: string | null }) =>
-      rule.weekday === 5 && rule.startTime === "17:00" && rule.weekParity === "odd")?.partyId).toBe(fatherId);
-    expect(payload.plan.rules.find((rule: { weekday: number; startTime: string; weekParity: string | null }) =>
-      rule.weekday === 5 && rule.startTime === "17:00" && rule.weekParity === "even")?.partyId).toBe(motherId);
+    expect(payload.plan.handovers).toHaveLength(4);
+    expect(payload.plan.handovers.map((handover: { weekday: number; time: string; fromPartyId: string;
+      toPartyId: string; weekParity: string | null }) =>
+      [handover.weekday, handover.time, handover.fromPartyId, handover.toPartyId, handover.weekParity])).toEqual([
+      [1, "19:30", fatherId, motherId, null],
+      [4, "19:30", motherId, fatherId, null],
+      [5, "17:00", fatherId, motherId, "even"],
+      [7, "19:30", motherId, fatherId, "even"],
+    ]);
     await userEvent.click(planDialog.getByRole("button", { name: "Save plan" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
       String(path).endsWith("/plan") && init?.method === "PUT")).toBe(true));
