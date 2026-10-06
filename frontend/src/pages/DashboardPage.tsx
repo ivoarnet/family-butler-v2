@@ -3,6 +3,7 @@ import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
+import FamilyRestroomIcon from "@mui/icons-material/FamilyRestroom";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -14,9 +15,10 @@ import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
 import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
+import { ParentingResponsibilityWarning } from "../features/dashboard/components/ParentingResponsibilityWarning";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval } from "../types/family";
 import type { Dispatch, ElementType, SetStateAction } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -76,6 +78,33 @@ function BirthdayCalendarEntry({ event }: { event: SpecialEvent }) {
       <CakeIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
       <strong>{label}</strong>
     </div>
+  );
+}
+
+function ParentingCalendarEntry({ interval, day, intervals }: {
+  interval: ResolvedParentingInterval;
+  day: Date;
+  intervals: ResolvedParentingInterval[];
+}) {
+  const start = new Date(interval.startAt);
+  const end = new Date(interval.endAt);
+  const nextDay = addDays(day, 1);
+  const time = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const previous = intervals.find((item) => item.endAt === interval.startAt && item.partyId !== interval.partyId);
+  const next = intervals.find((item) => item.startAt === interval.endAt && item.partyId !== interval.partyId);
+  const change = interval.source.type === "change";
+  return (
+    <details className="specials-entry calendar-parenting-entry">
+      <summary>
+        <FamilyRestroomIcon fontSize="small" aria-hidden="true" />
+        <strong>Parenting · {interval.partyName ?? "Parenting party"}</strong>
+        <small>{start <= day && end >= nextDay ? "All day" : `${start <= day ? "00:00" : time(start)} – ${end >= nextDay ? "24:00" : time(end)}`}</small>
+        {change && <small>One-off change{interval.source.type === "change" && interval.source.label ? ` · ${interval.source.label}` : ""}</small>}
+      </summary>
+      <small>{change ? "Adjusted responsibility" : "Normal plan"}: {start.toLocaleString()} – {end.toLocaleString()}</small>
+      {previous && start >= day && start < nextDay && <small>Handover from {previous.partyName} at {time(start)}</small>}
+      {next && end > day && end <= nextDay && <small>Handover to {next.partyName} at {time(end)}</small>}
+    </details>
   );
 }
 
@@ -343,6 +372,8 @@ export function DashboardPage({
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
   const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
   const [childcareLoadError, setChildcareLoadError] = useState(false);
+  const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
+  const [parentingStatus, setParentingStatus] = useState("");
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
@@ -387,6 +418,34 @@ export function DashboardPage({
         }
       });
 
+    return () => controller.abort();
+  }, [accessToken, days, householdData.householdId]);
+
+  useEffect(() => {
+    setParentingIntervals([]);
+    setParentingStatus("");
+    if (!householdData.householdId || !accessToken) return;
+    const controller = new AbortController();
+    const query = new URLSearchParams({
+      startAt: days[0].toISOString(),
+      endAt: addDays(days[days.length - 1], 1).toISOString(),
+    });
+    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/parenting-time/resolve?${query}`, {
+      headers: { Authorization: ["Bearer", accessToken].join(" "), "x-supabase-auth-token": accessToken },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Parenting time could not be loaded");
+        return response.json() as Promise<{ intervals: ResolvedParentingInterval[]; status?: string }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setParentingIntervals(data.intervals);
+        if (data.status === "cannot_determine") setParentingStatus("Parenting responsibility cannot be determined: no active valid plan covers this range.");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setParentingStatus("Parenting time could not be loaded; responsibility cannot be determined.");
+      });
     return () => controller.abort();
   }, [accessToken, days, householdData.householdId]);
 
@@ -808,6 +867,7 @@ export function DashboardPage({
                 : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
+          {parentingStatus && <p role="status">{parentingStatus}</p>}
           <div className="calendar-scroll">
             <table className="calendar-grid">
               <thead>
@@ -835,6 +895,8 @@ export function DashboardPage({
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
                   const childcareEntries = childcareByDate.get(isoDate) ?? [];
+                  const parentingEntries = parentingIntervals.filter((interval) =>
+                    new Date(interval.startAt) < addDays(day, 1) && new Date(interval.endAt) > day);
                   const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
                   const isFirstDayOfWeek = dayIndex % 7 === 0;
                   const weekNumber = getIsoWeekNumber(day);
@@ -910,7 +972,10 @@ export function DashboardPage({
                           ))}
                       </td>
 
-                      <td className={`specials-cell${childcareEntries.length > 0 || birthdayEntries.length > 0 ? " has-specials-entries" : ""}`}>
+                      <td className={`specials-cell${childcareEntries.length > 0 || birthdayEntries.length > 0 || parentingEntries.length > 0 ? " has-specials-entries" : ""}`}>
+                        {parentingEntries.map((interval) => (
+                          <ParentingCalendarEntry key={`${interval.startAt}-${interval.partyId}`} interval={interval} day={day} intervals={parentingIntervals} />
+                        ))}
                         {childcareEntries.map((occurrence) => (
                           <ChildcareCalendarEntry
                             key={occurrence.id}
@@ -949,6 +1014,8 @@ export function DashboardPage({
         endDateError={eventEndDateError}
         memberSelectionError={eventMemberSelectionError}
         timeErrorMessage={eventTimeErrorMessage}
+        planningAssistance={isEventDialogOpen ? <ParentingResponsibilityWarning
+          key={householdData.householdId} householdId={householdData.householdId} accessToken={accessToken} formState={eventFormState} /> : null}
         onClose={closeEventDialog}
         onSubmit={submitEvent}
         onFormStateChange={(updater) => setEventFormState((current) => updater(current))}

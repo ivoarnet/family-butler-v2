@@ -4,7 +4,7 @@ Family Butler helps households coordinate the people, relationships, and plans t
 
 Family Butler is agent-first: agents are intended to be the primary way people access and manage functionality across the product. The current web app also provides direct interfaces, and the agent can already help with selected contacts, events, birthdays, and day configurations; agent coverage will grow with the product.
 
-The product is organized around modules. The core household and calendar capabilities are implemented; **Daycare** is the next planned module, and **Parenting Time** is planned for later. See the [product overview](docs/PRODUCT_OVERVIEW.md) for current capabilities, module descriptions, status, and guidance for documenting future modules.
+The product is organized around modules. Core household/calendar capabilities, **Childcare**, and **Parenting Time** settings, calendar display, and read-only agent planning checks are implemented. Parenting personal-event warnings currently use an explicit development-only party selection. See the [product overview](docs/PRODUCT_OVERVIEW.md) for current capabilities, module descriptions, status, and guidance for documenting future modules.
 
 This repository contains the React frontend, Azure Functions backend, and Supabase (PostgreSQL) data layer.
 

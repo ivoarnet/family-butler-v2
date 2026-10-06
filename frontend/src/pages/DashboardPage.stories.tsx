@@ -1,7 +1,8 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useState } from "react";
-import { expect, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import type { HouseholdData } from "../features/app/types";
+import type { ResolvedParentingInterval } from "../types/family";
 import { DashboardPage } from "./DashboardPage";
 
 const today = new Date();
@@ -12,6 +13,16 @@ const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1
 const yesterday = new Date(today);
 yesterday.setDate(yesterday.getDate() - 1);
 const yesterdayDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
+const momId = "00000000-0000-0000-0000-000000000001";
+const dadId = "00000000-0000-0000-0000-000000000002";
+const parentingIntervals: ResolvedParentingInterval[] = [
+  { startAt: new Date(`${date}T00:00`).toISOString(), endAt: new Date(`${date}T12:00`).toISOString(),
+    partyId: momId, partyName: "Mum", source: { type: "plan", planId: "plan" } },
+  { startAt: new Date(`${date}T12:00`).toISOString(), endAt: new Date(`${date}T18:00`).toISOString(),
+    partyId: dadId, partyName: "Dad", source: { type: "change", changeId: "swap", label: "Agreed swap" } },
+  { startAt: new Date(`${date}T18:00`).toISOString(), endAt: new Date(`${tomorrowDate}T00:00`).toISOString(),
+    partyId: momId, partyName: "Mum", source: { type: "plan", planId: "plan" } },
+];
 const childcareOccurrences = [
   {
     id: "grandparents-care",
@@ -61,7 +72,7 @@ const household: HouseholdData = {
   dayConfigurations: [{ id: "holiday", category: "school_off", startDate: date, endDate: date }],
 };
 
-function DashboardStory({ width }: { width: number }) {
+function DashboardStory({ width, unknownResponsibility = false }: { width: number; unknownResponsibility?: boolean }) {
   const [householdData, setHouseholdData] = useState(household);
   useLayoutEffect(() => {
     const originalFetch = window.fetch;
@@ -70,12 +81,30 @@ function DashboardStory({ width }: { width: number }) {
       if (url.includes("/childcare/occurrences?")) {
         return Response.json({ occurrences: childcareOccurrences });
       }
+      if (url.includes("/parenting-time/resolve?")) {
+        const range = new URL(url, window.location.origin).searchParams;
+        return Response.json({ intervals: parentingIntervals.filter((interval) =>
+          interval.startAt < range.get("endAt")! && interval.endAt > range.get("startAt")!) });
+      }
+      if (url.endsWith("/parenting-time/check")) {
+        const body = JSON.parse(String(init?.body)) as { partyId: string; startAt: string; endAt: string };
+        const overlaps = parentingIntervals.filter((interval) =>
+          interval.partyId === body.partyId && interval.startAt < body.endAt && interval.endAt > body.startAt);
+        return Response.json(unknownResponsibility
+          ? { status: "cannot_determine", responsible: null, overlaps: [] }
+          : { status: "determined", responsible: overlaps.length > 0, overlaps });
+      }
+      if (url.endsWith("/parenting-time")) {
+        return Response.json({ parties: [
+          { id: momId, name: "Mum", active: true }, { id: dadId, name: "Dad", active: true },
+        ] });
+      }
       return originalFetch(input, init);
     };
     return () => {
       window.fetch = originalFetch;
     };
-  }, []);
+  }, [unknownResponsibility]);
   return (
     <div style={{ maxWidth: width, margin: "auto" }}>
       <DashboardPage
@@ -243,5 +272,57 @@ export const MultiDayEvent: Story = {
     const lastDay = canvas.getByLabelText("Last day") as HTMLInputElement;
     await expect(lastDay).toBeVisible();
     await expect(lastDay.value).toBe(tomorrowDate);
+  },
+};
+
+export const ParentingTime: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .calendar-parenting-entry")).toHaveLength(3));
+    const changed = canvas.getByText("One-off change · Agreed swap");
+    await expect(changed).toBeVisible();
+    await userEvent.click(changed.closest("summary")!);
+    await expect(canvas.getByText("Handover from Mum at 12:00")).toBeVisible();
+    await expect(canvas.getByText("Handover to Mum at 18:00")).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Open event Parenting · Dad" })).toBeNull();
+    await userEvent.click(canvas.getByTitle("Create event"));
+    await fireEvent.change(await page.findByRole("textbox", { name: /^Title/ }), { target: { value: "Personal appointment" } });
+    await userEvent.click(page.getByRole("button", { name: /Alex$/ }));
+    await userEvent.click(page.getByRole("switch", { name: "Check this personal event for parenting responsibility" }));
+    await expect(page.getByText(/Select a party explicitly/)).toBeVisible();
+    await userEvent.click(page.getByRole("combobox", { name: "Acting parenting party (development only)" }));
+    await userEvent.click(await page.findByRole("option", { name: "Dad" }));
+    await waitFor(() => expect(page.getByRole("alert")).toHaveTextContent("You can still save"));
+    await expect(page.getByRole("alert")).toHaveTextContent("One-off change: Agreed swap");
+    await expect(page.getByRole("button", { name: "Add event" })).toBeEnabled();
+    const dateInput = page.getByLabelText(/^Date/) as HTMLInputElement;
+    await fireEvent.change(dateInput, { target: { value: tomorrowDate } });
+    await waitFor(() => expect(page.queryByRole("alert")).toBeNull());
+    await waitFor(() => expect(page.getByText("No parenting responsibility overlap for this range.")).toBeVisible());
+    await fireEvent.change(dateInput, { target: { value: date } });
+    await waitFor(() => expect(page.getByRole("alert")).toHaveTextContent("You can still save"));
+    await userEvent.click(page.getByRole("combobox", { name: "Acting parenting party (development only)" }));
+    await userEvent.click(await page.findByRole("option", { name: "Mum" }));
+    await waitFor(() => expect(page.getByRole("alert")).toHaveTextContent("Normal plan"));
+    await userEvent.click(page.getByRole("button", { name: "Add event" }));
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "Add event" })).toBeNull());
+    await expect(canvas.getAllByRole("button", { name: "Open event Personal appointment" }).length).toBeGreaterThan(0);
+  },
+};
+
+export const UnknownParentingResponsibility: Story = {
+  args: { width: 1440, unknownResponsibility: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(canvas.getByTitle("Create event"));
+    await userEvent.click(await page.findByRole("switch", { name: "Check this personal event for parenting responsibility" }));
+    await userEvent.click(page.getByRole("combobox", { name: "Acting parenting party (development only)" }));
+    await userEvent.click(await page.findByRole("option", { name: "Dad" }));
+    await waitFor(() => expect(page.getByText("Cannot determine responsibility: no active valid plan covers this range.")).toBeVisible());
+    await expect(page.queryByRole("alert")).toBeNull();
+    await expect(page.getByRole("button", { name: "Add event" })).toBeEnabled();
   },
 };

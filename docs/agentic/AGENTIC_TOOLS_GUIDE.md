@@ -6,6 +6,7 @@ This guide explains how to add new tools for the Agent Chat backend.
 
 - Tool registry: `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/index.js`
 - Existing tools:
+  - `/api/shared/agent/tools/checkParentingResponsibilityTool.js`
   - `/api/shared/agent/tools/getChildcareCoverageTool.js`
   - `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/addContactTool.js`
   - `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/agent/tools/getContactsTool.js`
@@ -72,6 +73,16 @@ This guide explains how to add new tools for the Agent Chat backend.
 ## Childcare coverage
 
 `get_childcare_coverage` accepts an inclusive `fromDate`/`toDate` range (at most 366 days) and returns persisted, resolved occurrences for the authenticated current household. Results include effective dates and times, provider and participating child names, plus original dates and change actions for moved or replaced occurrences. Cancellations are omitted. It is a read-only tool and does not infer parenting-time responsibility or care availability.
+
+## Parenting-time responsibility
+
+`check_parenting_responsibility` is read-only and uses the authorized current household context. Supply an explicit active parenting-party UUID (`partyId`), an inclusive `startAt`, and an exclusive `endAt`, both ISO date-times with a timezone (maximum range: 366 days). The explicit party input is development-only: the agent must ask for a UUID rather than infer “me” from the signed-in user or a name.
+
+The tool and `POST /api/households/{householdId}/parenting-time/check` share the same resolver. A `determined` response includes `responsible` (true for **any** overlap, false for none), `overlaps`, and the full resolved `intervals`, with plan/rule/change provenance. All-day requests must use midnight-to-midnight boundaries in the intended timezone, with an exclusive end at the following midnight.
+
+Missing/inactive plans, invalid persisted schedules, gaps, ambiguity, missing/inactive referenced parties, or ranges partly outside effective dates return `status: "cannot_determine"`, `responsible: null`, and a reason/message. Malformed requests or a requested party outside the active household parties are validation errors, not unknown results. Unknown never means no conflict. This informational tool does not block or change event tools.
+
+`GET /api/households/{householdId}/parenting-time/resolve?startAt=...&endAt=...` returns `{status, intervals, parties, timeZone}` (plus a reason/message for unknown schedules). For a valid plan and a partly covered range, GET preserves the intervals clipped to effective dates while reporting `cannot_determine` with reason `outside_effective_plan`; calendars can show the known portion and an unknown banner. Responsibility checks remain unknown with no overlaps unless the entire range is covered. Unsaved plan preview retains its existing validation and clipped-range behavior.
 
 ## Minimal template
 

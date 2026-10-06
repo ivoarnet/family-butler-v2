@@ -70,7 +70,8 @@ All paths are relative to `/api/households/{householdId}/parenting-time`. Reques
 | POST or PUT | `/changes` | Create a one-off interval or update one using its `id`. |
 | DELETE | `/changes?id=<change UUID>` | Remove a one-off change. |
 | POST | `/preview` | Resolve a draft plan without saving: `{ plan, startAt, endAt }` → `{ intervals }`, using the same server resolver and persisted changes. |
-| GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return `{ intervals }` for a range of at most 366 days. |
+| GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return resolved intervals and determination status for a range of at most 366 days. |
+| POST | `/check` | Read-only advisory check: `{ partyId, startAt, endAt }` → `{ status, responsible, overlaps, reason? }`. |
 
 Create the representative plan (using returned party UUIDs) with its handover events:
 
@@ -95,7 +96,11 @@ On an odd ISO Friday-week, Father's Thursday period continues through Sunday and
 { "partyId": "<mother>", "startAt": "2026-10-09T18:00:00Z", "endAt": "2026-10-09T20:00:00Z", "label": "Agreed swap" }
 ```
 
-Settings → Parenting Time provides household-wide party, recurring-handover, and dated-change management. Add or remove handovers as needed; each has a weekday/time, from/to parties, and a weekly, odd ISO-week, or even ISO-week recurrence. The handover list supports schedules such as weekday handovers combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
+Settings → Parenting Time provides household-wide party, recurring-handover, and dated-change management. Add or remove handovers as needed; each has a weekday/time, from/to parties, and a weekly, odd ISO-week, or even ISO-week recurrence. The handover list supports schedules such as weekday handovers combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views and the household calendar use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data.
+
+Responsibility checks reuse persisted plan resolution and half-open bounds: an event ending exactly at a handover does not overlap the next party's interval. `status: "determined"` includes `responsible: true` when any interval belongs to the selected active household party, otherwise `false`. `overlaps` preserve normal-plan or one-off-change provenance. Missing/inactive/invalid plans, unresolved responsibility, or ranges not fully covered by plan effective dates return `status: "cannot_determine"` and `responsible: null`, never a guessed no-conflict result. Malformed requests or invalid acting-party IDs are rejected. Checks are advisory, never event-creation restrictions; childcare is not a transfer of responsibility.
+
+The event dialog's explicit personal-event opt-in and acting-party selection are development-only until authenticated users can be securely mapped to parenting parties. Selection is transient and is not an authorization claim. Calendar days and event form times use the browser's local timezone and are sent as timezone-bearing UTC timestamps; recurring parenting handovers remain resolved in the persisted plan timezone. All-day events include the last day through the following local midnight. The dialog checks the first occurrence only, not an entire event recurrence. Agents can invoke `check_parenting_responsibility` using an explicit party UUID within the authenticated household context; they must ask for that party instead of inferring “me”. Supabase privileged access remains server-side.
 
 ## Childcare — implemented
 

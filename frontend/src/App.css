@@ -922,6 +922,32 @@ body,
   flex-wrap: wrap;
 }
 
+.specials-cell .calendar-parenting-entry {
+  display: block;
+  padding: 0.35rem;
+  border: 1px dashed var(--accent-strong);
+  border-left: 3px solid var(--accent-strong);
+  border-radius: 0.3rem;
+  white-space: normal;
+}
+
+.calendar-parenting-entry summary {
+  cursor: pointer;
+}
+
+.calendar-parenting-entry summary svg {
+  vertical-align: middle;
+  margin-right: 0.25rem;
+  color: var(--accent-strong);
+}
+
+.calendar-parenting-entry small {
+  display: block;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+}
+
 .calendar-childcare-entry small {
   flex-basis: 100%;
   padding-left: 1.35rem;

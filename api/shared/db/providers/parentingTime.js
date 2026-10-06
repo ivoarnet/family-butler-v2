@@ -23,6 +23,7 @@ const mapPlan = (row) => ({
 const mapChange = (row) => ({
   id: row.id,
   householdId: row.household_id,
+  planId: row.plan_id,
   partyId: row.party_id,
   startAt: row.start_at,
   endAt: row.end_at,
