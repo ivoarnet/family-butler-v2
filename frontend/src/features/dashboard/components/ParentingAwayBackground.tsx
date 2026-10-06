@@ -1,21 +1,24 @@
 import type { ResolvedParentingInterval } from "../../../types/family";
 
-export function ParentingAwayBackground({ day, intervals, householdPartyId }: {
+export function ParentingAwayBackground({ day, intervals, householdPartyIds, activePartyIds }: {
   day: Date;
   intervals: ResolvedParentingInterval[];
-  householdPartyId: string;
+  householdPartyIds: string[];
+  activePartyIds: string[];
 }) {
+  if (householdPartyIds.length === 0) return null;
   const start = day.getTime();
   const tomorrow = new Date(day);
   tomorrow.setDate(tomorrow.getDate() + 1);
   const end = tomorrow.getTime();
   const position = (timestamp: number) => 100 * (timestamp - start) / (end - start);
-  const away = intervals.filter((interval) => interval.partyId !== householdPartyId
+  const away = intervals.filter((interval) => activePartyIds.includes(interval.partyId)
+    && !householdPartyIds.includes(interval.partyId)
     && Date.parse(interval.startAt) < end && Date.parse(interval.endAt) > start);
   const handovers = intervals.filter((interval) => {
     const at = Date.parse(interval.startAt);
-    return at >= start && at < end && intervals.some((previous) =>
-      previous.endAt === interval.startAt && previous.partyId !== interval.partyId);
+    return at >= start && at < end && activePartyIds.includes(interval.partyId) && intervals.some((previous) =>
+      previous.endAt === interval.startAt && previous.partyId !== interval.partyId && activePartyIds.includes(previous.partyId));
   });
   if (away.length === 0 && handovers.length === 0) return null;
   return <div className="parenting-away-background" aria-hidden="true">

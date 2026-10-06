@@ -52,6 +52,10 @@ const formatContactBirthday = (contact: Contact): string => {
 const buildMemberFormState = (member?: FamilyMember): MemberFormState => ({
   firstName: member?.firstName ?? "",
   role: member?.role ?? "",
+  isChild: member?.isChild === true,
+  hatchParentingAway: member?.hatchParentingAway === true,
+  schoolBuilding: member?.schoolBuilding ?? "",
+  schoolClass: member?.schoolClass ?? "",
   avatarColor: member?.avatarColor ? normalizeMemberColor(member.avatarColor) : DEFAULT_MEMBER_COLOR,
   visibleInCalendar: member?.visibleInCalendar ?? true,
 });
@@ -86,6 +90,10 @@ const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
       ...member,
       order: index,
       role: member.role?.trim() || undefined,
+      isChild: member.isChild === true,
+      hatchParentingAway: member.hatchParentingAway === true,
+      schoolBuilding: member.schoolBuilding?.trim() ?? "",
+      schoolClass: member.schoolClass?.trim() ?? "",
       avatarColor: normalizeMemberColor(member.avatarColor),
     }));
 
@@ -284,6 +292,10 @@ export function SettingsPage({
     setMemberFormState({
       firstName: "",
       role: "",
+      isChild: false,
+      hatchParentingAway: false,
+      schoolBuilding: "",
+      schoolClass: "",
       avatarColor: getBestAvailableColor(orderedMembers),
       visibleInCalendar: true,
     });
@@ -320,6 +332,10 @@ export function SettingsPage({
                 ...member,
                 firstName,
                 role: memberFormState.role.trim() || undefined,
+                isChild: memberFormState.isChild,
+                hatchParentingAway: memberFormState.hatchParentingAway,
+                schoolBuilding: memberFormState.schoolBuilding.trim(),
+                schoolClass: memberFormState.schoolClass.trim(),
                 avatarColor: memberFormState.avatarColor,
                 visibleInCalendar: memberFormState.visibleInCalendar,
               }
@@ -332,6 +348,10 @@ export function SettingsPage({
         id: crypto.randomUUID(),
         firstName,
         role: memberFormState.role.trim() || undefined,
+        isChild: memberFormState.isChild,
+        hatchParentingAway: memberFormState.hatchParentingAway,
+        schoolBuilding: memberFormState.schoolBuilding.trim(),
+        schoolClass: memberFormState.schoolClass.trim(),
         avatarColor: memberFormState.avatarColor,
         visibleInCalendar: memberFormState.visibleInCalendar,
         order: members.length,
@@ -898,6 +918,8 @@ export function SettingsPage({
                         <span>
                           {member.firstName}
                           {member.role ? <small> · {member.role}</small> : null}
+                          {member.isChild === true ? <small> · Child{[member.schoolBuilding, member.schoolClass].filter(Boolean).length
+                            ? ` · ${[member.schoolBuilding, member.schoolClass].filter(Boolean).join(" · ")}` : ""}</small> : null}
                         </span>
                       </div>
                     </td>
@@ -953,7 +975,8 @@ export function SettingsPage({
                       </select>
                     </td>
                     <td className="actions-cell">
-                      <button type="button" className="icon-button compact-icon-button" onClick={() => openEditMember(member)}>
+                      <button type="button" className="icon-button compact-icon-button"
+                        aria-label={`Edit member ${member.firstName}`} onClick={() => openEditMember(member)}>
                         <EditOutlinedIcon fontSize="small" />
                       </button>
                     </td>
@@ -973,6 +996,10 @@ export function SettingsPage({
             onSubmit={submitMember}
             onFirstNameChange={(value) => setMemberFormState((current) => ({ ...current, firstName: value }))}
             onRoleChange={(value) => setMemberFormState((current) => ({ ...current, role: value }))}
+            onIsChildChange={(value) => setMemberFormState((current) => ({ ...current, isChild: value }))}
+            onHatchParentingAwayChange={(value) => setMemberFormState((current) => ({ ...current, hatchParentingAway: value }))}
+            onSchoolBuildingChange={(value) => setMemberFormState((current) => ({ ...current, schoolBuilding: value }))}
+            onSchoolClassChange={(value) => setMemberFormState((current) => ({ ...current, schoolClass: value }))}
             onAvatarColorChange={(value) => setMemberFormState((current) => ({ ...current, avatarColor: value }))}
             onVisibleInCalendarChange={(value) => setMemberFormState((current) => ({ ...current, visibleInCalendar: value }))}
           />

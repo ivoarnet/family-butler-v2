@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Moved child classification to Settings → Members and added optional school building/class details and a per-child parenting hatch switch. Hatching now uses parenting parties' optional household-member links, without separate calendar party/child-column selectors. Apply `docs/sql/household-member-details.sql`; legacy explicit selections are migrated once. Updated screenshots: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-child-school-details.png` and `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-hatching.png`.
+
 - Added persisted Parenting Time calendar-display settings for an explicit household party and child columns. Optional subtle hatching shows resolved other-party responsibility behind events with hand-off markers; unknown periods stay unshaded and event interactions remain unchanged. Rerun `docs/sql/parenting-time.sql` before using the setting. Updated screenshots: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-hatching.png` and `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/parenting-calendar-display-settings.png`.
 
 - Replaced visible parenting period ranges with incoming hand-off times; continuing periods and same-party adjustments retain the party label without a time. Full intervals remain available on hover. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.

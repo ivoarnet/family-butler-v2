@@ -20,6 +20,10 @@ export interface HouseholdSummary {
 export interface MemberFormState {
   firstName: string;
   role: string;
+  isChild: boolean;
+  hatchParentingAway: boolean;
+  schoolBuilding: string;
+  schoolClass: string;
   avatarColor: MemberAvatarColor;
   visibleInCalendar: boolean;
 }

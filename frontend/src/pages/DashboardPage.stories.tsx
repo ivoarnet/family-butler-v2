@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useState } from "react";
-import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import type { HouseholdData } from "../features/app/types";
 import type { ResolvedParentingInterval } from "../types/family";
 import { DashboardPage } from "./DashboardPage";
@@ -17,6 +17,8 @@ yesterday.setDate(yesterday.getDate() - 1);
 const yesterdayDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
 const momId = "00000000-0000-0000-0000-000000000001";
 const dadId = "00000000-0000-0000-0000-000000000002";
+const guardianId = "00000000-0000-0000-0000-000000000003";
+const calendarSettingsCalls = fn();
 const parentingIntervals: ResolvedParentingInterval[] = [
   { startAt: new Date(`${yesterdayDate}T00:00`).toISOString(), endAt: new Date(`${date}T00:00`).toISOString(),
     partyId: dadId, partyName: "Dad", source: { type: "plan", planId: "plan" } },
@@ -60,8 +62,9 @@ const household: HouseholdData = {
   householdId: "demo",
   householdName: "Family Calendar",
   familyMembers: [
-    { id: "alex", firstName: "Alex", avatarColor: "#3b82f6", visibleInCalendar: true, order: 0 },
-    { id: "sam", firstName: "Sam", avatarColor: "#8b5cf6", visibleInCalendar: true, order: 1 },
+    { id: "alex", firstName: "Alex", isChild: true, avatarColor: "#3b82f6", visibleInCalendar: true, order: 0 },
+    { id: "sam", firstName: "Sam", isChild: false, role: "Child", schoolBuilding: "School", schoolClass: "3B",
+      avatarColor: "#8b5cf6", visibleInCalendar: true, order: 1 },
     { id: "hidden", firstName: "Hidden", avatarColor: "#ef6c51", visibleInCalendar: false, order: 2 },
   ],
   contacts: [{ id: "birthday", firstName: "Taylor", birthDay: today.getDate(), birthMonth: today.getMonth() + 1 }],
@@ -80,11 +83,21 @@ const household: HouseholdData = {
 };
 
 function DashboardStory({ width, unknownResponsibility = false, hatching = false, archivedHouseholdParty = false,
-  staleChildSelection = false, preferencesUnavailable = false }: {
+  parentingUnavailable = false, classificationControls = false, noChildren = false, noHouseholdLinks = false,
+  invalidHouseholdLink = false, invalidOutsideLink = false, inactiveOutsideParty = false,
+  multipleHouseholdLinks = false, secondChildOptedOut = false, additionalOutsideParty = false }: {
   width: number; unknownResponsibility?: boolean; hatching?: boolean; archivedHouseholdParty?: boolean;
-  staleChildSelection?: boolean; preferencesUnavailable?: boolean;
+  parentingUnavailable?: boolean; classificationControls?: boolean; noChildren?: boolean; noHouseholdLinks?: boolean;
+  invalidHouseholdLink?: boolean; invalidOutsideLink?: boolean; inactiveOutsideParty?: boolean;
+  multipleHouseholdLinks?: boolean; secondChildOptedOut?: boolean; additionalOutsideParty?: boolean;
 }) {
-  const [householdData, setHouseholdData] = useState(household);
+  const [householdData, setHouseholdData] = useState<HouseholdData>(() => ({
+    ...household, familyMembers: household.familyMembers.map((member) => ({
+      ...member,
+      isChild: noChildren ? false : secondChildOptedOut && member.id === "sam" ? true : member.isChild,
+      hatchParentingAway: hatching && !(secondChildOptedOut && member.id === "sam"),
+    })),
+  }));
   useLayoutEffect(() => {
     const originalFetch = window.fetch;
     window.fetch = async (input, init) => {
@@ -93,19 +106,32 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
         return Response.json({ occurrences: childcareOccurrences });
       }
       if (url.includes("/parenting-time/resolve?")) {
+        if (parentingUnavailable) return Response.json({ error: "Parenting time unavailable" }, { status: 500 });
         const range = new URL(url, window.location.origin).searchParams;
+        const intervals = multipleHouseholdLinks || additionalOutsideParty ? [
+          ...parentingIntervals.slice(0, 2),
+          { ...parentingIntervals[2], endAt: new Date(`${date}T14:00`).toISOString() },
+          { ...parentingIntervals[2], partyId: guardianId, partyName: "Guardian",
+            startAt: new Date(`${date}T14:00`).toISOString(), endAt: new Date(`${date}T16:00`).toISOString() },
+          { ...parentingIntervals[2], startAt: new Date(`${date}T16:00`).toISOString() },
+          ...parentingIntervals.slice(3),
+        ] : parentingIntervals;
         return Response.json({
-          intervals: unknownResponsibility ? [] : parentingIntervals.filter((interval) =>
+          intervals: unknownResponsibility ? [] : intervals.filter((interval) =>
             interval.startAt < range.get("endAt")! && interval.endAt > range.get("startAt")!),
           status: unknownResponsibility ? "cannot_determine" : "determined",
           parties: [
-            { id: momId, name: "Mum", active: !archivedHouseholdParty }, { id: dadId, name: "Dad", active: true },
+            { id: momId, name: "Mum", memberId: noHouseholdLinks ? null : invalidHouseholdLink ? "removed-member" : "hidden",
+              active: !archivedHouseholdParty },
+            { id: dadId, name: "Dad", memberId: multipleHouseholdLinks ? "sam" : invalidOutsideLink ? "removed-member" : null,
+              active: !inactiveOutsideParty },
+            ...(multipleHouseholdLinks || additionalOutsideParty ? [{ id: guardianId, name: "Guardian", memberId: null, active: true }] : []),
           ],
         });
       }
       if (url.endsWith("/parenting-time/calendar-settings")) {
-        return preferencesUnavailable ? Response.json({ error: "Calendar settings unavailable" }, { status: 500 })
-          : Response.json({ showAwayHatching: hatching, householdPartyId: momId, childMemberIds: staleChildSelection ? ["alex", "removed-member"] : ["alex"] });
+        calendarSettingsCalls(url);
+        return Response.json({ showAwayHatching: true, householdPartyId: dadId, childMemberIds: ["sam", "removed-member"] });
       }
       if (url.endsWith("/parenting-time/check")) {
         const body = JSON.parse(String(init?.body)) as { partyId: string; startAt: string; endAt: string };
@@ -125,9 +151,23 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
     return () => {
       window.fetch = originalFetch;
     };
-  }, [unknownResponsibility, hatching, archivedHouseholdParty, staleChildSelection, preferencesUnavailable]);
+  }, [unknownResponsibility, archivedHouseholdParty, parentingUnavailable, noHouseholdLinks,
+    invalidHouseholdLink, invalidOutsideLink, inactiveOutsideParty, multipleHouseholdLinks, additionalOutsideParty]);
   return (
     <div style={{ maxWidth: width, margin: "auto" }}>
+      {classificationControls && <button type="button" onClick={() => setHouseholdData((current) => ({
+        ...current, familyMembers: current.familyMembers.map((member) =>
+          member.id === "alex" || member.id === "sam" ? { ...member, isChild: member.isChild !== true } : member),
+      }))}>Swap child classification</button>}
+      {classificationControls && <button type="button" onClick={() => setHouseholdData((current) => ({
+        ...current, familyMembers: current.familyMembers.map((member) => member.id === "alex"
+          ? { ...member, hatchParentingAway: !member.hatchParentingAway } : member),
+      }))}>Toggle Alex hatching</button>}
+      {classificationControls && <button type="button" onClick={() => setHouseholdData((current) => ({
+        ...current, familyMembers: current.familyMembers.some((member) => member.id === "hidden")
+          ? current.familyMembers.filter((member) => member.id !== "hidden")
+          : [...current.familyMembers, household.familyMembers[2]],
+      }))}>Toggle linked household membership</button>}
       <DashboardPage
         householdData={householdData}
         setHouseholdData={setHouseholdData}
@@ -148,6 +188,7 @@ const meta: Meta<typeof DashboardStory> = {
   title: "Dashboard/FamilyCalendar",
   component: DashboardStory,
   parameters: { layout: "fullscreen" },
+  beforeEach: () => { calendarSettingsCalls.mockClear(); },
 };
 export default meta;
 type Story = StoryObj<typeof DashboardStory>;
@@ -425,6 +466,7 @@ export const AwayHatching: Story = {
       ? ".calendar-period-navigation" : ".header-controls .period-navigation"} [title="Next two-week period"]`)!;
     await userEvent.click(navigation);
     await waitFor(() => expect(canvasElement.querySelector(".parenting-away-segment")).toBeNull());
+    expect(calendarSettingsCalls).not.toHaveBeenCalled();
   },
 };
 
@@ -450,17 +492,47 @@ export const ArchivedAwayParty: Story = {
   },
 };
 
-export const StaleChildHatching: Story = {
-  args: { width: 1440, hatching: true, staleChildSelection: true },
+export const LegacyDisplayPreferencesIgnored: Story = {
+  args: { width: 1440, hatching: true },
+  play: AwayHatching.play,
+};
+
+export const ChildClassificationChanges: Story = {
+  args: { width: 1440, hatching: true, classificationControls: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const cells = () => canvasElement.querySelectorAll(".today-row .member-event-cell");
+    await waitFor(() => expect(cells()[0].querySelector(".parenting-away-segment")).not.toBeNull());
+    await expect(cells()[1].querySelector(".parenting-away-background")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Toggle Alex hatching" }));
+    await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Toggle Alex hatching" }));
+    await waitFor(() => expect(cells()[0].querySelector(".parenting-away-segment")).not.toBeNull());
+    await userEvent.click(canvas.getByRole("button", { name: "Toggle linked household membership" }));
+    await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Toggle linked household membership" }));
+    await waitFor(() => expect(cells()[0].querySelector(".parenting-away-segment")).not.toBeNull());
+    expect(calendarSettingsCalls).not.toHaveBeenCalled();
+    await userEvent.click(canvas.getByRole("button", { name: "Swap child classification" }));
+    await waitFor(() => expect(cells()[1].querySelector(".parenting-away-segment")).not.toBeNull());
+    await expect(cells()[0].querySelector(".parenting-away-background")).toBeNull();
+    await expect(canvas.getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
+    await userEvent.click(canvas.getByRole("button", { name: "Swap child classification" }));
+    await waitFor(() => expect(cells()[0].querySelector(".parenting-away-segment")).not.toBeNull());
+    await expect(cells()[1].querySelector(".parenting-away-background")).toBeNull();
+  },
+};
+
+export const NoChildMembers: Story = {
+  args: { width: 1440, hatching: true, noChildren: true },
   play: ArchivedAwayParty.play,
 };
 
-export const UnavailableHatchingPreferences: Story = {
-  args: { width: 1440, hatching: true, preferencesUnavailable: true },
+export const UnavailableParentingTime: Story = {
+  args: { width: 1440, hatching: true, parentingUnavailable: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByText(/Parenting calendar display settings could not be loaded/)).toBeVisible());
-    await waitFor(() => expect(canvasElement.querySelector(".calendar-parenting-entry")).not.toBeNull());
+    await waitFor(() => expect(canvas.getByText(/Parenting time could not be loaded; responsibility cannot be determined/)).toBeVisible());
     await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
     await expect(canvas.getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
   },
@@ -474,5 +546,69 @@ export const HatchingDisabledByDefault: Story = {
     await expect(canvasElement.querySelector(".today-row .calendar-childcare-entry")).not.toBeNull();
     await expect(canvasElement.querySelector(".today-row .calendar-birthday-entry")).not.toBeNull();
     await expect(canvasElement.querySelector(".today-row .day-special-corner")).not.toBeNull();
+    expect(calendarSettingsCalls).not.toHaveBeenCalled();
+  },
+};
+
+export const MultipleHouseholdPartyLinks: Story = {
+  args: { width: 1440, hatching: true, multipleHouseholdLinks: true },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .parenting-away-segment")).toHaveLength(1));
+    const segment = canvasElement.querySelector(".today-row .parenting-away-segment") as HTMLElement;
+    await expect(segment.dataset.partyId).toBe(guardianId);
+    await expect(Number.parseFloat(segment.style.top)).toBeCloseTo(100 * 14 / 24);
+    await expect(Number.parseFloat(segment.style.height)).toBeCloseTo(100 * 2 / 24);
+    await expect(canvasElement.querySelector(`.parenting-away-segment[data-party-id="${momId}"]`)).toBeNull();
+    await expect(canvasElement.querySelector(`.parenting-away-segment[data-party-id="${dadId}"]`)).toBeNull();
+    const childCell = canvasElement.querySelector(".today-row .member-event-cell")!;
+    for (const handoff of ["12:00 → Dad", "14:00 → Guardian", "16:00 → Dad", "18:00 → Mum"]) {
+      await expect(childCell.textContent).toContain(handoff);
+    }
+    await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
+    expect(calendarSettingsCalls).not.toHaveBeenCalled();
+  },
+};
+
+export const PerChildOptOut: Story = {
+  args: { width: 1440, hatching: true, secondChildOptedOut: true },
+  play: AwayHatching.play,
+};
+
+export const NoHouseholdPartyLinks: Story = {
+  args: { width: 1440, hatching: true, noHouseholdLinks: true },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(within(canvasElement).getByText(/Link an active parenting party to a current household member/)).toBeVisible());
+    await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
+    await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
+    expect(calendarSettingsCalls).not.toHaveBeenCalled();
+  },
+};
+
+export const InvalidHouseholdPartyLink: Story = {
+  args: { width: 1440, hatching: true, invalidHouseholdLink: true },
+  play: NoHouseholdPartyLinks.play,
+};
+
+export const InvalidOutsidePartyLink: Story = {
+  args: { width: 1440, hatching: true, invalidOutsideLink: true, additionalOutsideParty: true },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .parenting-away-segment")).toHaveLength(1));
+    const segment = canvasElement.querySelector(".today-row .parenting-away-segment") as HTMLElement;
+    await expect(segment.dataset.partyId).toBe(guardianId);
+    await expect(Number.parseFloat(segment.style.top)).toBeCloseTo(100 * 14 / 24);
+    await expect(Number.parseFloat(segment.style.height)).toBeCloseTo(100 * 2 / 24);
+    await expect(canvasElement.querySelector(`.parenting-away-segment[data-party-id="${dadId}"]`)).toBeNull();
+    await expect(canvasElement.querySelector(".parenting-handoff-marker")).toBeNull();
+    await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
+    expect(calendarSettingsCalls).not.toHaveBeenCalled();
+  },
+};
+
+export const InactiveOutsideParty: Story = {
+  args: { width: 1440, hatching: true, inactiveOutsideParty: true },
+  play: async ({ canvasElement }) => {
+    await waitFor(() => expect(canvasElement.querySelector(".calendar-parenting-entry")).not.toBeNull());
+    await expect(canvasElement.querySelector(".parenting-away-segment")).toBeNull();
+    await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
   },
 };

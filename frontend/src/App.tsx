@@ -40,6 +40,10 @@ const normalizeFamilyMembers = (members: FamilyMember[]): FamilyMember[] =>
       ...member,
       order: index,
       role: member.role?.trim() || undefined,
+      isChild: member.isChild === true,
+      hatchParentingAway: member.hatchParentingAway === true,
+      schoolBuilding: member.schoolBuilding?.trim() ?? "",
+      schoolClass: member.schoolClass?.trim() ?? "",
       avatarColor: normalizeMemberColor(member.avatarColor),
     }));
 

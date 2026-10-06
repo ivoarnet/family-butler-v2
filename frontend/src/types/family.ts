@@ -4,6 +4,10 @@ export interface HouseholdMember {
   id: string;
   firstName: string;
   role?: string;
+  isChild?: boolean;
+  hatchParentingAway?: boolean;
+  schoolBuilding?: string;
+  schoolClass?: string;
   avatarColor: MemberAvatarColor;
   visibleInCalendar: boolean;
   order: number;
@@ -62,13 +66,8 @@ export interface ResolvedChildcareOccurrence {
 export interface ParentingParty {
   id: string;
   name: string;
+  memberId?: string | null;
   active: boolean;
-}
-
-export interface ParentingCalendarPreferences {
-  showAwayHatching: boolean;
-  householdPartyId: string | null;
-  childMemberIds: string[];
 }
 
 export interface ResolvedParentingInterval {

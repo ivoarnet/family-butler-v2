@@ -19,7 +19,7 @@ import { ParentingResponsibilityWarning } from "../features/dashboard/components
 import { ParentingAwayBackground } from "../features/dashboard/components/ParentingAwayBackground";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval, ParentingCalendarPreferences, ParentingParty } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval, ParentingParty } from "../types/family";
 import type { Dispatch, ElementType, SetStateAction } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -383,8 +383,6 @@ export function DashboardPage({
   const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
   const [parentingStatus, setParentingStatus] = useState("");
   const [parentingParties, setParentingParties] = useState<ParentingParty[]>([]);
-  const [parentingPreferences, setParentingPreferences] = useState<ParentingCalendarPreferences | null>(null);
-  const [parentingPreferencesError, setParentingPreferencesError] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
@@ -462,35 +460,13 @@ export function DashboardPage({
     return () => controller.abort();
   }, [accessToken, days, householdData.householdId]);
 
-  useEffect(() => {
-    setParentingPreferences(null);
-    setParentingPreferencesError(false);
-    if (!householdData.householdId || !accessToken) return;
-    const controller = new AbortController();
-    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/parenting-time/calendar-settings`, {
-      headers: { Authorization: ["Bearer", accessToken].join(" "), "x-supabase-auth-token": accessToken },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Calendar preferences unavailable");
-        return response.json() as Promise<ParentingCalendarPreferences>;
-      })
-      .then((preferences) => {
-        if (!controller.signal.aborted) setParentingPreferences(preferences);
-      })
-      .catch(() => {
-        if (!controller.signal.aborted) setParentingPreferencesError(true);
-      });
-    return () => controller.abort();
-  }, [accessToken, householdData.householdId]);
-
-  const hatchingPartyId = parentingPreferences?.showAwayHatching
-    && parentingParties.some((party) => party.active && party.id === parentingPreferences.householdPartyId)
-    && parentingPreferences.childMemberIds.length > 0
-    && parentingPreferences.childMemberIds.every((id) => orderedMembers.some((member) => member.id === id))
-    ? parentingPreferences.householdPartyId : null;
-  const isHatchedChild = (memberId: string) => Boolean(hatchingPartyId
-    && parentingPreferences?.childMemberIds.includes(memberId));
+  const activeParentingPartyIds = parentingParties.filter((party) => party.active === true
+    && (party.memberId == null || orderedMembers.some((member) => member.id === party.memberId))).map((party) => party.id);
+  const householdParentingPartyIds = parentingParties.filter((party) => party.active === true
+    && orderedMembers.some((member) => member.id === party.memberId)).map((party) => party.id);
+  const hasOptedInChildren = orderedMembers.some((member) => member.isChild === true && member.hatchParentingAway === true);
+  const isHatchedChild = (memberId: string) => householdParentingPartyIds.length > 0
+    && orderedMembers.some((member) => member.id === memberId && member.isChild === true && member.hatchParentingAway === true);
 
   const birthdayEventsByDate = useMemo(() => {
     const grouped = new Map<string, SpecialEvent[]>();
@@ -911,9 +887,11 @@ export function DashboardPage({
             </span>
           </div>
           {parentingStatus && <p role="status">{parentingStatus}</p>}
-          {parentingPreferencesError && <p role="status">Parenting calendar display settings could not be loaded; hatching is off.</p>}
-          {hatchingPartyId && <p className="parenting-hatching-legend">
-            Hatched background: children scheduled with another parenting party. Boundaries are a proportional daily cue, not event positions.
+          {hasOptedInChildren && parentingParties.length > 0 && householdParentingPartyIds.length === 0 && <p role="status">
+            Link an active parenting party to a current household member in Settings → Parenting time to enable child hatching.
+          </p>}
+          {hasOptedInChildren && householdParentingPartyIds.length > 0 && <p className="parenting-hatching-legend">
+            Hatched background: opted-in children scheduled outside household members' parenting parties. Boundaries are a proportional daily cue, not event positions.
           </p>}
           <div className="calendar-scroll">
             <table className="calendar-grid">
@@ -983,8 +961,8 @@ export function DashboardPage({
                         const entries = eventsByDateAndMember.get(`${isoDate}|${member.id}`) ?? [];
                         return (
                           <td key={`${isoDate}-${member.id}`} className={`event-cell member-event-cell${isHatchedChild(member.id) ? " parenting-hatched-cell" : ""}`}>
-                            {isHatchedChild(member.id) && hatchingPartyId && <ParentingAwayBackground day={day}
-                              intervals={parentingIntervals} householdPartyId={hatchingPartyId} />}
+                            {isHatchedChild(member.id) && <ParentingAwayBackground day={day}
+                              intervals={parentingIntervals} householdPartyIds={householdParentingPartyIds} activePartyIds={activeParentingPartyIds} />}
                             {entries.map((entry) => {
                               const eventType = entry.eventTypeId ? eventTypeById.get(entry.eventTypeId) : null;
                               const assignedMembers = entry.memberIds
@@ -1007,8 +985,8 @@ export function DashboardPage({
                       })}
 
                       <td className={`event-cell shared-events-column${selectedMember && isHatchedChild(selectedMember.id) ? " parenting-hatched-cell" : ""}`}>
-                        {selectedMember && isHatchedChild(selectedMember.id) && hatchingPartyId && <ParentingAwayBackground day={day}
-                          intervals={parentingIntervals} householdPartyId={hatchingPartyId} />}
+                        {selectedMember && isHatchedChild(selectedMember.id) && <ParentingAwayBackground day={day}
+                          intervals={parentingIntervals} householdPartyIds={householdParentingPartyIds} activePartyIds={activeParentingPartyIds} />}
                         {(eventsByDateAndMember.get(isoDate) ?? [])
                           .filter((entry) => !selectedMember || entry.memberIds.length === 0 || entry.memberIds.includes(selectedMember.id))
                           .map((entry) => (

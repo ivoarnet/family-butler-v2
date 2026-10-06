@@ -53,6 +53,10 @@ create table if not exists public.household_members (
   household_id uuid not null references public.households(id) on delete cascade,
   first_name text not null,
   role text,
+  is_child boolean not null default false,
+  hatch_parenting_away boolean not null default false,
+  school_building text,
+  school_class text,
   avatar_color text not null,
   visible_in_calendar boolean not null default true,
   sort_order integer not null,
@@ -179,7 +183,11 @@ See [Childcare model and API](DATA_MODEL.md#childcare--implemented) for request 
 
 After the core tables above, run `docs/sql/parenting-time.sql` in the Supabase SQL Editor before using parenting-time endpoints. It creates household-scoped parenting parties, one household-wide plan with an optional effective-through date, and dated changes, with same-household party/plan references and owner-scoped RLS. A party may optionally link to a same-household member; co-parents are not required to be `household_members`. Parenting time is not stored in `events` or `day_configurations`.
 
-Existing installations must rerun the updated migration to create `parenting_time_calendar_settings` for the optional hatched child-column display. The preference is household-scoped, disabled by default, and stores an explicit display party and selected child member IDs. It is independent of plans and event data. If this migration has not been applied, the optional display-settings request reports an error and hatching stays off; the calendar still loads events and resolved parenting time.
+Before deploying member classification/school details, run `docs/sql/household-member-details.sql`. The member migration adds `is_child` and `hatch_parenting_away` (both default false), `school_building`, and `school_class` to `household_members`. On its first run it preserves previously explicit parenting child-column selections as child classification and enables their hatch preference only if the previous display preference was enabled; reruns do not override later user changes. Neither free-text roles nor school details imply child status.
+
+The previous `parenting_time_calendar_settings` table and authorized endpoint are retained for compatibility, but the current calendar no longer reads them. Hatching uses child members' explicit preferences and active parenting parties' optional household-member links. On a fresh installation, apply the core schema, the member-details migration, and the parenting-time migration; existing parenting installations only need the member-details migration for this update.
+
+Review parenting-party member links in Settings → Parenting Time after upgrading. The migration does not infer a member link from the previous comparison-party selection; until at least one active parenting party is explicitly linked to a current household member, no absence background is shown.
 
 The Azure Function verifies household ownership before using the server-side Supabase secret key. Settings → Parenting Time uses this API to manage and archive parties, save plans and one-off changes, and preview drafts with `POST .../preview`; saved intervals are reloaded from `/resolve?startAt=...&endAt=...`. The resolver reads persisted plan and change data. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver) for payloads and the ISO-week resolution contract.
 
