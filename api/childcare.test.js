@@ -5,6 +5,7 @@ const {
   validateProvider, validateArrangement, validateOverride, resolveOccurrences,
 } = require("./shared/childcare");
 const createChildcareProvider = require("./shared/db/providers/childcare");
+const createGetChildcareCoverageTool = require("./shared/agent/tools/getChildcareCoverageTool");
 
 const householdId = "00000000-0000-0000-0000-000000000001";
 const providerId = "00000000-0000-0000-0000-000000000002";
@@ -58,6 +59,28 @@ test("cancellation and provider/time replacement affect only the original occurr
     arrangementId, originalDate: "2026-10-05", action: "replace", allDay: true,
   }, [timed], providers);
   assert.equal(resolve([timed], [allDay])[0].startTime, null);
+});
+
+test("added care days attach to an arrangement without changing its weekly schedule", () => {
+  const added = validateOverride({
+    arrangementId, originalDate: "2026-10-06", action: "add",
+  }, [arrangement], providers);
+  const occurrences = resolve([arrangement], [added], "2026-10-05", "2026-10-12");
+  assert.deepEqual(occurrences.map((item) => item.date), ["2026-10-05", "2026-10-06", "2026-10-12"]);
+  assert.equal(occurrences[1].overrideAction, "add");
+  assert.equal(occurrences[1].providerId, providerId);
+  assert.deepEqual(occurrences[1].childIds, [childId, secondChildId]);
+  const customized = validateOverride({
+    arrangementId, originalDate: "2026-10-06", action: "add",
+    providerId: replacementId, allDay: false, startTime: "10:00", endTime: "12:00",
+  }, [arrangement], providers);
+  assert.equal(resolve([arrangement], [customized], "2026-10-06", "2026-10-06")[0].startTime, "10:00");
+  assert.throws(() => override({ action: "add", originalDate: "2026-10-05" }), { status: 400 });
+  assert.throws(() => override({ action: "cancel", originalDate: "2026-10-06" }), { status: 400 });
+  const removed = validateOverride({
+    arrangementId, originalDate: "2026-10-06", action: "cancel",
+  }, [arrangement], providers, [added]);
+  assert.equal(resolve([arrangement], [removed], "2026-10-06", "2026-10-06").length, 0);
 });
 
 test("moves resolve into and out of the range without duplicates, retaining original identity", () => {
@@ -211,10 +234,26 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
       ...created.body, id: replacementId,
     })).status, 400);
     assert.equal((await invoke("PUT", "arrangements", created.body)).status, 200);
+    const addedDate = "2026-10-06";
+    const addedCare = await invoke("PUT", "overrides", {
+      arrangementId: created.body.id, originalDate: addedDate, action: "add",
+    });
+    assert.equal(addedCare.status, 200);
+    const resolvedAdded = await invoke("GET", "occurrences", null, { startDate: addedDate, endDate: addedDate });
+    assert.equal(resolvedAdded.body.occurrences.length, 1);
+    assert.equal(resolvedAdded.body.occurrences[0].overrideAction, "add");
+    assert.equal(resolvedAdded.body.occurrences[0].providerId, provider.body.id);
+    assert.equal((await invoke("PUT", "overrides", {
+      arrangementId: created.body.id, originalDate: addedDate, action: "cancel",
+    })).status, 200);
+    assert.equal((await invoke("GET", "occurrences", null, { startDate: addedDate, endDate: addedDate })).body.occurrences.length, 0);
+    assert.equal((await invoke("PUT", "overrides", {
+      arrangementId: created.body.id, originalDate: "2026-10-12", action: "add",
+    })).status, 400);
     const overrideBody = { arrangementId: created.body.id, originalDate: "2026-10-05", action: "cancel" };
     assert.equal((await invoke("PUT", "overrides", overrideBody)).status, 200);
     assert.equal((await invoke("PUT", "overrides", { ...overrideBody, action: "move", movedDate: "2026-11-03" })).status, 200);
-    assert.equal(tables.childcare_overrides.length, 1);
+    assert.equal(tables.childcare_overrides.length, 2);
     const previewEdit = await invoke("POST", "preview", {
       arrangement: { ...created.body, allDay: false, startTime: "08:00", endTime: "16:00" },
       startDate: "2026-11-03", endDate: "2026-11-03",
@@ -235,6 +274,24 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     assert.equal(resolved.status, 200);
     assert.equal(resolved.body.occurrences.length, 1);
     assert.equal(resolved.body.occurrences[0].originalDate, "2026-10-05");
+    assert.equal(resolved.body.occurrences[0].providerName, "Grandma");
+    const db = require("./shared/db");
+    const coverageTool = createGetChildcareCoverageTool({
+      db,
+      householdId,
+      householdState: { members: [{ id: childId, firstName: "Child" }, { id: secondChildId, firstName: "Second child" }] },
+      toClientError: (message) => Object.assign(new Error(message), { statusCode: 400 }),
+    });
+    const coverage = await coverageTool.execute({ fromDate: "2026-11-03", toDate: "2026-11-03" });
+    assert.equal(coverage.count, 1);
+    assert.equal(coverage.occurrences[0].provider, "Grandma");
+    assert.equal(coverage.occurrences[0].change, "move");
+    assert.deepEqual(coverage.occurrences[0].children.map((child) => child.name), ["Child", "Second child"]);
+    assert.equal(coverage.occurrences[0].allDay, true);
+    await assert.rejects(
+      coverageTool.execute({ fromDate: "2026-11-03", toDate: "2027-11-04" }),
+      { statusCode: 400 },
+    );
     assert.equal((await invoke("GET", "occurrences", null, {})).status, 400);
     assert.equal((await invoke("POST", "arrangements", { ...arrangement, providerId: provider.body.id, childIds: [providerId] })).status, 400);
     assert.equal((await invoke("POST", "arrangements", arrangement)).status, 400);
@@ -264,7 +321,6 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     assert.equal(householdContext.res.status, 200);
     assert.equal(householdContext.res.body.familyMembers[0].id, childId);
     assert.deepEqual(householdContext.res.body.events, []);
-    const db = require("./shared/db");
     const originalReplaceMembers = db.replaceMembers;
     db.replaceMembers = async () => { throw new Error("member participates in a childcare arrangement"); };
     try {

@@ -1,7 +1,8 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
-import CakeRoundedIcon from "@mui/icons-material/CakeRounded";
+import CakeIcon from "@mui/icons-material/Cake";
+import ChildCareIcon from "@mui/icons-material/ChildCare";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -15,8 +16,10 @@ import { EventDialog, EventDialogFormState } from "../features/dashboard/compone
 import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, DayConfiguration, DayConfigurationCategory, HouseholdEvent } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence } from "../types/family";
 import type { Dispatch, ElementType, SetStateAction } from "react";
+
+const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 interface SpecialEvent {
   id: string;
@@ -28,6 +31,52 @@ interface SpecialEvent {
 
 interface DayCellDecorations {
   corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: ElementType<SvgIconProps>; label: string | null }>;
+}
+
+function ChildcareCalendarEntry({
+  occurrence,
+  members,
+}: {
+  occurrence: ResolvedChildcareOccurrence;
+  members: FamilyMember[];
+}) {
+  const memberById = new Map(members.map((member) => [member.id, member]));
+  const childNames = occurrence.childIds
+    .map((childId) => memberById.get(childId)?.firstName)
+    .filter((name): name is string => Boolean(name));
+  const changeLabel = occurrence.overrideAction === "move"
+    ? `Moved from ${occurrence.originalDate}`
+    : occurrence.overrideAction === "add" ? "Added care day"
+      : occurrence.overrideAction === "replace" ? "One-off adjustment" : null;
+  const details = [
+    occurrence.allDay ? "All day" : `${occurrence.startTime} – ${occurrence.endTime}`,
+    `For ${childNames.join(", ") || "household children"}`,
+    changeLabel,
+  ].filter(Boolean).join(" · ");
+  const providerName = occurrence.providerName ?? "Care provider";
+
+  return (
+    <div
+      className="specials-entry calendar-childcare-entry"
+      title={`${providerName} · ${details}`}
+      aria-label={`Childcare: ${providerName}. ${details}`}
+    >
+      <ChildCareIcon className="calendar-childcare-icon" fontSize="small" aria-hidden="true" />
+      <strong>{providerName}</strong>
+      <small>For {childNames.join(", ") || "household children"}</small>
+    </div>
+  );
+}
+
+function BirthdayCalendarEntry({ event }: { event: SpecialEvent }) {
+  const label = formatBirthdayLabel(event);
+
+  return (
+    <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}`}>
+      <CakeIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
+      <strong>{label}</strong>
+    </div>
+  );
 }
 
 const DEMO_LOCALE = "de-CH";
@@ -292,6 +341,8 @@ export function DashboardPage({
   const [viewingEventId, setViewingEventId] = useState<string | null>(null);
   const [eventFormState, setEventFormState] = useState<EventDialogFormState>(() => buildEventFormState(toIsoDate(new Date())));
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
+  const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
+  const [childcareLoadError, setChildcareLoadError] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
@@ -302,6 +353,42 @@ export function DashboardPage({
   const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId);
   const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
   const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, periodStart), [householdData.contacts, periodStart]);
+
+  useEffect(() => {
+    if (!householdData.householdId || !accessToken || days.length === 0) {
+      setChildcareOccurrences([]);
+      setChildcareLoadError(false);
+      return;
+    }
+
+    const controller = new AbortController();
+    const startDate = toIsoDate(days[0]);
+    const endDate = toIsoDate(days[days.length - 1]);
+    setChildcareOccurrences([]);
+    setChildcareLoadError(false);
+    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?startDate=${startDate}&endDate=${endDate}`, {
+      headers: {
+        Authorization: ["Bearer", accessToken].join(" "),
+        "x-supabase-auth-token": accessToken,
+      },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) {
+          throw new Error("Childcare could not be loaded");
+        }
+        return response.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>;
+      })
+      .then((result) => setChildcareOccurrences(Array.isArray(result.occurrences) ? result.occurrences : []))
+      .catch(() => {
+        if (!controller.signal.aborted) {
+          setChildcareOccurrences([]);
+          setChildcareLoadError(true);
+        }
+      });
+
+    return () => controller.abort();
+  }, [accessToken, days, householdData.householdId]);
 
   const birthdayEventsByDate = useMemo(() => {
     const grouped = new Map<string, SpecialEvent[]>();
@@ -404,6 +491,16 @@ export function DashboardPage({
     });
     return grouped;
   }, [days, householdData.events]);
+
+  const childcareByDate = useMemo(() => {
+    const grouped = new Map<string, ResolvedChildcareOccurrence[]>();
+    childcareOccurrences.forEach((occurrence) => {
+      const entries = grouped.get(occurrence.date) ?? [];
+      entries.push(occurrence);
+      grouped.set(occurrence.date, entries);
+    });
+    return grouped;
+  }, [childcareOccurrences]);
 
   const viewingEvent = useMemo(() => householdData.events.find((event) => event.id === viewingEventId) ?? null, [householdData.events, viewingEventId]);
 
@@ -706,7 +803,9 @@ export function DashboardPage({
               </button>
             </div>
             <span className="calendar-filter-status" role="status">
-              {selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
+              {childcareLoadError
+                ? "Childcare could not be loaded."
+                : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
           <div className="calendar-scroll">
@@ -726,14 +825,7 @@ export function DashboardPage({
                     </th>
                   ))}
                   <th className="shared-events-column" scope="col">Events</th>
-                  <th className="birthday-column-header">
-                    <div className="member-header">
-                      <span className="avatar avatar-birthday">
-                        <CakeRoundedIcon fontSize="small" />
-                      </span>
-                      <span>Birthdays</span>
-                    </div>
-                  </th>
+                  <th className="specials-column-header" scope="col">Specials</th>
                 </tr>
               </thead>
               <tbody>
@@ -742,6 +834,7 @@ export function DashboardPage({
                   const isToday = isoDate === todayIso;
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
+                  const childcareEntries = childcareByDate.get(isoDate) ?? [];
                   const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
                   const isFirstDayOfWeek = dayIndex % 7 === 0;
                   const weekNumber = getIsoWeekNumber(day);
@@ -815,18 +908,18 @@ export function DashboardPage({
                               onClick={() => openEventViewDialog(entry.id)}
                             />
                           ))}
-                        {birthdayEntries.map((entry) => (
-                          <span className="birthday-item" key={entry.id}>
-                            <CakeRoundedIcon fontSize="inherit" aria-hidden="true" /> Birthday: {formatBirthdayLabel(entry)}
-                          </span>
-                        ))}
                       </td>
 
-                      <td className="birthday-cell">
+                      <td className={`specials-cell${childcareEntries.length > 0 || birthdayEntries.length > 0 ? " has-specials-entries" : ""}`}>
+                        {childcareEntries.map((occurrence) => (
+                          <ChildcareCalendarEntry
+                            key={occurrence.id}
+                            occurrence={occurrence}
+                            members={orderedMembers}
+                          />
+                        ))}
                         {birthdayEntries.map((entry) => (
-                          <span className="birthday-item" key={entry.id}>
-                            {formatBirthdayLabel(entry)}
-                          </span>
+                          <BirthdayCalendarEntry key={entry.id} event={entry} />
                         ))}
                       </td>
                     </tr>

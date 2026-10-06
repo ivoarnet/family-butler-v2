@@ -639,8 +639,8 @@ body,
   background: var(--surface-strong);
 }
 
-.birthday-column-header,
-.birthday-cell {
+.specials-column-header,
+.specials-cell {
   width: 11rem;
 }
 
@@ -737,9 +737,7 @@ body,
   .calendar-grid .week-column-header,
   .calendar-grid .week-number-cell,
   .calendar-grid .member-column-header,
-  .calendar-grid .member-event-cell,
-  .calendar-grid .birthday-column-header,
-  .calendar-grid .birthday-cell {
+  .calendar-grid .member-event-cell {
     display: none;
   }
 
@@ -748,12 +746,16 @@ body,
     border-right: 0;
   }
 
+  .calendar-grid .specials-cell {
+    display: table-cell;
+    border-right: 0;
+  }
+
   .calendar-grid .day-column-header {
     width: 9rem;
   }
 
-  .shared-events-column .event-item-title,
-  .shared-events-column .birthday-item {
+  .shared-events-column .event-item-title {
     white-space: normal;
     overflow-wrap: anywhere;
     min-width: 0;
@@ -776,7 +778,8 @@ body,
   }
 
   .calendar-grid .day-cell,
-  .calendar-grid .shared-events-column {
+  .calendar-grid .shared-events-column,
+  .calendar-grid .specials-cell {
     display: block;
     width: 100%;
     height: auto;
@@ -790,6 +793,15 @@ body,
 
   .calendar-grid .shared-events-column {
     min-height: 1rem;
+  }
+
+  .calendar-grid .specials-cell.has-specials-entries::before {
+    display: block;
+    margin-bottom: 0.35rem;
+    color: var(--text-secondary);
+    content: "Specials";
+    font-size: 0.75rem;
+    font-weight: 700;
   }
 }
 
@@ -873,18 +885,6 @@ body,
   font-weight: 700;
 }
 
-.birthday-item {
-  display: block;
-  width: fit-content;
-  margin-bottom: 0.3rem;
-  padding: 0.2rem 0.6rem;
-  border-radius: 999px;
-  border: 1px solid rgba(127, 139, 255, 0.35);
-  background: rgba(127, 139, 255, 0.15);
-  font-weight: 700;
-  font-size: 0.85rem;
-}
-
 .event-cell {
   min-width: 0;
   padding: 0.55rem 0.5rem !important;
@@ -892,6 +892,53 @@ body,
 
 .event-cell > button {
   margin-bottom: 0.3rem;
+}
+
+.specials-entry {
+  display: flex;
+  align-items: baseline;
+  gap: 0.35rem;
+  min-width: 0;
+  max-width: 100%;
+  margin-bottom: 0.25rem;
+  color: var(--text-primary);
+  line-height: 1.25;
+  overflow: hidden;
+  white-space: nowrap;
+  cursor: help;
+}
+
+.calendar-childcare-entry {
+  flex-wrap: wrap;
+}
+
+.calendar-childcare-entry small {
+  flex-basis: 100%;
+  padding-left: 1.35rem;
+  color: var(--text-secondary);
+  font-size: 0.7rem;
+  overflow-wrap: anywhere;
+  white-space: normal;
+}
+
+.calendar-childcare-icon,
+.calendar-special-icon {
+  flex-shrink: 0;
+  color: var(--text-primary);
+  font-size: 1rem !important;
+}
+
+.specials-entry strong {
+  min-width: 0;
+  overflow: hidden;
+  font-size: 0.75rem;
+  text-overflow: ellipsis;
+}
+
+.specials-cell .specials-entry {
+  margin-bottom: 0.4rem;
+  padding-bottom: 0.3rem;
+  border-bottom: 1px dotted var(--border);
 }
 
 .event-item-title {

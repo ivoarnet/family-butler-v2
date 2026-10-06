@@ -73,13 +73,17 @@ const effectiveTiming = (arrangement, override) => override?.allDay == null
   ? { allDay: arrangement.allDay, startTime: arrangement.startTime, endTime: arrangement.endTime }
   : { allDay: override.allDay, startTime: override.startTime, endTime: override.endTime };
 
-const validateOverride = (data, arrangements, providers) => {
+const validateOverride = (data, arrangements, providers, overrides = []) => {
   const arrangementId = validateId(data.arrangementId, "arrangementId");
   const arrangement = arrangements.find((item) => item.id === arrangementId);
   assert(arrangement, "arrangement is not part of this household");
   const originalDate = validateDate(data.originalDate, "originalDate");
-  assert(isScheduled(arrangement, originalDate), "originalDate is not a scheduled occurrence");
-  assert(["cancel", "replace", "move"].includes(data.action), "override action is invalid");
+  assert(["add", "cancel", "replace", "move"].includes(data.action), "override action is invalid");
+  const scheduled = isScheduled(arrangement, originalDate);
+  const existingAddedDay = overrides.some((item) => item.arrangementId === arrangementId
+    && item.originalDate === originalDate && item.action === "add");
+  assert(data.action === "add" ? (!scheduled || existingAddedDay) : scheduled || (data.action === "cancel" && existingAddedDay),
+    data.action === "add" ? "added date is already a scheduled occurrence" : "originalDate is not a scheduled occurrence");
   const movedDate = data.action === "move" ? validateDate(data.movedDate, "movedDate") : null;
   assert(data.action === "move" || data.movedDate == null, "only move overrides may have movedDate");
   if (movedDate) {
@@ -135,7 +139,11 @@ const resolveOccurrences = ({ arrangements, overrides }, startDate, endDate) => 
       }
     }
     for (const override of overrides) {
-      if (override.arrangementId === arrangement.id && override.action === "move"
+      if (override.arrangementId === arrangement.id && override.action === "add"
+        && !isScheduled(arrangement, override.originalDate)
+        && override.originalDate >= startDate && override.originalDate <= endDate) {
+        add(arrangement, override.originalDate, override);
+      } else if (override.arrangementId === arrangement.id && override.action === "move"
         && (override.originalDate < startDate || override.originalDate > endDate)
         && isScheduled(arrangement, override.originalDate)) {
         add(arrangement, override.originalDate, override);
