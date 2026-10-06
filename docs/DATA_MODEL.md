@@ -40,13 +40,13 @@ erDiagram
 
 ## Parenting time — persisted plan and server resolver
 
-Parenting time models who is responsible for all children in a household. It is separate from childcare, ordinary `Event` records, `DayConfiguration`, and `HouseholdMember`; a co-parent is a `ParentingTimeParty`, not a household member.
+Parenting time models who is responsible for all children in a household. It is separate from childcare, ordinary `Event` records, and `DayConfiguration`. A `ParentingTimeParty` can optionally link to a `HouseholdMember` in the same household; it does not require one, so a co-parent need not be represented as a household member.
 
 Apply `docs/sql/parenting-time.sql` after the core Supabase schema.
 
 ### Persisted model
 
-- `parenting_time_parties`: household-owned named parties (for example, Mother and Father).
+- `parenting_time_parties`: household-owned named parties (for example, Mother and Father), with an optional `memberId` link to a same-household `HouseholdMember`. The link allows a visible resident parent and an invisible/non-resident parent represented in the household to share the existing member identity and settings. Standalone parties remain supported. Removing a linked member clears the optional link without deleting the parenting party; transferring a linked member to another household is rejected until the link is removed.
 - `parenting_time_plans`: at most one household-wide plan, its `defaultPartyId` (responsible outside recurring windows), local effective-from date, IANA time zone, recurrence mode (`weekly` or `alternating`), activation state, and an array of validated recurring rules. Each rule has a stable UUID, ISO start weekday (Monday = 1 through Sunday = 7), start time, ISO end weekday/time, responsible party, and optional `weekParity` (`odd` or `even`). A lower end weekday means the following week; a same-day end must be later than its start. Intervals are shorter than seven days.
 - `parenting_time_changes`: dated, half-open `[startAt, endAt)` timestamp interval, responsible party, and explanatory label. Changes must not overlap one another and take precedence over the recurring plan only within their interval.
 
@@ -65,7 +65,7 @@ All paths are relative to `/api/households/{householdId}/parenting-time`. Reques
 | Method | Suffix | Behavior |
 | --- | --- | --- |
 | GET | (none) | Reload persisted `{ parties, plan, changes }`. |
-| POST | `/parties` | Create `{ "name": "Father" }` (repeat for Mother). |
+| POST | `/parties` | Create `{ "name": "Father", "memberId": "<optional same-household member UUID>" }` (repeat for Mother). |
 | POST or PUT | `/plan` | Persist/replace and validate the household plan. Use `active: false` to save an inactive plan. |
 | POST or PUT | `/changes` | Create a one-off interval or update one using its `id`. |
 | GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return `{ intervals }` for a range of at most 366 days. |

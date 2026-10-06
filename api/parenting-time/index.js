@@ -14,7 +14,8 @@ module.exports = async function parentingTime(context, req) {
     }
     const householdId = validateId(request?.params?.householdId ?? context.bindingData?.householdId, "householdId");
     const resource = request?.params?.resource ?? context.bindingData?.resource;
-    if (!await db.getParentingTimeHousehold(householdId, userId)) {
+    const household = await db.getParentingTimeHousehold(householdId, userId);
+    if (!household) {
       context.res = { status: 404, body: { error: "household not found" } };
       return;
     }
@@ -32,7 +33,10 @@ module.exports = async function parentingTime(context, req) {
     const body = request.body;
     assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
     if (method === "POST" && resource === "parties") {
-      context.res = { status: 201, body: await db.createParentingParty(householdId, validateParty(body)) };
+      context.res = {
+        status: 201,
+        body: await db.createParentingParty(householdId, validateParty(body, household.memberIds)),
+      };
       return;
     }
     if ((method === "POST" || method === "PUT") && resource === "plan") {

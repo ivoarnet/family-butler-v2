@@ -122,6 +122,10 @@ test("one-off changes override only their interval and report the source", () =>
 
 test("rejects invalid parties, rules, ambiguous schedules, and invalid resolution ranges", () => {
   assert.throws(() => validateParty({ name: " " }), { status: 400 });
+  assert.deepEqual(validateParty({ name: "Mother" }), { name: "Mother", memberId: null });
+  assert.deepEqual(validateParty({ name: "Father", memberId: fatherId }, [fatherId]),
+    { name: "Father", memberId: fatherId });
+  assert.throws(() => validateParty({ name: "Other household parent", memberId: motherId }, [fatherId]), { status: 400 });
   assert.throws(() => validatePlan({
     defaultPartyId: "not-a-uuid", effectiveFrom: "2026-01-01", recurrenceMode: "weekly", rules: [],
   }, parties), { status: 400 });
@@ -156,7 +160,10 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
   });
 
   const tables = {
-    households: [{ id: householdId, created_by_user_id: userId }],
+    households: [{
+      id: householdId, created_by_user_id: userId,
+      household_members: [{ id: fatherId }, { id: motherId }],
+    }],
     parenting_time_parties: [],
     parenting_time_plans: [],
     parenting_time_changes: [],
@@ -202,10 +209,13 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
     return context.res;
   };
 
-  const father = await invoke("POST", "parties", { name: "Father" });
-  const mother = await invoke("POST", "parties", { name: "Mother" });
+  const father = await invoke("POST", "parties", { name: "Father", memberId: fatherId });
+  const mother = await invoke("POST", "parties", { name: "Mother", memberId: motherId });
   assert.equal(father.status, 201);
   assert.equal(mother.status, 201);
+  assert.equal(father.body.memberId, fatherId);
+  assert.equal(mother.body.memberId, motherId);
+  assert.equal(tables.parenting_time_parties[0].member_id, fatherId);
   assert.equal((await invoke("POST", "plan", {
     defaultPartyId: mother.body.id,
     effectiveFrom: "2026-01-01",

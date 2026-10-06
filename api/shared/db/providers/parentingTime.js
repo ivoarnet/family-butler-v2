@@ -6,7 +6,7 @@ const TABLES = {
   changes: "parenting_time_changes",
 };
 
-const mapParty = (row) => ({ id: row.id, householdId: row.household_id, name: row.name });
+const mapParty = (row) => ({ id: row.id, householdId: row.household_id, name: row.name, memberId: row.member_id });
 const mapPlan = (row) => ({
   id: row.id,
   householdId: row.household_id,
@@ -66,9 +66,16 @@ module.exports = function createParentingTimeProvider(request) {
   return {
     async getParentingTimeHousehold(householdId, userId) {
       const rows = await request("households", {
-        params: { select: "id", id: `eq.${householdId}`, created_by_user_id: `eq.${userId}` },
+        params: {
+          select: "id,household_members(id)",
+          id: `eq.${householdId}`,
+          created_by_user_id: `eq.${userId}`,
+        },
       });
-      return rows?.[0] ?? null;
+      return rows?.[0] ? {
+        id: rows[0].id,
+        memberIds: (rows[0].household_members ?? []).map((member) => member.id.toLowerCase()),
+      } : null;
     },
     async getParentingTime(householdId) {
       const [parties, plans, changes] = await Promise.all([
@@ -78,7 +85,10 @@ module.exports = function createParentingTimeProvider(request) {
       ]);
       return { parties, plan: plans[0] ?? null, changes };
     },
-    createParentingParty: (householdId, data) => save(TABLES.parties, householdId, null, data, mapParty),
+    createParentingParty: (householdId, data) => save(TABLES.parties, householdId, null, {
+      name: data.name,
+      member_id: data.memberId,
+    }, mapParty),
     saveParentingPlan: async (householdId, data) => {
       const existing = await request(TABLES.plans, {
         params: { select: "id", household_id: `eq.${householdId}`, limit: 1 },

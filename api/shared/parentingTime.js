@@ -34,10 +34,12 @@ const validateDateTime = (value, name) => {
   return timestamp;
 };
 
-const validateParty = (data) => {
+const validateParty = (data, memberIds = []) => {
   assert(typeof data?.name === "string" && data.name.trim().length > 0, "party name is required");
   assert(data.name.trim().length <= 100, "party name must be 100 characters or fewer");
-  return { name: data.name.trim() };
+  const memberId = data.memberId == null ? null : validateId(data.memberId, "memberId");
+  assert(memberId === null || memberIds.includes(memberId), "memberId is not a household member");
+  return { name: data.name.trim(), memberId };
 };
 
 const validTimeZone = (timeZone) => {

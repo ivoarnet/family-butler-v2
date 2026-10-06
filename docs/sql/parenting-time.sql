@@ -4,10 +4,14 @@ begin;
 create table if not exists public.parenting_time_parties (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
+  member_id uuid references public.household_members(id) on delete set null,
   name text not null check (length(trim(name)) between 1 and 100),
   created_at timestamptz not null default now(),
   unique (household_id, id)
 );
+
+alter table public.parenting_time_parties
+  add column if not exists member_id uuid references public.household_members(id) on delete set null;
 
 create table if not exists public.parenting_time_plans (
   id uuid primary key default gen_random_uuid(),
@@ -95,6 +99,40 @@ $$;
 drop trigger if exists parenting_time_plan_valid on public.parenting_time_plans;
 create trigger parenting_time_plan_valid before insert or update on public.parenting_time_plans
 for each row execute function public.validate_parenting_time_plan();
+
+create or replace function public.validate_parenting_time_party_member()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if new.member_id is not null and not exists (
+    select 1 from public.household_members m
+    where m.id = new.member_id and m.household_id = new.household_id
+  ) then
+    raise exception 'parenting party member is not part of this household';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists parenting_time_party_member_valid on public.parenting_time_parties;
+create trigger parenting_time_party_member_valid before insert or update on public.parenting_time_parties
+for each row execute function public.validate_parenting_time_party_member();
+
+create or replace function public.protect_parenting_time_member_transfer()
+returns trigger language plpgsql set search_path = public as $$
+begin
+  if (new.id <> old.id or new.household_id <> old.household_id) and exists (
+    select 1 from public.parenting_time_parties p
+    where p.household_id = old.household_id and p.member_id = old.id
+  ) then
+    raise exception 'member is linked to a parenting party';
+  end if;
+  return new;
+end;
+$$;
+
+drop trigger if exists parenting_time_member_transfer on public.household_members;
+create trigger parenting_time_member_transfer before update of id, household_id on public.household_members
+for each row execute function public.protect_parenting_time_member_transfer();
 
 create or replace function public.protect_parenting_time_party()
 returns trigger language plpgsql set search_path = public as $$
