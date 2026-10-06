@@ -795,7 +795,7 @@ body,
     min-height: 1rem;
   }
 
-  .calendar-grid .specials-cell::before {
+  .calendar-grid .specials-cell.has-specials-entries::before {
     display: block;
     margin-bottom: 0.35rem;
     color: var(--text-secondary);

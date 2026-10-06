@@ -174,6 +174,13 @@ export const DayAndEvents: Story = {
       expect(memberCells).toHaveLength(2);
       expect(canvasElement.querySelector(".today-row .calendar-childcare-entry")).toBe(entry);
       expect(specialsCell).toBeVisible();
+      if (isMobile) {
+        expect(getComputedStyle(specialsCell, "::before").content).toBe('"Specials"');
+        const emptySpecialsCell = Array.from(canvasElement.querySelectorAll(".specials-cell"))
+          .find((cell) => !cell.querySelector(".specials-entry"));
+        expect(emptySpecialsCell).toBeDefined();
+        expect(getComputedStyle(emptySpecialsCell!, "::before").content).toBe("none");
+      }
       expect(Array.from(memberCells).every((cell) => !cell.querySelector(".calendar-childcare-entry"))).toBe(true);
       expect(entry).toBeVisible();
       expect(entry.textContent).toContain("Grandparents");

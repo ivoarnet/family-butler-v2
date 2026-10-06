@@ -834,6 +834,7 @@ export function DashboardPage({
                   const isToday = isoDate === todayIso;
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
+                  const childcareEntries = childcareByDate.get(isoDate) ?? [];
                   const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
                   const isFirstDayOfWeek = dayIndex % 7 === 0;
                   const weekNumber = getIsoWeekNumber(day);
@@ -909,8 +910,8 @@ export function DashboardPage({
                           ))}
                       </td>
 
-                      <td className="specials-cell">
-                        {(childcareByDate.get(isoDate) ?? []).map((occurrence) => (
+                      <td className={`specials-cell${childcareEntries.length > 0 || birthdayEntries.length > 0 ? " has-specials-entries" : ""}`}>
+                        {childcareEntries.map((occurrence) => (
                           <ChildcareCalendarEntry
                             key={occurrence.id}
                             occurrence={occurrence}
