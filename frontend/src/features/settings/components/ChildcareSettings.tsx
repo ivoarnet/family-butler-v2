@@ -1,11 +1,14 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import dayjs from "dayjs";
 import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import BlockIcon from "@mui/icons-material/Block";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import type { FamilyMember } from "../../../types/family";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton } from "../../../shared/ui/GlassFormDialog";
+import { ProviderCareCalendar } from "./ProviderCareCalendar";
 
 export type ChildcareRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 export type ChildcareProvider = { id: string; name: string; type: string; active: boolean };
@@ -27,11 +30,7 @@ const providerTypes = [
 ];
 const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;
 const today = () => localDate(new Date());
-const defaultEnd = () => {
-  const end = new Date();
-  end.setDate(end.getDate() + 27);
-  return localDate(end);
-};
+const defaultEnd = () => dayjs().add(3, "month").subtract(1, "day").format("YYYY-MM-DD");
 const emptyData: ChildcareData = { providers: [], arrangements: [], overrides: [] };
 const timingText = (item: Timing) => item.allDay ? "All day" : `${item.startTime}–${item.endTime}`;
 const errorText = (error: unknown) => error instanceof Error ? error.message : "Childcare request failed. Please try again.";
@@ -69,6 +68,10 @@ export function ChildcareSettings({ householdId, members, request }: {
   const [range, setRange] = useState({ startDate: today(), endDate: defaultEnd() });
   const [loadedRange, setLoadedRange] = useState(range);
   const [loading, setLoading] = useState(true);
+  const [loadFailed, setLoadFailed] = useState(false);
+  const [scheduleProviderId, setScheduleProviderId] = useState("");
+  const [scheduleView, setScheduleView] = useState("list");
+  const scheduleSection = useRef<HTMLElement>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [provider, setProvider] = useState<{ id?: string; name: string; type: string; active?: boolean } | null>(null);
@@ -79,8 +82,10 @@ export function ChildcareSettings({ householdId, members, request }: {
   const alive = useRef(false);
   const operation = useRef(false);
   const loadVersion = useRef(0);
+  const requestedRange = useRef(range);
   const load = useCallback(async (dates: typeof range) => {
     const version = ++loadVersion.current;
+    requestedRange.current = dates;
     setLoading(true);
     try {
       const [records, resolved] = await Promise.all([
@@ -91,8 +96,12 @@ export function ChildcareSettings({ householdId, members, request }: {
       setData(records as ChildcareData);
       setOccurrences((resolved as { occurrences: ChildcareOccurrence[] }).occurrences);
       setLoadedRange(dates);
+      setLoadFailed(false);
     } catch (failure) {
-      if (alive.current && version === loadVersion.current) setError(errorText(failure));
+      if (alive.current && version === loadVersion.current) {
+        setError(errorText(failure));
+        setLoadFailed(true);
+      }
     } finally {
       if (alive.current && version === loadVersion.current) setLoading(false);
     }
@@ -124,6 +133,7 @@ export function ChildcareSettings({ householdId, members, request }: {
   const disabled = busy || loading;
   const providerName = (id: string) => data.providers.find((item) => item.id === id)?.name ?? id;
   const participantNames = (ids: string[]) => ids.map((id) => members.find((member) => member.id === id)?.firstName ?? id).join(", ");
+  const providerOccurrences = occurrences.filter((item) => !scheduleProviderId || item.providerId === scheduleProviderId);
   const changeDraft = (changes: Partial<ChildcareArrangement>) => {
     setDraft((current) => current ? { ...current, ...changes } : current);
     setPreview(null);
@@ -134,7 +144,8 @@ export function ChildcareSettings({ householdId, members, request }: {
     && (!draft.endDate || (validDate(draft.endDate) && draft.endDate >= draft.startDate)) && validTiming(draft);
   const cancellations = data.overrides.filter((item) => item.action === "cancel"
     && item.originalDate >= loadedRange.startDate && item.originalDate <= loadedRange.endDate)
-    .filter((item) => data.arrangements.some((record) => record.id === item.arrangementId));
+    .filter((item) => data.arrangements.some((record) => record.id === item.arrangementId
+      && (!scheduleProviderId || record.providerId === scheduleProviderId)));
   const addDayArrangement = addDay
     ? data.arrangements.find((item) => item.id === addDay.arrangementId) ?? null
     : null;
@@ -194,7 +205,7 @@ export function ChildcareSettings({ householdId, members, request }: {
     <Typography variant="h5" component="h2">Childcare</Typography>
     <Typography>Manage recurring care separately from calendar events. One-off changes affect only the selected occurrence.</Typography>
     {error && <Alert severity="error" action={!provider && !draft && !override ? <Button disabled={disabled} onClick={() => {
-      setError(""); void load(loadedRange);
+      setError(""); void load(requestedRange.current);
     }}>Retry</Button> : undefined}>{error}</Alert>}
     {loading && <Typography role="status">Loading childcare…</Typography>}
     <section className="settings-card">
@@ -210,6 +221,11 @@ export function ChildcareSettings({ householdId, members, request }: {
           <td>{item.name}</td><td>{providerTypes.find(([value]) => value === item.type)?.[1] ?? item.type}</td>
           <td>{item.active ? "Active" : "Inactive"}</td>
           <td className="actions-cell"><div className="icon-actions">
+            <button type="button" className="icon-button compact-icon-button" disabled={disabled}
+              aria-label={`View schedule for ${item.name}`} title="View schedule" onClick={() => {
+                setScheduleProviderId(item.id);
+                scheduleSection.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+              }}><CalendarMonthIcon fontSize="small" /></button>
             <button type="button" className="icon-button compact-icon-button" disabled={disabled}
               aria-label={`Edit provider ${item.name}`} title="Edit provider" onClick={() => { setError(""); setProvider(item); }}>
               <EditOutlinedIcon fontSize="small" />
@@ -255,8 +271,23 @@ export function ChildcareSettings({ householdId, members, request }: {
         </tr>)}</tbody>
       </table></div>}
     </section>
-    <section className="settings-card">
+    <section className="settings-card" ref={scheduleSection}>
       <div className="section-toolbar"><h2>Resolved care</h2></div>
+      <Typography variant="h6" component="h3">Provider schedule</Typography>
+      <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }}>
+        <FormField select label="Schedule provider" value={scheduleProviderId} disabled={disabled}
+          slotProps={{ select: { displayEmpty: true }, inputLabel: { shrink: true } }}
+          onChange={(event) => setScheduleProviderId(event.target.value)}>
+          <MenuItem value="">All providers</MenuItem>
+          {data.providers.map((item) => <MenuItem key={item.id} value={item.id}>
+            {item.name}{!item.active && " (Inactive)"}
+          </MenuItem>)}
+        </FormField>
+        <FormField select label="Schedule view" value={scheduleView} onChange={(event) => setScheduleView(event.target.value)}>
+          <MenuItem value="list">List</MenuItem>
+          <MenuItem value="calendar">Calendar</MenuItem>
+        </FormField>
+      </Stack>
       <Stack component="form" direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }} onSubmit={(event) => {
         event.preventDefault();
         if (!disabled && validRange(range.startDate, range.endDate)) { setError(""); void load(range); }
@@ -270,9 +301,13 @@ export function ChildcareSettings({ householdId, members, request }: {
       {!validRange(range.startDate, range.endDate) && <Alert severity="warning">Choose an ordered range of at most 366 days.</Alert>}
       <Typography variant="body2">Showing {loadedRange.startDate} – {loadedRange.endDate}</Typography>
       <Typography variant="body2">One-off changes are available for today and upcoming care dates only. Past care is read-only.</Typography>
-      {!loading && occurrenceList(occurrences, true)}
+      {loading && <Typography role="status">Loading provider schedule…</Typography>}
+      {!loading && loadFailed && <Alert severity="error">Provider schedule could not be loaded. Use Retry above to reload.</Alert>}
+      {!loading && !loadFailed && (scheduleView === "list" ? occurrenceList(providerOccurrences, true) :
+        <ProviderCareCalendar occurrences={providerOccurrences} startDate={loadedRange.startDate} endDate={loadedRange.endDate}
+          providerName={providerName} participantNames={participantNames} />)}
       <Typography variant="h6" component="h3" sx={{ mt: 2 }}>Cancellations</Typography>
-      {!loading && (cancellations.length ? <Stack spacing={1}>{cancellations.map((item) => {
+      {!loading && !loadFailed && (cancellations.length ? <Stack spacing={1}>{cancellations.map((item) => {
         const arrangement = data.arrangements.find((record) => record.id === item.arrangementId)!;
         return <Typography key={`${item.arrangementId}:${item.originalDate}`}>
           {item.originalDate} · {providerName(arrangement.providerId)} · {participantNames(arrangement.childIds)} · {isScheduled(arrangement, item.originalDate) ? "Cancelled" : "Added day removed"}
