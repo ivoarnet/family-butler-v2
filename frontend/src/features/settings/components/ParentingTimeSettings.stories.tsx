@@ -91,6 +91,12 @@ export const HouseholdPlan: Story = {
     await userEvent.click(within(partyDialog).getByRole("button", { name: "Cancel" }));
     await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
     const planDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
+    await userEvent.click(planDialog.getAllByRole("combobox", { name: "From → To" })[0]);
+    await expect(page.getByRole("option", { name: "Dad → Mum" })).toBeInTheDocument();
+    await expect(page.getByRole("option", { name: "Mum → Dad" })).toBeInTheDocument();
+    await expect(page.queryByRole("option", { name: "Dad → Dad" })).not.toBeInTheDocument();
+    await expect(page.queryByRole("option", { name: "Mum → Mum" })).not.toBeInTheDocument();
+    await userEvent.click(page.getByRole("option", { name: "Mum → Dad" }));
     await userEvent.click(planDialog.getByRole("button", { name: "Add handover" }));
     await expect(planDialog.getAllByRole("button", { name: /Remove handover/ })).toHaveLength(5);
     await userEvent.click(planDialog.getAllByRole("button", { name: /Remove handover/ })[4]);
@@ -105,7 +111,7 @@ export const HouseholdPlan: Story = {
     expect(payload.plan.handovers.map((handover: { weekday: number; time: string; fromPartyId: string;
       toPartyId: string; weekParity: string | null }) =>
       [handover.weekday, handover.time, handover.fromPartyId, handover.toPartyId, handover.weekParity])).toEqual([
-      [1, "19:30", fatherId, motherId, null],
+      [1, "19:30", motherId, fatherId, null],
       [4, "19:30", motherId, fatherId, null],
       [5, "17:00", fatherId, motherId, "even"],
       [7, "19:30", motherId, fatherId, "even"],

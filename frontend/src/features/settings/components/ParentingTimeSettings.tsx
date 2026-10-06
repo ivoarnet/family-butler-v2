@@ -58,6 +58,7 @@ const dateTimeInput = (value?: string) => {
   const date = new Date(value);
   return `${localDate(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
 };
+const partyPairValue = (fromPartyId: string, toPartyId: string) => `${fromPartyId}|${toPartyId}`;
 const pickerDateTime = (value: string) => value ? dayjs(value) : null;
 const dateTimePickerValue = (value: Dayjs | null) => value?.isValid() ? value.format("YYYY-MM-DDTHH:mm") : "";
 const toIso = (value: string) => new Date(value).toISOString();
@@ -262,7 +263,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
         </button>
       </div>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting parties">
-        <thead><tr><th>Name</th><th>Household member</th><th>Status</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Name</th><th>Household member</th><th>Status</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.parties.map((party) => <tr key={party.id}>
           <td>{party.name}</td><td>{members.find((member) => member.id === party.memberId)?.firstName ?? "Not linked"}</td>
           <td><Chip size="small" label={party.active ? "Active" : "Archived"} /></td>
@@ -326,11 +327,14 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       </Typography>}
       {data.plan?.handovers?.length ? <div className="table-scroll" style={{ marginTop: 12 }}>
         <table className="settings-table" aria-label="Regular parenting-time handovers">
-          <thead><tr><th>Handover</th><th>From</th><th>To</th><th>Repeats</th></tr></thead>
+          <thead><tr><th>Handover</th><th>From → To</th><th>Repeats</th></tr></thead>
           <tbody>{data.plan.handovers.map((handover) => <tr key={handover.id}>
             <td>{weekdayNames[handover.weekday - 1]} · {handover.time}</td>
-            <td>{data.parties.find((party) => party.id === handover.fromPartyId)?.name ?? "Archived party"}</td>
-            <td>{data.parties.find((party) => party.id === handover.toPartyId)?.name ?? "Archived party"}</td>
+            <td>
+              {data.parties.find((party) => party.id === handover.fromPartyId)?.name ?? "Archived party"}
+              {" → "}
+              {data.parties.find((party) => party.id === handover.toPartyId)?.name ?? "Archived party"}
+            </td>
             <td>{handover.weekParity === "odd" ? "Odd ISO weeks" : handover.weekParity === "even" ? "Even ISO weeks" : "Every week"}</td>
           </tr>)}</tbody>
         </table>
@@ -410,15 +414,19 @@ export function ParentingTimeSettings({ householdId, members, request }: {
               </FormField>
               <FormField label="Time" type="time" value={handover.time}
                 onChange={(event) => updateHandover(handover.id, { time: event.target.value })} />
-              <FormField select label="From" value={handover.fromPartyId}
+              <FormField select label="From → To"
+                value={partyPairValue(handover.fromPartyId, handover.toPartyId)}
                 slotProps={{ select: { MenuProps: selectMenuProps } }}
-                onChange={(event) => updateHandover(handover.id, { fromPartyId: event.target.value })}>
-                {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
-              </FormField>
-              <FormField select label="To" value={handover.toPartyId}
-                slotProps={{ select: { MenuProps: selectMenuProps } }}
-                onChange={(event) => updateHandover(handover.id, { toPartyId: event.target.value })}>
-                {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
+                onChange={(event) => {
+                  const [fromPartyId, toPartyId] = event.target.value.split("|");
+                  updateHandover(handover.id, { fromPartyId, toPartyId });
+                }}>
+                {activeParties.flatMap((fromParty) => activeParties
+                  .filter((toParty) => toParty.id !== fromParty.id)
+                  .map((toParty) => <MenuItem key={`${fromParty.id}-${toParty.id}`}
+                    value={partyPairValue(fromParty.id, toParty.id)}>
+                    {fromParty.name} → {toParty.name}
+                  </MenuItem>))}
               </FormField>
               <FormField select label="Repeats" value={handover.weekParity ?? "weekly"}
                 slotProps={{ select: { MenuProps: selectMenuProps } }}
@@ -463,7 +471,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       </div>
       <Typography variant="body2">Holidays, swaps, or special agreements override the regular plan only during the selected time.</Typography>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time changes">
-        <thead><tr><th>Period</th><th>With</th><th>Reason</th><th>Actions</th></tr></thead>
+        <thead><tr><th>Period</th><th>With</th><th>Reason</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.changes.map((change) => <tr key={change.id}>
           <td>{formatInterval(change.startAt)} – {formatInterval(change.endAt)}</td>
           <td>{data.parties.find((party) => party.id === change.partyId)?.name ?? "Archived party"}</td><td>{change.label}</td>

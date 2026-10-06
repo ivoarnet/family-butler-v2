@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Replaced the fixed Parenting Time period editor with a flexible recurring-handover list using shared Settings form styling. Aligned Settings actions with existing icon buttons, moved schedule preview to its own section at the bottom, and added a Monday-first combined date/time picker with a 24-hour clock for dated changes. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/parenting-time-handovers.png`.
+- Replaced the fixed Parenting Time period editor with a flexible recurring-handover list using shared Settings form styling. Aligned Settings actions with existing icon buttons, displayed party transitions as a single “From → To” value with distinct-party selection, right-aligned action headers, moved schedule preview to its own section at the bottom, and added a Monday-first combined date/time picker with a 24-hour clock for dated changes. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/parenting-time-handovers.png`.
 - Defaulted childcare schedules to List with a three-calendar-month range starting today. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/provider-childcare-defaults.png`.
 
 - Added provider-centred resolved childcare lists and calendars in Settings, including inactive providers, custom date ranges, shared children, and effective one-off changes. Removed date-preset links in favour of the range controls. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/provider-childcare-schedule.png`.
