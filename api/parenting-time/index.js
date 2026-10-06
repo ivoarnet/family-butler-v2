@@ -1,7 +1,7 @@
 const db = require("../shared/db");
 const { getAuthenticatedUserId } = require("../shared/auth");
 const {
-  assert, validateId, validateParty, validatePlan, validateChange, resolveParentingTime,
+  assert, validateId, validateParty, validatePlan, validateChange, resolveParentingTime, getPlanStartTimestamp,
 } = require("../shared/parentingTime");
 
 module.exports = async function parentingTime(context, req) {
@@ -38,14 +38,19 @@ module.exports = async function parentingTime(context, req) {
     if ((method === "POST" || method === "PUT") && resource === "plan") {
       const data = await db.getParentingTime(householdId);
       const plan = validatePlan(body, data.parties);
+      assert(data.changes.every((change) => Date.parse(change.startAt) >= getPlanStartTimestamp(plan)),
+        "effectiveFrom cannot be after an existing one-off change");
       context.res = { status: 200, body: await db.saveParentingPlan(householdId, plan) };
       return;
     }
     if ((method === "POST" || method === "PUT") && resource === "changes") {
       const data = await db.getParentingTime(householdId);
-      assert(data.plan, "an active parenting-time plan is required before adding one-off changes");
+      assert(data.plan?.active, "an active parenting-time plan is required before adding one-off changes");
       const id = method === "PUT" ? validateId(body.id, "id") : undefined;
       const change = validateChange({ ...body, id }, data.parties, data.changes, id ?? null);
+      assert(Date.parse(change.startAt) >= getPlanStartTimestamp(data.plan),
+        "one-off changes cannot start before the plan's effectiveFrom date");
+      change.planId = data.plan.id;
       context.res = {
         status: method === "POST" ? 201 : 200,
         body: method === "POST"

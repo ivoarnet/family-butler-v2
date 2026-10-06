@@ -175,6 +175,12 @@ The server-side secret key bypasses RLS, so the childcare Azure Function authent
 
 See [Childcare model and API](DATA_MODEL.md#childcare--implemented) for request examples and scheduling decisions. To verify after migration, create a provider and arrangement via the childcare API, reload `GET /api/households/{householdId}/childcare`, and request `/occurrences?startDate=YYYY-MM-DD&endDate=YYYY-MM-DD`. Apply an override and repeat the range request to confirm that only its original occurrence changes.
 
+### Parenting-time migration
+
+After the core tables above, run `docs/sql/parenting-time.sql` in the Supabase SQL Editor before using parenting-time endpoints. It creates separate household-scoped parenting parties, one household-wide plan, and dated changes, with same-household party/plan references and owner-scoped RLS. Co-parents are not required to be `household_members`. Parenting time is not stored in `events` or `day_configurations`.
+
+The Azure Function verifies household ownership before using the server-side Supabase secret key. To verify the migration, create parties with `POST /api/households/{householdId}/parenting-time/parties`, save a plan with `POST .../plan`, reload it with `GET .../parenting-time`, and request `/resolve?startAt=...&endAt=...`. The resolver reads persisted plan and change data. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver) for payloads and the ISO-week resolution contract.
+
 ## 5) Seed an initial household
 
 Run:

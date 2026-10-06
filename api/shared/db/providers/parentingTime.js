@@ -94,10 +94,10 @@ module.exports = function createParentingTimeProvider(request) {
       return save(TABLES.plans, householdId, existing?.[0]?.id, body, mapPlan, "household_id");
     },
     createParentingChange: (householdId, data) => save(TABLES.changes, householdId, data.id, {
-      party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
+      plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
     }, mapChange),
     updateParentingChange: (householdId, id, data) => update(TABLES.changes, householdId, id, {
-      party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
+      plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
     }, mapChange),
   };
 };

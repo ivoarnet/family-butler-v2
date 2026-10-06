@@ -4,7 +4,7 @@
   "version": "0.1.0",
   "scripts": {
     "dev": "func start",
-    "test": "node --test childcare.test.js",
+    "test": "node --test *.test.js",
     "build": "node -e \"console.log('Azure Functions API: no build step required')\""
   }
 }

@@ -28,6 +28,7 @@ const validateDate = (value, name) => {
 const validateDateTime = (value, name) => {
   assert(typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value),
     `${name} must be an ISO 8601 date-time with a timezone`);
+  validateDate(value.slice(0, 10), name);
   const timestamp = Date.parse(value);
   assert(Number.isFinite(timestamp), `${name} must be a valid ISO 8601 date-time`);
   return timestamp;
@@ -178,10 +179,11 @@ const localDateTimeToTimestamp = (date, time, timeZone) => {
       && parts.hour === String(hour).padStart(2, "0")
       && parts.minute === String(minute).padStart(2, "0");
   };
-  if (matches(candidate)) return candidate;
+  const matchingCandidates = [];
   for (let offset = -180; offset <= 180; offset += 1) {
-    if (matches(candidate + offset * 60000)) return candidate + offset * 60000;
+    if (matches(candidate + offset * 60000)) matchingCandidates.push(candidate + offset * 60000);
   }
+  if (matchingCandidates.length) return Math.min(...matchingCandidates);
   const error = new Error(`recurring handover ${date} ${time} does not exist in ${timeZone}`);
   error.status = 400;
   throw error;
@@ -193,6 +195,8 @@ const shiftDate = (date, days) => {
   return shifted.toISOString().slice(0, 10);
 };
 
+const getPlanStartTimestamp = (plan) => localDateTimeToTimestamp(plan.effectiveFrom, "00:00", plan.timeZone);
+
 const rangeTimestamp = (value, name) => validateDateTime(value, name);
 
 const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
@@ -200,11 +204,14 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
   const start = rangeTimestamp(startAt, "startAt");
   const end = rangeTimestamp(endAt, "endAt");
   assert(end > start && end - start <= 366 * DAY_MS, "date-time range must be ordered and at most 366 days");
-  const startDate = shiftDate(localDate(start, plan.timeZone), -8);
+  const effectiveStart = getPlanStartTimestamp(plan);
+  const resolutionStart = Math.max(start, effectiveStart);
+  if (end <= resolutionStart) return [];
+  const startDate = shiftDate(localDate(resolutionStart, plan.timeZone), -8);
   const endDate = shiftDate(localDate(end, plan.timeZone), 1);
   const intervals = [];
   const addInterval = (interval) => {
-    if (interval.end > start && interval.start < end) intervals.push(interval);
+    if (interval.end > resolutionStart && interval.start < end) intervals.push(interval);
   };
   for (const change of changes) {
     addInterval({ start: Date.parse(change.startAt), end: Date.parse(change.endAt), partyId: change.partyId,
@@ -223,7 +230,8 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
         source: { type: "recurring", ruleId: rule.id } });
     }
   }
-  const boundaries = [...new Set([start, end, ...intervals.flatMap((item) => [Math.max(start, item.start), Math.min(end, item.end)])])]
+  const boundaries = [...new Set([resolutionStart, end,
+    ...intervals.flatMap((item) => [Math.max(resolutionStart, item.start), Math.min(end, item.end)])])]
     .sort((a, b) => a - b);
   const result = [];
   for (let index = 0; index < boundaries.length - 1; index += 1) {
@@ -232,6 +240,7 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
     if (segmentEnd <= segmentStart) continue;
     const activeChanges = intervals.filter((item) => item.source.type === "change"
       && item.start <= segmentStart && item.end >= segmentEnd);
+    assert(activeChanges.length <= 1, "one-off parenting-time changes overlap in the requested range");
     const active = activeChanges.length ? activeChanges : intervals.filter((item) =>
       item.source.type === "recurring" && item.start <= segmentStart && item.end >= segmentEnd);
     const partiesInSegment = new Set(active.map((item) => item.partyId));
@@ -239,16 +248,29 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
     const partyId = active[0]?.partyId ?? plan.defaultPartyId;
     const sources = active.length ? active.map((item) => item.source)
       : [{ type: "default", planId: plan.id }];
-    const sourceKey = JSON.stringify(sources);
     const previous = result[result.length - 1];
     if (previous && previous.endAt === new Date(segmentStart).toISOString()
-      && previous.partyId === partyId && previous._sourceKey === sourceKey) {
+      && previous.partyId === partyId
+      && ((previous.source.type === "plan" && sources[0]?.type !== "change")
+        || (previous.source.type === "change" && sources[0]?.type === "change"
+          && previous._sourceKey === JSON.stringify(sources)))) {
       previous.endAt = new Date(segmentEnd).toISOString();
+      if (previous.source.type === "plan") {
+        previous.source.parts.push({
+          startAt: new Date(segmentStart).toISOString(),
+          endAt: new Date(segmentEnd).toISOString(),
+          sources,
+        });
+      }
     } else {
+      const source = sources.length === 1 && sources[0].type === "change"
+        ? sources[0]
+        : { type: "plan", planId: plan.id, parts: [{
+          startAt: new Date(segmentStart).toISOString(), endAt: new Date(segmentEnd).toISOString(), sources,
+        }] };
       result.push({ startAt: new Date(segmentStart).toISOString(), endAt: new Date(segmentEnd).toISOString(),
         partyId, partyName: parties.find((party) => party.id === partyId)?.name ?? null,
-        source: sources.length === 1 ? sources[0] : { type: "recurring", rules: sources },
-        _sourceKey: sourceKey });
+        source, _sourceKey: source.type === "change" ? JSON.stringify(sources) : null });
     }
   }
   return result.map(({ _sourceKey, ...interval }) => interval);
@@ -256,4 +278,5 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
 
 module.exports = {
   assert, validateId, validateParty, validatePlan, validateChange, resolveParentingTime, isoWeekNumber,
+  getPlanStartTimestamp,
 };
