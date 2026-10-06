@@ -89,7 +89,7 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
   const start = new Date(interval.startAt);
   const end = new Date(interval.endAt);
   const nextDay = addDays(day, 1);
-  const time = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false });
+  const time = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
   const previous = intervals.find((item) => item.endAt === interval.startAt && item.partyId !== interval.partyId);
   const next = intervals.find((item) => item.startAt === interval.endAt && item.partyId !== interval.partyId);
   const change = interval.source.type === "change";
