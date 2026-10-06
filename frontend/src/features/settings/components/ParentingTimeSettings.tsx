@@ -1,7 +1,9 @@
-import { useCallback, useEffect, useState } from "react";
-import { Alert, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, TextField, Typography } from "@mui/material";
+import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { Alert, Box, Button, Checkbox, Chip, FormControlLabel, MenuItem, Stack, TextField, Typography } from "@mui/material";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import { FormField } from "../../../shared/ui/GlassFormDialog";
+import {
+  DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton,
+} from "../../../shared/ui/GlassFormDialog";
 
 export type ParentingTimeRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 type Party = { id: string; name: string; memberId: string | null; active: boolean };
@@ -89,6 +91,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [partyDraft, setPartyDraft] = useState<{ id?: string; name: string; memberId: string; active: boolean } | null>(null);
+  const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [planDraft, setPlanDraft] = useState<Plan | null>(null);
   const [schedule, setSchedule] = useState(() => baseSchedule([]));
   const [preview, setPreview] = useState<Interval[]>([]);
@@ -187,8 +190,22 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     const plan = planPayload();
     if (!plan || !validSchedule) throw new Error("Add two active parenting parties and complete the schedule before saving.");
     await request(`${base}/plan`, { method: "PUT", body: JSON.stringify(plan) });
+    setPlanDialogOpen(false);
     await load();
   });
+  const saveParty = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!partyDraft || !partyDraft.name.trim()) return;
+    void mutate("parties", partyDraft.id ? "PUT" : "POST",
+      { ...partyDraft, memberId: partyDraft.memberId || null });
+  };
+  const saveChange = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!changeDraft) return;
+    void mutate("changes", changeDraft.id ? "PUT" : "POST", {
+      ...changeDraft, startAt: toIso(changeDraft.startAt), endAt: toIso(changeDraft.endAt),
+    });
+  };
   const changeSchedule = (key: keyof typeof schedule, value: string | number) => {
     setSchedule((current) => ({ ...current, [key]: value }));
     setPreview([]);
@@ -216,104 +233,41 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             </Button></td>
         </tr>)}</tbody>
       </table></div>
-      {partyDraft && <Stack spacing={2} sx={{ mt: 2 }}>
-        <Typography variant="h6">{partyDraft.id ? "Edit parenting party" : "Add parenting party"}</Typography>
-        <FormField label="Party name (for example, Mum or Dad)" value={partyDraft.name} onChange={(event) =>
-          setPartyDraft({ ...partyDraft, name: event.target.value })} />
-        <TextField select label="Link to household member (optional)" value={partyDraft.memberId} onChange={(event) =>
-          setPartyDraft({ ...partyDraft, memberId: event.target.value })}>
-          <MenuItem value="">No linked member</MenuItem>
-          {members.map((member) => <MenuItem key={member.id} value={member.id}>{member.firstName}</MenuItem>)}
-        </TextField>
-        <Stack direction="row" spacing={1}>
-          <Button variant="contained" disabled={busy || !partyDraft.name.trim()} onClick={() => mutate("parties",
-            partyDraft.id ? "PUT" : "POST", { ...partyDraft, memberId: partyDraft.memberId || null })}>Save party</Button>
-          <Button onClick={() => setPartyDraft(null)}>Cancel</Button>
-        </Stack>
-      </Stack>}
+      <GlassDialog open={!!partyDraft} onClose={() => { if (!busy) setPartyDraft(null); }}
+        aria-labelledby="parenting-party-title" maxWidth="sm" fullWidth>
+        {partyDraft && <Box component="form" onSubmit={saveParty}>
+          <DialogHeader><Typography id="parenting-party-title" variant="h6">
+            {partyDraft.id ? "Edit parenting party" : "Add parenting party"}
+          </Typography></DialogHeader>
+          <DialogContentPanel><Box component="fieldset" disabled={busy}
+            sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <FormField autoFocus required label="Party name (for example, Mum or Dad)" value={partyDraft.name}
+              onChange={(event) => setPartyDraft({ ...partyDraft, name: event.target.value })} />
+            <TextField select label="Link to household member (optional)" value={partyDraft.memberId}
+              onChange={(event) => setPartyDraft({ ...partyDraft, memberId: event.target.value })}>
+              <MenuItem value="">No linked member</MenuItem>
+              {members.map((member) => <MenuItem key={member.id} value={member.id}>{member.firstName}</MenuItem>)}
+            </TextField>
+          </Box></DialogContentPanel>
+          <DialogActionsBar><Button type="button" disabled={busy} onClick={() => setPartyDraft(null)}>Cancel</Button>
+            <GradientButton type="submit" disabled={busy || !partyDraft.name.trim()}>Save party</GradientButton>
+          </DialogActionsBar>
+        </Box>}
+      </GlassDialog>
     </section>
 
     <section className="settings-card">
-      <div className="section-toolbar"><h2>Regular parenting-time plan</h2></div>
+      <div className="section-toolbar"><h2>Regular parenting-time plan</h2>
+        <Button variant="contained" onClick={() => setPlanDialogOpen(true)} disabled={busy || loading}>
+          {data.plan ? "Edit plan" : "Create plan"}
+        </Button>
+      </div>
       <Typography variant="body2">Set four handovers in order through the week. Alternating weekends are determined by the ISO week number of the weekend handover day. The children are with the selected party between handovers.</Typography>
-      {planDraft && <Stack spacing={2} sx={{ mt: 2 }}>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <TextField select label="Pattern" value={planDraft.recurrenceMode} onChange={(event) => {
-            setPlanDraft({ ...planDraft, recurrenceMode: event.target.value as Plan["recurrenceMode"] });
-            setPreview([]);
-          }}>
-            <MenuItem value="weekly">Weekly</MenuItem><MenuItem value="alternating">Alternating weeks (ISO week)</MenuItem>
-          </TextField>
-          <FormField label="Effective from" type="date" value={planDraft.effectiveFrom} slotProps={{ inputLabel: { shrink: true } }}
-            onChange={(event) => { setPlanDraft({ ...planDraft, effectiveFrom: event.target.value }); setPreview([]); }} />
-          <FormField label="Effective until (optional)" type="date" value={planDraft.effectiveTo ?? ""}
-            slotProps={{ inputLabel: { shrink: true } }}
-            onChange={(event) => { setPlanDraft({ ...planDraft, effectiveTo: event.target.value || null }); setPreview([]); }} />
-          <FormField label="Time zone" value={planDraft.timeZone} onChange={(event) => {
-            setPlanDraft({ ...planDraft, timeZone: event.target.value }); setPreview([]);
-          }} />
-        </Stack>
-        <FormControlLabel label="Activate this plan" control={<Checkbox checked={planDraft.active} onChange={(event) => {
-          setPlanDraft({ ...planDraft, active: event.target.checked }); setPreview([]);
-        }} />} />
-        <Typography variant="subtitle1">Handover times</Typography>
-        <Stack spacing={2}>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-              <TextField select label="Handover 1 day" value={schedule.firstDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                changeSchedule("firstDay", Number(event.target.value))}>
-                {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-              </TextField>
-              <FormField label="Handover 1 time" type="time" value={schedule.sundayTime}
-                onChange={(event) => changeSchedule("sundayTime", event.target.value)} />
-            </Stack>
-            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-              <TextField select label="Handover 2 day" value={schedule.secondDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                changeSchedule("secondDay", Number(event.target.value))}>
-                {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-              </TextField>
-              <FormField label="Handover 2 time" type="time" value={schedule.mondayTime}
-                onChange={(event) => changeSchedule("mondayTime", event.target.value)} />
-            </Stack>
-          </Stack>
-          <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
-            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-              <TextField select label="Handover 3 day" value={schedule.thirdDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                changeSchedule("thirdDay", Number(event.target.value))}>
-                {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-              </TextField>
-              <FormField label="Handover 3 time" type="time" value={schedule.thursdayTime}
-                onChange={(event) => changeSchedule("thursdayTime", event.target.value)} />
-            </Stack>
-            <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
-              <TextField select label="Handover 4 day" value={schedule.fourthDay} sx={{ minWidth: 140 }} onChange={(event) =>
-                changeSchedule("fourthDay", Number(event.target.value))}>
-                {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
-              </TextField>
-              <FormField label="Handover 4 time" type="time" value={schedule.fridayTime}
-                onChange={(event) => changeSchedule("fridayTime", event.target.value)} />
-            </Stack>
-          </Stack>
-        </Stack>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          {([
-            ["weeklyStartParty", `after ${weekdayNames[schedule.firstDay - 1]} handover`],
-            ["MondayToThursdayParty", `after ${weekdayNames[schedule.secondDay - 1]} handover`],
-            ["ThursdayToFridayParty", `after ${weekdayNames[schedule.thirdDay - 1]} handover`],
-            ["oddWeekendParty", planDraft.recurrenceMode === "alternating" ? "after handover 4 · odd ISO weeks" : "after handover 4"],
-            ...(planDraft.recurrenceMode === "alternating" ? [["evenWeekendParty", "after handover 4 · even ISO weeks"]] : []),
-          ] as Array<[keyof typeof schedule, string]>).map(([key, label]) => <TextField key={key} select label={`With ${label}`}
-            value={schedule[key]} onChange={(event) => changeSchedule(key, event.target.value)}>
-            {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
-          </TextField>)}
-        </Stack>
-        {!orderedHandoverDays && <Alert severity="warning">Choose four different handover weekdays in order, starting with handover 1 and wrapping into the next week if needed.</Alert>}
-        {activeParties.length < 2 && <Alert severity="warning">Add at least two active parties before configuring a plan.</Alert>}
-        <Stack direction="row" spacing={1}>
-          <Button variant="outlined" disabled={busy || !validSchedule} onClick={() => void previewPlan()}>Preview next 14 days</Button>
-          <Button variant="contained" disabled={busy || !validSchedule} onClick={() => void savePlan()}>Save plan</Button>
-        </Stack>
-      </Stack>}
+      {data.plan && <Typography variant="body2" sx={{ mt: 1 }}>
+        {data.plan.active ? "Active" : "Inactive"} · {data.plan.recurrenceMode === "alternating" ? "Alternating weeks" : "Weekly"} ·
+        {" "}from {data.plan.effectiveFrom}{data.plan.effectiveTo ? ` until ${data.plan.effectiveTo}` : ""}
+      </Typography>}
       <Typography variant="subtitle1" sx={{ mt: 2 }}>Upcoming schedule preview</Typography>
       {preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
         <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
@@ -322,6 +276,103 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
         </tr>)}</tbody>
       </table></div> : <Typography variant="body2">Preview the schedule to see who the children are with. Changes are always resolved by the server.</Typography>}
+      <GlassDialog open={planDialogOpen} onClose={() => { if (!busy) setPlanDialogOpen(false); }}
+        aria-labelledby="parenting-plan-title" maxWidth="md" fullWidth>
+        {planDraft && <Box component="form" onSubmit={(event) => { event.preventDefault(); void savePlan(); }}>
+          <DialogHeader><Typography id="parenting-plan-title" variant="h6">
+            {data.plan ? "Edit regular parenting-time plan" : "Create regular parenting-time plan"}
+          </Typography></DialogHeader>
+          <DialogContentPanel><Box component="fieldset" disabled={busy}
+            sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <Typography variant="body2">This plan applies to all children in this household. It describes practical arrangements and is not legal advice or proof of custody.</Typography>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <TextField select label="Pattern" value={planDraft.recurrenceMode} onChange={(event) => {
+                setPlanDraft({ ...planDraft, recurrenceMode: event.target.value as Plan["recurrenceMode"] });
+                setPreview([]);
+              }}>
+                <MenuItem value="weekly">Weekly</MenuItem><MenuItem value="alternating">Alternating weeks (ISO week)</MenuItem>
+              </TextField>
+              <FormField label="Effective from" type="date" value={planDraft.effectiveFrom} slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(event) => { setPlanDraft({ ...planDraft, effectiveFrom: event.target.value }); setPreview([]); }} />
+              <FormField label="Effective until (optional)" type="date" value={planDraft.effectiveTo ?? ""}
+                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(event) => { setPlanDraft({ ...planDraft, effectiveTo: event.target.value || null }); setPreview([]); }} />
+              <FormField label="Time zone" value={planDraft.timeZone} onChange={(event) => {
+                setPlanDraft({ ...planDraft, timeZone: event.target.value }); setPreview([]);
+              }} />
+            </Stack>
+            <FormControlLabel label="Activate this plan" control={<Checkbox checked={planDraft.active} onChange={(event) => {
+              setPlanDraft({ ...planDraft, active: event.target.checked }); setPreview([]);
+            }} />} />
+            <Typography variant="subtitle1">Handover times</Typography>
+            <Stack spacing={2}>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
+                  <TextField select label="Handover 1 day" value={schedule.firstDay} sx={{ minWidth: 140 }} onChange={(event) =>
+                    changeSchedule("firstDay", Number(event.target.value))}>
+                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
+                  </TextField>
+                  <FormField label="Handover 1 time" type="time" value={schedule.sundayTime}
+                    onChange={(event) => changeSchedule("sundayTime", event.target.value)} />
+                </Stack>
+                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
+                  <TextField select label="Handover 2 day" value={schedule.secondDay} sx={{ minWidth: 140 }} onChange={(event) =>
+                    changeSchedule("secondDay", Number(event.target.value))}>
+                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
+                  </TextField>
+                  <FormField label="Handover 2 time" type="time" value={schedule.mondayTime}
+                    onChange={(event) => changeSchedule("mondayTime", event.target.value)} />
+                </Stack>
+              </Stack>
+              <Stack direction={{ xs: "column", md: "row" }} spacing={2}>
+                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
+                  <TextField select label="Handover 3 day" value={schedule.thirdDay} sx={{ minWidth: 140 }} onChange={(event) =>
+                    changeSchedule("thirdDay", Number(event.target.value))}>
+                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
+                  </TextField>
+                  <FormField label="Handover 3 time" type="time" value={schedule.thursdayTime}
+                    onChange={(event) => changeSchedule("thursdayTime", event.target.value)} />
+                </Stack>
+                <Stack direction="row" spacing={1} sx={{ flex: 1 }}>
+                  <TextField select label="Handover 4 day" value={schedule.fourthDay} sx={{ minWidth: 140 }} onChange={(event) =>
+                    changeSchedule("fourthDay", Number(event.target.value))}>
+                    {weekdayNames.map((name, index) => <MenuItem key={name} value={index + 1}>{name}</MenuItem>)}
+                  </TextField>
+                  <FormField label="Handover 4 time" type="time" value={schedule.fridayTime}
+                    onChange={(event) => changeSchedule("fridayTime", event.target.value)} />
+                </Stack>
+              </Stack>
+            </Stack>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              {([
+                ["weeklyStartParty", `With ${weekdayNames[schedule.firstDay - 1]} handover`],
+                ["MondayToThursdayParty", `With ${weekdayNames[schedule.secondDay - 1]} handover`],
+                ["ThursdayToFridayParty", `With ${weekdayNames[schedule.thirdDay - 1]} handover`],
+                ["oddWeekendParty", planDraft.recurrenceMode === "alternating" ? "With handover 4 · odd ISO weeks" : "With handover 4"],
+                ...(planDraft.recurrenceMode === "alternating" ? [["evenWeekendParty", "With handover 4 · even ISO weeks"]] : []),
+              ] as Array<[keyof typeof schedule, string]>).map(([key, label]) => <TextField key={key} select label={label}
+                value={schedule[key]} onChange={(event) => changeSchedule(key, event.target.value)}>
+                {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
+              </TextField>)}
+            </Stack>
+            {!orderedHandoverDays && <Alert severity="warning">Choose four different handover weekdays in order, starting with handover 1 and wrapping into the next week if needed.</Alert>}
+            {activeParties.length < 2 && <Alert severity="warning">Add at least two active parties before configuring a plan.</Alert>}
+            {preview.length > 0 && <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time draft preview">
+              <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
+              <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
+                <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
+                <td>{interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"}</td>
+              </tr>)}</tbody>
+            </table></div>}
+          </Box></DialogContentPanel>
+          <DialogActionsBar>
+            <Button type="button" disabled={busy} onClick={() => setPlanDialogOpen(false)}>Cancel</Button>
+            <Button type="button" disabled={busy || !validSchedule} onClick={() => void previewPlan()}>Preview next 14 days</Button>
+            <GradientButton type="submit" disabled={busy || !validSchedule}>Save plan</GradientButton>
+          </DialogActionsBar>
+        </Box>}
+      </GlassDialog>
     </section>
 
     <section className="settings-card">
@@ -344,29 +395,39 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             })}>Remove</Button></td>
         </tr>)}</tbody>
       </table></div>
-      {changeDraft && <Stack spacing={2} sx={{ mt: 2 }}>
-        <Typography variant="h6">{changeDraft.id ? "Edit change for this period" : "Add change for this period"}</Typography>
-        <TextField select label="Children with" value={changeDraft.partyId} onChange={(event) =>
-          setChangeDraft({ ...changeDraft, partyId: event.target.value })}>
-          {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
-        </TextField>
-        <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-          <FormField label="From" type="datetime-local" value={changeDraft.startAt} slotProps={{ inputLabel: { shrink: true } }}
-            onChange={(event) => setChangeDraft({ ...changeDraft, startAt: event.target.value })} />
-          <FormField label="Until" type="datetime-local" value={changeDraft.endAt} slotProps={{ inputLabel: { shrink: true } }}
-            onChange={(event) => setChangeDraft({ ...changeDraft, endAt: event.target.value })} />
-        </Stack>
-        <FormField label="Reason or agreement" value={changeDraft.label} onChange={(event) =>
-          setChangeDraft({ ...changeDraft, label: event.target.value })} />
-        <Stack direction="row" spacing={1}>
-          <Button variant="contained" disabled={busy || !changeDraft.partyId || !changeDraft.startAt || !changeDraft.endAt
-            || !changeDraft.label.trim() || new Date(changeDraft.endAt) <= new Date(changeDraft.startAt)}
-            onClick={() => mutate("changes", changeDraft.id ? "PUT" : "POST", {
-              ...changeDraft, startAt: toIso(changeDraft.startAt), endAt: toIso(changeDraft.endAt),
-            })}>Save change</Button>
-          <Button onClick={() => setChangeDraft(null)}>Cancel</Button>
-        </Stack>
-      </Stack>}
+      <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
+        aria-labelledby="parenting-change-title" maxWidth="sm" fullWidth>
+        {changeDraft && <Box component="form" onSubmit={saveChange}>
+          <DialogHeader><Typography id="parenting-change-title" variant="h6">
+            {changeDraft.id ? "Edit change for this period" : "Add change for this period"}
+          </Typography></DialogHeader>
+          <DialogContentPanel><Box component="fieldset" disabled={busy}
+            sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
+            {error && <Alert severity="error">{error}</Alert>}
+            <Typography variant="body2">This change overrides the regular plan only during the selected period.</Typography>
+            <TextField select label="Children with" value={changeDraft.partyId} onChange={(event) =>
+              setChangeDraft({ ...changeDraft, partyId: event.target.value })}>
+              {activeParties.map((party) => <MenuItem key={party.id} value={party.id}>{party.name}</MenuItem>)}
+            </TextField>
+            <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+              <FormField required label="From" type="datetime-local" value={changeDraft.startAt}
+                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(event) => setChangeDraft({ ...changeDraft, startAt: event.target.value })} />
+              <FormField required label="Until" type="datetime-local" value={changeDraft.endAt}
+                slotProps={{ inputLabel: { shrink: true } }}
+                onChange={(event) => setChangeDraft({ ...changeDraft, endAt: event.target.value })} />
+            </Stack>
+            <FormField required label="Reason or agreement" value={changeDraft.label}
+              onChange={(event) => setChangeDraft({ ...changeDraft, label: event.target.value })} />
+          </Box></DialogContentPanel>
+          <DialogActionsBar><Button type="button" disabled={busy} onClick={() => setChangeDraft(null)}>Cancel</Button>
+            <GradientButton type="submit" disabled={busy || !changeDraft.partyId || !changeDraft.startAt || !changeDraft.endAt
+              || !changeDraft.label.trim() || new Date(changeDraft.endAt) <= new Date(changeDraft.startAt)}>
+              Save change
+            </GradientButton>
+          </DialogActionsBar>
+        </Box>}
+      </GlassDialog>
     </section>
   </Stack>;
 }

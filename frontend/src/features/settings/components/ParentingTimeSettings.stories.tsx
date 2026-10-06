@@ -74,9 +74,16 @@ type Story = StoryObj<typeof ParentingTimeStory>;
 export const HouseholdPlan: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvas.getByText("Dad")).toBeInTheDocument());
-    await userEvent.click(canvas.getByRole("button", { name: "Preview next 14 days" }));
-    await waitFor(() => expect(canvas.getAllByText("Regular plan").length).toBeGreaterThan(0));
+    await userEvent.click(canvas.getAllByRole("button", { name: "Edit" })[0]);
+    const partyDialog = page.getByRole("dialog", { name: "Edit parenting party" });
+    await expect(partyDialog).toBeInTheDocument();
+    await userEvent.click(within(partyDialog).getByRole("button", { name: "Cancel" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Create plan" }));
+    const planDialog = within(page.getByRole("dialog", { name: "Create regular parenting-time plan" }));
+    await userEvent.click(planDialog.getByRole("button", { name: "Preview next 14 days" }));
+    await waitFor(() => expect(planDialog.getAllByText("Regular plan").length).toBeGreaterThan(0));
     const previewCall = calls.mock.calls.find(([path, init]) => String(path).endsWith("/preview") && init?.method === "POST");
     expect(previewCall).toBeDefined();
     const payload = JSON.parse(String(previewCall?.[1]?.body));
@@ -86,8 +93,13 @@ export const HouseholdPlan: Story = {
       rule.weekday === 5 && rule.startTime === "17:00" && rule.weekParity === "odd")?.partyId).toBe(fatherId);
     expect(payload.plan.rules.find((rule: { weekday: number; startTime: string; weekParity: string | null }) =>
       rule.weekday === 5 && rule.startTime === "17:00" && rule.weekParity === "even")?.partyId).toBe(motherId);
-    await userEvent.click(canvas.getByRole("button", { name: "Save plan" }));
+    await userEvent.click(planDialog.getByRole("button", { name: "Save plan" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
       String(path).endsWith("/plan") && init?.method === "PUT")).toBe(true));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Add change" })).toBeEnabled());
+    await userEvent.click(canvas.getByRole("button", { name: "Add change" }));
+    const changeDialog = page.getByRole("dialog", { name: "Add change for this period" });
+    await expect(changeDialog).toBeInTheDocument();
+    await userEvent.click(within(changeDialog).getByRole("button", { name: "Cancel" }));
   },
 };
