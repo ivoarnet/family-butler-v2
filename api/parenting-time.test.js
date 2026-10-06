@@ -81,6 +81,11 @@ test("compiles a variable handover list into the requested odd/even parenting sc
   const oneHandover = validateHandovers(handovers.slice(0, 1), parties);
   assert.equal(oneHandover.length, 1);
   assert.throws(() => compileHandovers(oneHandover), { status: 400 });
+  const isoWeekBoundaryConflict = validateHandovers([
+    { weekday: 1, time: "08:00", fromPartyId: fatherId, toPartyId: motherId, weekParity: "odd" },
+    { weekday: 5, time: "17:00", fromPartyId: motherId, toPartyId: fatherId, weekParity: "even" },
+  ], parties);
+  assert.throws(() => compileHandovers(isoWeekBoundaryConflict), { status: 400, message: /from-party must match/ });
 });
 
 test("validates the four-handover alternating plan used by Settings", () => {

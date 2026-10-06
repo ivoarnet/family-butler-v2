@@ -112,7 +112,39 @@ const validateHandovers = (handovers, parties) => {
 const compileHandovers = (handovers) => {
   const weekMinutes = 7 * 1440;
   const cycleMinutes = 2 * weekMinutes;
+  const assertContinuousHandoverSequence = (parityForWeek) => {
+    const sequence = [];
+    for (let week = -3; week <= 3; week += 1) {
+      const weekParity = parityForWeek(week);
+      for (const handover of handovers) {
+        if (handover.weekParity && handover.weekParity !== weekParity) continue;
+        const [hour, minute] = handover.time.split(":").map(Number);
+        sequence.push({
+          at: week * weekMinutes + (handover.weekday - 1) * 1440 + hour * 60 + minute,
+          fromPartyId: handover.fromPartyId,
+          toPartyId: handover.toPartyId,
+        });
+      }
+    }
+    sequence.sort((left, right) => left.at - right.at);
+    for (let index = 1; index < sequence.length; index += 1) {
+      const previous = sequence[index - 1];
+      const current = sequence[index];
+      assert(previous.at !== current.at, "only one parenting-time handover can occur at a time");
+      assert(previous.toPartyId === current.fromPartyId,
+        "handover from-party must match the party responsible after the previous handover");
+    }
+    return sequence;
+  };
   const occurrences = [];
+  const regularSequence = assertContinuousHandoverSequence((week) =>
+    ((week % 2) + 2) % 2 === 0 ? "odd" : "even");
+  const isoYearBoundarySequence = assertContinuousHandoverSequence((week) => {
+    if (week === 0) return "odd";
+    if (week < 0) return (-week) % 2 === 1 ? "odd" : "even";
+    return week % 2 === 0 ? "odd" : "even";
+  });
+  assert(regularSequence.length > 0 && isoYearBoundarySequence.length > 0, "handovers must define a recurring sequence");
   for (let week = -3; week <= 3; week += 1) {
     const weekParity = ((week % 2) + 2) % 2 === 0 ? "odd" : "even";
     for (const handover of handovers) {
@@ -127,13 +159,6 @@ const compileHandovers = (handovers) => {
     }
   }
   occurrences.sort((left, right) => left.at - right.at);
-  for (let index = 1; index < occurrences.length; index += 1) {
-    const previous = occurrences[index - 1];
-    const current = occurrences[index];
-    assert(previous.at !== current.at, "only one parenting-time handover can occur at a time");
-    assert(previous.toPartyId === current.fromPartyId,
-      "handover from-party must match the party responsible after the previous handover");
-  }
   const events = occurrences.filter(({ at }) => at >= 0 && at < cycleMinutes);
   const boundaries = [...new Set([0, weekMinutes, cycleMinutes, ...events.map(({ at }) => at)])].sort((a, b) => a - b);
   const rules = [];
