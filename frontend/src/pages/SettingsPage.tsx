@@ -19,7 +19,7 @@ import { HouseholdDialog } from "../features/settings/components/HouseholdDialog
 import { MemberDialog } from "../features/settings/components/MemberDialog";
 import { ChildcareSettings, type ChildcareRequest } from "../features/settings/components/ChildcareSettings";
 import { ParentingTimeSettings } from "../features/settings/components/ParentingTimeSettings";
-import { DEFAULT_MEMBER_COLOR, getMemberColorLabel, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
+import { DEFAULT_MEMBER_COLOR, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
@@ -903,7 +903,6 @@ export function SettingsPage({
                   <th>Name</th>
                   <th>Order</th>
                   <th>Visible</th>
-                  <th>Color</th>
                   <th className="actions-column">Actions</th>
                 </tr>
               </thead>
@@ -957,23 +956,6 @@ export function SettingsPage({
                         <span>{member.visibleInCalendar ? "On" : "Off"}</span>
                       </label>
                     </td>
-                    <td>
-                      <select
-                        value={member.avatarColor}
-                        onChange={(event) =>
-                          updateMemberRow(member.id, (current) => ({
-                            ...current,
-                            avatarColor: event.target.value as MemberAvatarColor,
-                          }))
-                        }
-                      >
-                        {MEMBER_COLORS.map((color) => (
-                          <option key={color} value={color}>
-                            {getMemberColorLabel(color)}
-                          </option>
-                        ))}
-                      </select>
-                    </td>
                     <td className="actions-cell">
                       <button type="button" className="icon-button compact-icon-button"
                         aria-label={`Edit member ${member.firstName}`} onClick={() => openEditMember(member)}>
@@ -989,7 +971,6 @@ export function SettingsPage({
           <MemberDialog
             open={memberModalOpen}
             editing={Boolean(editingMemberId)}
-            colors={MEMBER_COLORS}
             formState={memberFormState}
             firstNameError={memberFirstNameError}
             onClose={closeMemberModal}

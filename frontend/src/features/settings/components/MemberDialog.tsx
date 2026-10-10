@@ -58,7 +58,6 @@ export interface MemberDialogFormState {
 interface MemberDialogProps {
   open: boolean;
   editing: boolean;
-  colors: MemberAvatarColor[];
   formState: MemberDialogFormState;
   firstNameError: boolean;
   onClose: () => void;
@@ -76,7 +75,6 @@ interface MemberDialogProps {
 export function MemberDialog({
   open,
   editing,
-  colors,
   formState,
   firstNameError,
   onClose,
@@ -167,7 +165,7 @@ export function MemberDialog({
                   slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 50 } }}
                   onChange={(event) => onSchoolClassChange(event.target.value)} />
               </>}
-              <ColorPicker label="Avatar color" value={formState.avatarColor} presets={colors}
+              <ColorPicker label="Avatar color" value={formState.avatarColor}
                 onChange={onAvatarColorChange} helperText="Choose a color or enter a hex value." />
               <Box sx={{ display: "grid", alignContent: "center" }}>
                 <CalendarVisibilityToggle

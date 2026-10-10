@@ -64,7 +64,7 @@
 - Use `SecondaryButton` for non-primary dialog actions and `GradientButton` for the primary action.
 - Use the shared date picker for date-only values. It displays Swiss German `DD.MM.YYYY`; form and API state remains the local calendar date in ISO `YYYY-MM-DD` format.
 - Use the shared time picker for time entry. It uses a 24-hour clock, 5-minute picker steps, and preserves `HH:mm` values.
-- Use the shared color picker for member and event-type colors. The color input and editable hex field accept free choice, and existing preset colors remain quick selections.
+- Use the shared color picker for member and event-type colors. The color input and editable hex field allow free color choice; member editing does not show preset swatches.
 - Calendar Specials use a consistent icon, title, and subtitle. Birthday subtitles identify the occasion, childcare subtitles identify participants, and parenting subtitles show the handover or responsible party.
 
 ### Shared control and calendar references

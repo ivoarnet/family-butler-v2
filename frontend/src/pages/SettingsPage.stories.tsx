@@ -65,6 +65,9 @@ export const ChildDetailsPersistence: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
+    const membersTable = canvas.getByRole("table", { name: "Household members" });
+    await expect(within(membersTable).queryByRole("columnheader", { name: "Color" })).toBeNull();
+    await expect(within(membersTable).getAllByRole("columnheader")).toHaveLength(4);
     const edit = async (name: string) => {
       const row = canvas.getByText(name, { exact: true }).closest("tr")!;
       await userEvent.click(within(row).getByRole("button", { name: /Edit/ }));
