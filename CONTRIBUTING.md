@@ -28,6 +28,8 @@
 
 ## Product modules and documentation
 
+- Follow the [module architecture and step-by-step developer guide](docs/modules/ARCHITECTURE.md) when adding a module or cross-module integration.
+
 - Use [`docs/PRODUCT_OVERVIEW.md`](docs/PRODUCT_OVERVIEW.md) as the canonical index for product capabilities, module summaries, and roadmap status.
 - When adding or changing a module, update its status and overview there; add a focused document under `docs/modules/` when the module needs more detail.
 - Keep implemented behavior distinct from planned scope, especially for agent access. Document module boundaries, shared household concepts, and the agent workflows supported by the implementation.

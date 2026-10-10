@@ -21,7 +21,7 @@ import { ParentingAwayBackground } from "../features/dashboard/components/Parent
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
 import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval, ParentingParty } from "../types/family";
-import type { Dispatch, ElementType, SetStateAction } from "react";
+import type { Dispatch, ElementType, ReactNode, SetStateAction } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -363,6 +363,7 @@ export function DashboardPage({
   setHouseholdData,
   onOpenSettings,
   onOpenReports,
+  moduleNavigation,
   currentUserLabel,
   currentUserEmail,
   currentUserInitials,
@@ -375,6 +376,7 @@ export function DashboardPage({
   setHouseholdData: Dispatch<SetStateAction<HouseholdData>>;
   onOpenSettings: (target: NavigationTarget) => void;
   onOpenReports: () => void;
+  moduleNavigation?: ReactNode;
   currentUserLabel: string;
   currentUserEmail: string;
   currentUserInitials: string;
@@ -754,6 +756,7 @@ export function DashboardPage({
     <div className="dashboard-page">
       <header className="dashboard-header" role="banner">
         <div className="header-branding">
+          {moduleNavigation}
           <div className="icon-badge" aria-hidden>
             <CalendarMonthIcon fontSize="medium" />
           </div>

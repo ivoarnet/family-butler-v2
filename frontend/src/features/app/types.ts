@@ -40,3 +40,4 @@ export interface ContactFormState {
 
 export type SettingsSection = "profile" | "households";
 export type NavigationTarget = "settings" | "profile" | "households";
+export type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare" | "parenting-time";
