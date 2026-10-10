@@ -1,7 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
-import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
 import FamilyRestroomIcon from "@mui/icons-material/FamilyRestroom";
@@ -10,6 +9,7 @@ import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LooksIcon from "@mui/icons-material/Looks";
 import SettingsIcon from "@mui/icons-material/Settings";
+import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import { Fab } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
@@ -119,7 +119,7 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
 
 const DEMO_LOCALE = "de-CH";
 const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: ElementType<SvgIconProps>; className: string }> = {
-  school_off: { defaultMarker: "SH", icon: BeachAccessIcon, className: "school-off" },
+  school_off: { defaultMarker: "SH", icon: WbSunnyIcon, className: "school-off" },
   bank_holiday: { defaultMarker: "BH", icon: AccountBalanceIcon, className: "bank-holiday" },
   bridge_day: { defaultMarker: "BD", icon: LooksIcon, className: "bridge-day" },
 };
