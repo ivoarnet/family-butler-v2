@@ -1,5 +1,6 @@
-import { FormEvent, lazy, Suspense, useEffect, useMemo, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
@@ -13,7 +14,6 @@ import { Fab } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
-import type { CalendarPdfDay } from "../features/dashboard/components/CalendarPdfDownload";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
 import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
 import { ParentingResponsibilityWarning } from "../features/dashboard/components/ParentingResponsibilityWarning";
@@ -24,8 +24,6 @@ import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, Hous
 import type { Dispatch, ElementType, SetStateAction } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
-const CalendarPdfDownload = lazy(() => import("../features/dashboard/components/CalendarPdfDownload")
-  .then(({ CalendarPdfDownload: Component }) => ({ default: Component })));
 
 interface SpecialEvent {
   id: string;
@@ -363,6 +361,7 @@ export function DashboardPage({
   householdData,
   setHouseholdData,
   onOpenSettings,
+  onOpenReports,
   currentUserLabel,
   currentUserEmail,
   currentUserInitials,
@@ -374,6 +373,7 @@ export function DashboardPage({
   householdData: HouseholdData;
   setHouseholdData: Dispatch<SetStateAction<HouseholdData>>;
   onOpenSettings: (target: NavigationTarget) => void;
+  onOpenReports: () => void;
   currentUserLabel: string;
   currentUserEmail: string;
   currentUserInitials: string;
@@ -601,47 +601,6 @@ export function DashboardPage({
     return grouped;
   }, [childcareOccurrences]);
 
-  const pdfCalendarDays = useMemo<CalendarPdfDay[]>(() => days.map((day) => {
-    const isoDate = toIsoDate(day);
-    const eventLabels = (eventsByDateAndMember.get(isoDate) ?? []).map((event) => {
-      const eventType = event.eventTypeId ? eventTypeById.get(event.eventTypeId)?.icon : null;
-      const memberNames = event.memberIds.map((memberId) => memberById.get(memberId)?.firstName).filter(Boolean);
-      const details = [
-        formatEventTimeLabel(event, isoDate),
-        eventType,
-        event.title,
-        memberNames.length > 0 ? memberNames.join(", ") : null,
-      ].filter(Boolean);
-      return details.join(" · ");
-    });
-    const birthdayLabels = (birthdayEventsByDate.get(isoDate) ?? []).map((event) => `Birthday · ${formatBirthdayLabel(event)}`);
-    const childcareLabels = (childcareByDate.get(isoDate) ?? []).map((occurrence) => {
-      const time = occurrence.allDay ? "All day" : `${occurrence.startTime ?? ""}–${occurrence.endTime ?? ""}`;
-      const children = occurrence.childIds.map((childId) => memberById.get(childId)?.firstName).filter(Boolean);
-      return `Care · ${occurrence.providerName ?? "Care provider"} · ${time}${children.length ? ` · ${children.join(", ")}` : ""}`;
-    });
-    const parentingLabels = parentingIntervals
-      .filter((interval) => {
-        const start = new Date(interval.startAt);
-        return start >= day && start < addDays(day, 1)
-          && parentingIntervals.some((previous) => previous.endAt === interval.startAt && previous.partyId !== interval.partyId);
-      })
-      .map((interval) => {
-        const start = new Date(interval.startAt);
-        return `Parenting · ${interval.partyName ?? "Parenting party"} · ${start.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" })}`;
-      });
-    const notes = (dayDecorationsByDate.get(isoDate)?.corners ?? []).map((corner) => corner.label ?? corner.marker);
-    return {
-      date: day.getDate(),
-      isInMonth: day.getMonth() === monthStart.getMonth(),
-      isToday: isoDate === toIsoDate(now),
-      events: eventLabels,
-      specials: [...childcareLabels, ...birthdayLabels, ...parentingLabels],
-      notes,
-    };
-  }), [birthdayEventsByDate, childcareByDate, dayDecorationsByDate, days, eventTypeById, eventsByDateAndMember,
-    memberById, monthStart, now, parentingIntervals]);
-
   const viewingEvent = useMemo(() => householdData.events.find((event) => event.id === viewingEventId) ?? null, [householdData.events, viewingEventId]);
 
   useEffect(() => {
@@ -790,8 +749,6 @@ export function DashboardPage({
 
   const monthLabel = formatMonthLabel(monthStart, DEMO_LOCALE);
   const periodLabel = viewMode === "month" ? monthLabel : formatPeriodRange(periodStart, DEMO_LOCALE);
-  const pdfWeekdays = Array.from({ length: 7 }, (_, index) =>
-    getWeekdayAbbreviation(addDays(new Date(2024, 0, 1), index), DEMO_LOCALE));
   const todayIso = toIsoDate(now);
   return (
     <div className="dashboard-page">
@@ -863,6 +820,9 @@ export function DashboardPage({
           </div>
 
           <div className="header-meta">
+            <button type="button" className="icon-button" onClick={onOpenReports} title="Open reports" aria-label="Open reports">
+              <AssessmentOutlinedIcon fontSize="small" />
+            </button>
             <button
               type="button"
               className="icon-button"
@@ -989,16 +949,6 @@ export function DashboardPage({
                 : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
-          {viewMode === "month" && <div className="calendar-export-tools">
-            <Suspense fallback={<span role="status">Preparing PDF…</span>}>
-              <CalendarPdfDownload
-                monthLabel={monthLabel}
-                fileName={`family-calendar-${monthStart.getFullYear()}-${String(monthStart.getMonth() + 1).padStart(2, "0")}.pdf`}
-                weekdays={pdfWeekdays}
-                days={pdfCalendarDays}
-              />
-            </Suspense>
-          </div>}
           {parentingStatus && <p role="status">{parentingStatus}</p>}
           {hasOptedInChildren && parentingParties.length > 0 && householdParentingPartyIds.length === 0 && <p role="status">
             Link an active parenting party to a current household member in Settings → Parenting time to enable child hatching.

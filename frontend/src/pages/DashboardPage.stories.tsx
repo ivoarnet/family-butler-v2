@@ -182,6 +182,7 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
         householdData={householdData}
         setHouseholdData={setHouseholdData}
         onOpenSettings={() => undefined}
+        onOpenReports={() => undefined}
         currentUserLabel="Demo user"
         currentUserEmail="demo@example.com"
         currentUserInitials="DU"
