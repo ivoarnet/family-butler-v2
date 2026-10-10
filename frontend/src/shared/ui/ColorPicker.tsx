@@ -9,6 +9,7 @@ interface ColorPickerProps {
   helperText?: string;
   disabled?: boolean;
   presets?: string[];
+  showHexInput?: boolean;
 }
 
 const isHexColor = (value: string) => /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(value);
@@ -20,13 +21,25 @@ const pickerColor = (value: string) => {
   return "#000000";
 };
 
-export function ColorPicker({ label, value, onChange, helperText, disabled = false, presets = [] }: ColorPickerProps) {
+export function ColorPicker({
+  label,
+  value,
+  onChange,
+  helperText,
+  disabled = false,
+  presets = [],
+  showHexInput = true,
+}: ColorPickerProps) {
   const [textValue, setTextValue] = useState(value);
   useEffect(() => setTextValue(value), [value]);
 
   return (
     <Box sx={{ display: "grid", gap: 1 }}>
-      <Box sx={{ display: "grid", gridTemplateColumns: "minmax(100px, 0.65fr) minmax(150px, 1fr)", gap: 1.5 }}>
+      <Box sx={{
+        display: "grid",
+        gridTemplateColumns: showHexInput ? "minmax(100px, 0.65fr) minmax(150px, 1fr)" : "minmax(100px, 150px)",
+        gap: 1.5,
+      }}>
         <FormField
           label={label}
           type="color"
@@ -38,17 +51,19 @@ export function ColorPicker({ label, value, onChange, helperText, disabled = fal
             onChange(event.target.value);
           }}
         />
-        <FormField
-          label={`${label} hex value`}
-          value={textValue}
-          disabled={disabled}
-          slotProps={{ inputLabel: { shrink: true }, htmlInput: { spellCheck: false, autoCapitalize: "off" } }}
-          onChange={(event) => {
-            const next = event.target.value;
-            setTextValue(next);
-            if (isHexColor(next)) onChange(next);
-          }}
-        />
+        {showHexInput && (
+          <FormField
+            label={`${label} hex value`}
+            value={textValue}
+            disabled={disabled}
+            slotProps={{ inputLabel: { shrink: true }, htmlInput: { spellCheck: false, autoCapitalize: "off" } }}
+            onChange={(event) => {
+              const next = event.target.value;
+              setTextValue(next);
+              if (isHexColor(next)) onChange(next);
+            }}
+          />
+        )}
       </Box>
       {helperText && <Box component="span" sx={{ color: "var(--dialog-muted)", fontSize: "0.75rem" }}>{helperText}</Box>}
       {presets.length > 0 && (

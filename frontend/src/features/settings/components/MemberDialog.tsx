@@ -165,8 +165,8 @@ export function MemberDialog({
                   slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 50 } }}
                   onChange={(event) => onSchoolClassChange(event.target.value)} />
               </>}
-              <ColorPicker label="Avatar color" value={formState.avatarColor}
-                onChange={onAvatarColorChange} helperText="Choose a color or enter a hex value." />
+              <ColorPicker label="Avatar color" value={formState.avatarColor} showHexInput={false}
+                onChange={onAvatarColorChange} helperText="Choose a color." />
               <Box sx={{ display: "grid", alignContent: "center" }}>
                 <CalendarVisibilityToggle
                   control={
