@@ -12,6 +12,7 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
+  SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
 
 const ContactDetailsSection = styled(Box)(({ theme }) => ({
@@ -169,24 +170,13 @@ export function ContactDialog({
         </DialogContentPanel>
 
         <DialogActionsBar>
-          <Button
+          <SecondaryButton
             type="button"
             onClick={onClose}
             variant="outlined"
-            sx={{
-              borderRadius: "999px",
-              color: "var(--dialog-muted)",
-              borderColor: "var(--dialog-border)",
-              textTransform: "none",
-              minHeight: 42,
-              "&:hover": {
-                borderColor: "var(--accent-strong)",
-                background: "rgba(127, 139, 255, 0.12)",
-              },
-            }}
           >
             Cancel
-          </Button>
+          </SecondaryButton>
           <GradientButton type="submit" variant="contained" disableElevation>
             Save contact
           </GradientButton>

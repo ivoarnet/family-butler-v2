@@ -180,3 +180,20 @@ export const GradientButton = styled(Button)(({ theme }) => ({
     background: "linear-gradient(90deg, rgba(127, 139, 255, 0.5), rgba(154, 125, 255, 0.45))",
   },
 }));
+
+export const SecondaryButton = styled(Button)(({ theme }) => ({
+  borderRadius: 999,
+  minHeight: 42,
+  padding: theme.spacing(0.75, 2.25),
+  color: "var(--dialog-muted)",
+  borderColor: "var(--dialog-border)",
+  textTransform: "none",
+  "&:hover": {
+    borderColor: "var(--accent-strong)",
+    background: alpha("#7f8bff", 0.12),
+  },
+  "&:focus-visible": {
+    outline: "2px solid rgba(221, 226, 255, 0.9)",
+    outlineOffset: 2,
+  },
+}));

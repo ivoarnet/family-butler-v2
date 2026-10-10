@@ -217,6 +217,8 @@ export const Desktop: Story = {
       expect(firstChildcare.textContent).toContain("Grandparents");
       expect(firstChildcare.textContent).toContain("For Alex, Sam");
       expect(firstChildcare.querySelector(".calendar-childcare-icon")).not.toBeNull();
+      expect(firstChildcare.querySelector("strong")).not.toBeNull();
+      expect(firstChildcare.querySelector("small")?.textContent).toBe("For Alex, Sam");
       expect(getComputedStyle(firstChildcare.querySelector(".calendar-childcare-icon")!).color)
         .toBe(getComputedStyle(firstChildcare.querySelector("strong")!).color);
       expect(firstChildcare.getAttribute("title")).toContain("All day");
@@ -224,6 +226,7 @@ export const Desktop: Story = {
       const birthdayEntry = specialsCell.querySelector(".calendar-birthday-entry")!;
       expect(birthdayEntry.textContent).toBe("Taylor");
       expect(birthdayEntry.querySelector(".calendar-special-icon[data-testid='CakeIcon']")).not.toBeNull();
+      expect(birthdayEntry.querySelector("small")?.textContent).toBe("Birthday");
       expect(getComputedStyle(birthdayEntry.querySelector(".calendar-special-icon")!).color)
         .toBe(getComputedStyle(birthdayEntry.querySelector("strong")!).color);
       expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Taylor"));
@@ -383,6 +386,7 @@ export const ParentingTime: Story = {
     await expect(parentingEntry).toBeVisible();
     await expect(parentingEntry.textContent).toBe("Parenting12:00 → Dad");
     await expect(parentingEntry.querySelector("strong")?.textContent).toBe("Parenting");
+    await expect(parentingEntry.querySelector("small")?.textContent).toBe("12:00 → Dad");
     await expect(parentingEntry.querySelector(".calendar-special-icon[data-testid='FamilyRestroomIcon']")).not.toBeNull();
     await expect(parentingEntry.getAttribute("title")).toContain("12:00 – 18:00");
     await expect(canvas.queryByText("One-off change · Agreed swap")).toBeNull();

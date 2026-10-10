@@ -6,13 +6,14 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlin
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import dayjs, { type Dayjs } from "dayjs";
-import "dayjs/locale/en-gb";
+import "dayjs/locale/de-ch";
 import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
 import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
 import { MobileDateTimePicker } from "@mui/x-date-pickers/MobileDateTimePicker";
 import {
-  DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton,
+  DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
+import { DateField, TimeField } from "../../../shared/ui/PickerFields";
 
 export type ParentingTimeRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 type Party = { id: string; name: string; memberId: string | null; active: boolean };
@@ -307,7 +308,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
               {members.map((member) => <MenuItem key={member.id} value={member.id}>{member.firstName}</MenuItem>)}
             </FormField>
           </Box></DialogContentPanel>
-          <DialogActionsBar><Button type="button" disabled={busy} onClick={() => setPartyDraft(null)}>Cancel</Button>
+          <DialogActionsBar><SecondaryButton variant="outlined" type="button" disabled={busy} onClick={() => setPartyDraft(null)}>Cancel</SecondaryButton>
             <GradientButton type="submit" disabled={busy || !partyDraft.name.trim()}>Save party</GradientButton>
           </DialogActionsBar>
         </Box>}
@@ -365,11 +366,10 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             {error && <Alert severity="error">{error}</Alert>}
             <Typography variant="body2">This plan applies to all children in this household. It describes practical arrangements and is not legal advice or proof of custody.</Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-              <FormField label="Effective from" type="date" value={planDraft.effectiveFrom} slotProps={{ inputLabel: { shrink: true } }}
-                onChange={(event) => { setPlanDraft({ ...planDraft, effectiveFrom: event.target.value }); setPreview([]); }} />
-              <FormField label="Effective until (optional)" type="date" value={planDraft.effectiveTo ?? ""}
-                slotProps={{ inputLabel: { shrink: true } }}
-                onChange={(event) => { setPlanDraft({ ...planDraft, effectiveTo: event.target.value || null }); setPreview([]); }} />
+              <DateField label="Effective from" value={planDraft.effectiveFrom}
+                onChange={(effectiveFrom) => { setPlanDraft({ ...planDraft, effectiveFrom }); setPreview([]); }} required />
+              <DateField label="Effective until (optional)" value={planDraft.effectiveTo ?? ""}
+                onChange={(effectiveTo) => { setPlanDraft({ ...planDraft, effectiveTo: effectiveTo || null }); setPreview([]); }} />
               <FormField label="Time zone" value={planDraft.timeZone} onChange={(event) => {
                 setPlanDraft({ ...planDraft, timeZone: event.target.value }); setPreview([]);
               }} />
@@ -418,8 +418,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
                 onChange={(event) => updateHandover(handover.id, { weekday: Number(event.target.value) })}>
                 {weekdayNames.map((name, day) => <MenuItem key={name} value={day + 1}>{name}</MenuItem>)}
               </FormField>
-              <FormField label="Time" type="time" value={handover.time}
-                onChange={(event) => updateHandover(handover.id, { time: event.target.value })} />
+              <TimeField label="Time" value={handover.time}
+                onChange={(time) => updateHandover(handover.id, { time })} />
               <FormField select label="From → To"
                 value={partyPairValue(handover.fromPartyId, handover.toPartyId)}
                 slotProps={{ select: { MenuProps: selectMenuProps } }}
@@ -460,8 +460,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             </table></div>}
           </Box></DialogContentPanel>
           <DialogActionsBar>
-            <Button type="button" disabled={busy} onClick={() => setPlanDialogOpen(false)}>Cancel</Button>
-            <Button type="button" disabled={busy || !validSchedule} onClick={() => void previewPlan()}>Preview next 14 days</Button>
+            <SecondaryButton variant="outlined" type="button" disabled={busy} onClick={() => setPlanDialogOpen(false)}>Cancel</SecondaryButton>
+            <SecondaryButton variant="outlined" type="button" disabled={busy || !validSchedule} onClick={() => void previewPlan()}>Preview next 14 days</SecondaryButton>
             <GradientButton type="submit" disabled={busy || !validSchedule}>Save plan</GradientButton>
           </DialogActionsBar>
         </Box>}
@@ -495,7 +495,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           </div></td>
         </tr>)}</tbody>
       </table></div>
-      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="en-gb">
+      <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de-ch">
         <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
           aria-labelledby="parenting-change-title" maxWidth="sm" fullWidth>
         {changeDraft && <Box component="form" onSubmit={saveChange}>
@@ -528,7 +528,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             <FormField required label="Reason or agreement" value={changeDraft.label}
               onChange={(event) => setChangeDraft({ ...changeDraft, label: event.target.value })} />
           </Box></DialogContentPanel>
-          <DialogActionsBar><Button type="button" disabled={busy} onClick={() => setChangeDraft(null)}>Cancel</Button>
+          <DialogActionsBar><SecondaryButton variant="outlined" type="button" disabled={busy} onClick={() => setChangeDraft(null)}>Cancel</SecondaryButton>
             <GradientButton type="submit" disabled={busy || !changeDraft.partyId || !changeDraft.startAt || !changeDraft.endAt
               || !changeDraft.label.trim() || new Date(changeDraft.endAt) <= new Date(changeDraft.startAt)}>
               Save change

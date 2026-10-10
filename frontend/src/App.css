@@ -963,6 +963,7 @@ body,
 
 .specials-entry {
   display: flex;
+  flex-wrap: wrap;
   align-items: baseline;
   gap: 0.35rem;
   min-width: 0;
@@ -975,13 +976,7 @@ body,
   cursor: help;
 }
 
-.calendar-childcare-entry,
-.calendar-parenting-entry {
-  flex-wrap: wrap;
-}
-
-.calendar-parenting-entry small,
-.calendar-childcare-entry small {
+.specials-entry small {
   flex-basis: 100%;
   padding-left: 1.35rem;
   color: var(--text-secondary);
