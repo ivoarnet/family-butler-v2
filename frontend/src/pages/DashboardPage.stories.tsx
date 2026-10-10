@@ -330,6 +330,27 @@ export const DayGroupedEvents: Story = {
   args: { width: 390 },
   play: DayAndEvents.play,
 };
+
+export const MonthlyCalendarPdf: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const monthButton = canvas.getByRole("button", { name: "Month" });
+    await userEvent.click(monthButton);
+    await expect(monthButton).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toMatch(/\d{4}/);
+    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeGreaterThanOrEqual(28);
+    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeLessThanOrEqual(42);
+
+    const downloadLink = await canvas.findByRole("link", { name: /Download .* calendar as PDF/ });
+    await waitFor(() => expect(downloadLink.getAttribute("href")).toMatch(/^blob:/));
+    await expect(downloadLink.getAttribute("download")).toMatch(/^family-calendar-\d{4}-\d{2}\.pdf$/);
+    const pdf = await fetch(downloadLink.getAttribute("href")!).then((response) => response.text());
+    await expect(pdf).toContain("%PDF-");
+    await expect(pdf).toContain("/MediaBox [0 0 1190.55 841.89]");
+  },
+};
+
 export const MultiDayEvent: Story = {
   args: { width: 1440 },
   play: async ({ canvasElement }) => {

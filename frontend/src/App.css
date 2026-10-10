@@ -698,6 +698,36 @@ body,
   border-right: 1px solid var(--border);
 }
 
+.month-calendar td,
+.month-calendar tbody th {
+  height: 4rem;
+  padding: 0.45rem;
+}
+
+.calendar-export-tools {
+  display: flex;
+  justify-content: flex-end;
+  padding: 0 1rem 0.75rem;
+}
+
+.calendar-pdf-download {
+  display: inline-flex;
+  align-items: center;
+  min-height: 2.3rem;
+  padding: 0.4rem 0.8rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  color: inherit;
+  background: var(--surface-strong);
+  font: inherit;
+  font-weight: 650;
+  text-decoration: none;
+}
+
+.calendar-pdf-download:hover {
+  background: var(--today-bg);
+}
+
 .calendar-grid tbody th {
   text-align: left;
   font-weight: inherit;
@@ -709,6 +739,10 @@ body,
 }
 
 .calendar-period-navigation {
+  display: none;
+}
+
+.compact-calendar-view-switcher {
   display: none;
 }
 
@@ -1365,6 +1399,10 @@ body,
     display: none;
   }
 
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+    display: inline-flex;
+  }
+
   .day-cell strong {
     font-size: 0.9rem;
   }
@@ -1394,6 +1432,10 @@ body,
   .dashboard-page .header-controls,
   .dashboard-page .view-switcher {
     display: none;
+  }
+
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+    display: inline-flex;
   }
 
   .dashboard-page .calendar-member-filters .calendar-period-navigation {
