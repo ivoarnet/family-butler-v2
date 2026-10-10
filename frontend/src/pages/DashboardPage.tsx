@@ -399,7 +399,6 @@ export function DashboardPage({
   const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
   const [childcareLoadError, setChildcareLoadError] = useState(false);
   const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
-  const [parentingStatus, setParentingStatus] = useState("");
   const [parentingParties, setParentingParties] = useState<ParentingParty[]>([]);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
@@ -454,7 +453,6 @@ export function DashboardPage({
   useEffect(() => {
     setParentingIntervals([]);
     setParentingParties([]);
-    setParentingStatus("");
     if (!householdData.householdId || !accessToken) return;
     const controller = new AbortController();
     const query = new URLSearchParams({
@@ -467,16 +465,18 @@ export function DashboardPage({
     })
       .then(async (response) => {
         if (!response.ok) throw new Error("Parenting time could not be loaded");
-        return response.json() as Promise<{ intervals: ResolvedParentingInterval[]; parties?: ParentingParty[]; status?: string }>;
+        return response.json() as Promise<{ intervals: ResolvedParentingInterval[]; parties?: ParentingParty[] }>;
       })
       .then((data) => {
         if (controller.signal.aborted) return;
         setParentingIntervals(data.intervals);
         setParentingParties(data.parties ?? []);
-        if (data.status === "cannot_determine") setParentingStatus("Parenting responsibility cannot be determined: no active valid plan covers this range.");
       })
       .catch(() => {
-        if (!controller.signal.aborted) setParentingStatus("Parenting time could not be loaded; responsibility cannot be determined.");
+        if (!controller.signal.aborted) {
+          setParentingIntervals([]);
+          setParentingParties([]);
+        }
       });
     return () => controller.abort();
   }, [accessToken, days, householdData.householdId]);
@@ -485,7 +485,6 @@ export function DashboardPage({
     && (party.memberId == null || orderedMembers.some((member) => member.id === party.memberId))).map((party) => party.id);
   const householdParentingPartyIds = parentingParties.filter((party) => party.active === true
     && orderedMembers.some((member) => member.id === party.memberId)).map((party) => party.id);
-  const hasOptedInChildren = orderedMembers.some((member) => member.isChild === true && member.hatchParentingAway === true);
   const isHatchedChild = (memberId: string) => householdParentingPartyIds.length > 0
     && orderedMembers.some((member) => member.id === memberId && member.isChild === true && member.hatchParentingAway === true);
 
@@ -949,13 +948,6 @@ export function DashboardPage({
                 : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
-          {parentingStatus && <p role="status">{parentingStatus}</p>}
-          {hasOptedInChildren && parentingParties.length > 0 && householdParentingPartyIds.length === 0 && <p role="status">
-            Link an active parenting party to a current household member in Settings → Parenting time to enable child hatching.
-          </p>}
-          {hasOptedInChildren && householdParentingPartyIds.length > 0 && <p className="parenting-hatching-legend">
-            Hatched background: opted-in children scheduled outside household members' parenting parties. Boundaries are a proportional daily cue, not event positions.
-          </p>}
           <div className="calendar-scroll">
             <table className={`calendar-grid${viewMode === "month" ? " month-calendar" : ""}`}>
               <thead>

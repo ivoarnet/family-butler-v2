@@ -961,11 +961,7 @@ body,
   font-weight: 700;
 }
 
-.parenting-hatching-legend {
-  padding: 0 0.75rem;
-  color: var(--text-secondary);
-  font-size: 0.75rem;
-}
+
 
 .specials-entry {
   display: flex;

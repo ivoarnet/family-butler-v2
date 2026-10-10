@@ -464,6 +464,7 @@ export const AwayHatching: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvasElement.querySelectorAll(".today-row .member-event-cell .parenting-away-segment")).toHaveLength(1));
+    await expect(canvas.queryByText(/Hatched background:/)).toBeNull();
     const cells = canvasElement.querySelectorAll(".today-row .member-event-cell");
     const segment = cells[0].querySelector(".parenting-away-segment") as HTMLElement;
     await expect(segment.style.top).toBe("50%");
@@ -515,7 +516,7 @@ export const AwayHatchingMobile: Story = {
 export const UnknownAwayHatching: Story = {
   args: { width: 1440, hatching: true, unknownResponsibility: true },
   play: async ({ canvasElement }) => {
-    await waitFor(() => expect(within(canvasElement).getByText(/Parenting responsibility cannot be determined:/)).toBeVisible());
+    await expect(within(canvasElement).queryByText(/Parenting responsibility cannot be determined:/)).toBeNull();
     await expect(canvasElement.querySelector(".parenting-away-segment")).toBeNull();
     await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
   },
@@ -569,7 +570,8 @@ export const UnavailableParentingTime: Story = {
   args: { width: 1440, hatching: true, parentingUnavailable: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByText(/Parenting time could not be loaded; responsibility cannot be determined/)).toBeVisible());
+    await waitFor(() => expect(canvasElement.querySelector(".calendar-grid")).not.toBeNull());
+    await expect(canvas.queryByText(/Parenting time could not be loaded; responsibility cannot be determined/)).toBeNull();
     await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
     await expect(canvas.getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
   },
@@ -614,7 +616,8 @@ export const PerChildOptOut: Story = {
 export const NoHouseholdPartyLinks: Story = {
   args: { width: 1440, hatching: true, noHouseholdLinks: true },
   play: async ({ canvasElement }) => {
-    await waitFor(() => expect(within(canvasElement).getByText(/Link an active parenting party to a current household member/)).toBeVisible());
+    await waitFor(() => expect(canvasElement.querySelector(".calendar-grid")).not.toBeNull());
+    await expect(within(canvasElement).queryByText(/Link an active parenting party to a current household member/)).toBeNull();
     await expect(canvasElement.querySelector(".parenting-away-background")).toBeNull();
     await expect(within(canvasElement).getAllByRole("button", { name: "Open event Music lesson" }).length).toBeGreaterThan(0);
     expect(calendarSettingsCalls).not.toHaveBeenCalled();
