@@ -286,10 +286,20 @@ export const ProviderCalendarBoundaries: Story = {
 export const SettingsGridStyling: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
     await canvas.findByRole("table", { name: "Childcare occurrences" });
+    const childcareInfo = canvas.getByRole("button", { name: "Childcare information" });
+    await expect(canvas.queryByText(/Manage recurring care separately from calendar events/)).toBeNull();
+    await userEvent.tab();
+    await expect(childcareInfo).toHaveFocus();
+    const providerInfo = canvas.getByRole("button", { name: "Providers information" });
+    await expect(providerInfo).toHaveAttribute("tabindex", "0");
+    await userEvent.hover(providerInfo);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(/Inactive providers are hidden from new care choices/);
+    await userEvent.unhover(providerInfo);
     for (const heading of ["Providers", "Weekly arrangements", "Resolved care"]) {
       const title = canvas.getByRole("heading", { name: heading, level: 2 });
-      await expect(title.parentElement).toHaveClass("section-toolbar");
+      await expect(title.closest(".section-toolbar")).toBeInTheDocument();
       await expect(title.closest("section")).toHaveClass("settings-card");
     }
     for (const [name, text] of [["Add provider", "Provider"], ["Add arrangement", "Arrangement"]]) {

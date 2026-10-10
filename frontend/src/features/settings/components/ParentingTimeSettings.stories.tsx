@@ -98,6 +98,11 @@ export const HouseholdPlan: Story = {
     await waitFor(() => expect(canvas.getByRole("button", { name: "Create schedule" })).toBeVisible());
     await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
     const planDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
+    const scheduleInfo = planDialog.getByRole("button", { name: "Schedule scope and legal information" });
+    await expect(scheduleInfo).toBeVisible();
+    await userEvent.hover(scheduleInfo);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(/not legal advice or proof of custody/);
+    await userEvent.unhover(scheduleInfo);
     await userEvent.click(planDialog.getAllByRole("combobox", { name: "From → To" })[0]);
     await expect(page.getByRole("option", { name: "Dad → Mum" })).toBeInTheDocument();
     await expect(page.getByRole("option", { name: "Mum → Dad" })).toBeInTheDocument();
@@ -161,7 +166,19 @@ export const PartyMemberLinking: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvas.getByRole("button", { name: "Edit parenting party Mum" })).toBeEnabled());
-    await expect(canvas.getByText(/Child background hatching is enabled per child in Members/)).toBeVisible();
+    const partyInfo = canvas.getByRole("button", { name: "Parenting party information" });
+    await expect(partyInfo).toBeVisible();
+    await expect(partyInfo).toHaveAttribute("tabindex", "0");
+    await expect(canvas.queryByText(/Child background hatching is enabled per child in Members/)).toBeNull();
+    const document = canvasElement.ownerDocument;
+    (document.activeElement as HTMLElement | null)?.blur();
+    for (let index = 0; index < 8 && document.activeElement !== partyInfo; index += 1) {
+      await userEvent.tab();
+    }
+    await expect(partyInfo).toHaveFocus();
+    await userEvent.hover(partyInfo);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(/Child background hatching is enabled per child in Members/);
+    await userEvent.unhover(partyInfo);
     await expect(canvas.queryByRole("combobox", { name: "Household parenting party" })).toBeNull();
     await expect(canvas.queryByRole("button", { name: "Save calendar display" })).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: "Edit parenting party Mum" }));
@@ -189,8 +206,11 @@ export const HouseholdPartyLinks: Story = {
   args: { withPlan: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
     await waitFor(() => expect(canvas.getByRole("button", { name: "Edit parenting party Dad" })).toBeEnabled());
-    await expect(canvas.getByText(/Child background hatching is enabled per child in Members/)).toBeVisible();
+    const partyInfo = canvas.getByRole("button", { name: "Parenting party information" });
+    await userEvent.hover(partyInfo);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent(/Unknown periods, stale member links, and archived parties remain unshaded/);
     const mumRow = canvas.getByRole("button", { name: "Edit parenting party Mum" }).closest("tr")!;
     await expect(within(mumRow).getByText("Not linked")).toBeVisible();
     expect(calls.mock.calls.some(([path]) => String(path).endsWith("/calendar-settings"))).toBe(false);

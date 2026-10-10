@@ -9,6 +9,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import type { FamilyMember } from "../../../types/family";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../../../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../../../shared/ui/PickerFields";
+import { SettingsInfo } from "./SettingsInfo";
 import { ProviderCareCalendar } from "./ProviderCareCalendar";
 
 export type ChildcareRequest = (path: string, init?: RequestInit) => Promise<unknown>;
@@ -201,15 +202,19 @@ export function ChildcareSettings({ householdId, members, request }: {
   ) : <Typography>No care occurrences in this range.</Typography>;
 
   return <Stack spacing={3}>
-    <Typography variant="h5" component="h2">Childcare</Typography>
-    <Typography>Manage recurring care separately from calendar events. One-off changes affect only the selected occurrence.</Typography>
+    <div className="section-title-info">
+      <Typography variant="h5" component="h2">Childcare</Typography>
+      <SettingsInfo label="Childcare information" text="Manage recurring care separately from calendar events. One-off changes affect only the selected occurrence." />
+    </div>
     {error && <Alert severity="error" action={!provider && !draft && !override ? <Button disabled={disabled} onClick={() => {
       setError(""); void load(requestedRange.current);
     }}>Retry</Button> : undefined}>{error}</Alert>}
     {loading && <Typography role="status">Loading childcare…</Typography>}
     <section className="settings-card">
       <div className="section-toolbar">
-        <h2>Providers</h2>
+        <span className="section-title-info"><h2>Providers</h2>
+          <SettingsInfo label="Providers information" text="Inactive providers are hidden from new care choices. Deactivation keeps existing recurring care and history; existing assignments remain valid." />
+        </span>
         <button type="button" className="primary-pill no-wrap-button" aria-label="Add provider" disabled={disabled}
           onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>
           <AddCircleOutlineIcon fontSize="small" /> Provider
@@ -239,7 +244,6 @@ export function ChildcareSettings({ householdId, members, request }: {
           </div></td>
         </tr>)}</tbody>
       </table></div>}
-      <Typography variant="body2">Inactive providers are hidden from new care choices. Deactivation keeps existing recurring care and history; existing assignments remain valid.</Typography>
     </section>
     <section className="settings-card">
       <div className="section-toolbar">
@@ -273,7 +277,9 @@ export function ChildcareSettings({ householdId, members, request }: {
       </table></div>}
     </section>
     <section className="settings-card" ref={scheduleSection}>
-      <div className="section-toolbar"><h2>Resolved care</h2></div>
+      <div className="section-toolbar"><span className="section-title-info"><h2>Resolved care</h2>
+        <SettingsInfo label="Resolved care information" text="One-off changes are available for today and upcoming care dates only. Past care is read-only." />
+      </span></div>
       <Typography variant="h6" component="h3">Provider schedule</Typography>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }}>
         <FormField select label="Schedule provider" value={scheduleProviderId} disabled={disabled}
@@ -301,7 +307,6 @@ export function ChildcareSettings({ householdId, members, request }: {
       </Stack>
       {!validRange(range.startDate, range.endDate) && <Alert severity="warning">Choose an ordered range of at most 366 days.</Alert>}
       <Typography variant="body2">Showing {loadedRange.startDate} – {loadedRange.endDate}</Typography>
-      <Typography variant="body2">One-off changes are available for today and upcoming care dates only. Past care is read-only.</Typography>
       {loading && <Typography role="status">Loading provider schedule…</Typography>}
       {!loading && loadFailed && <Alert severity="error">Provider schedule could not be loaded. Use Retry above to reload.</Alert>}
       {!loading && !loadFailed && (scheduleView === "list" ? occurrenceList(providerOccurrences, true) :

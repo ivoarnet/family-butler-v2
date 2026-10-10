@@ -14,6 +14,7 @@ import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../../../shared/ui/PickerFields";
+import { SettingsInfo } from "./SettingsInfo";
 
 export type ParentingTimeRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 type Party = { id: string; name: string; memberId: string | null; active: boolean };
@@ -252,22 +253,18 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   };
 
   return <Stack spacing={3}>
-    <Alert severity="info">This first version applies one household-wide schedule to all children. It is for practical planning, not legal advice or proof of custody.</Alert>
     {error && <Alert severity="error">{error}</Alert>}
     {loading && <Typography role="status">Loading parenting time…</Typography>}
 
     <section className="settings-card">
-      <div className="section-toolbar"><h2>Parenting parties</h2>
+      <div className="section-toolbar"><span className="section-title-info"><h2>Parenting parties</h2>
+        <SettingsInfo label="Parenting party information" text="Child background hatching is enabled per child in Members. Active parties linked to current household members count as within the household; active parties with no member link count as outside. Link at least one active party to enable hatching. Unknown periods, stale member links, and archived parties remain unshaded. This is a background cue, not event timing or a change of responsibility." />
+      </span>
         <button type="button" className="primary-pill no-wrap-button" disabled={busy}
           onClick={() => setPartyDraft({ name: "", memberId: "", active: true })}>
           <AddCircleOutlineIcon fontSize="small" /> Add party
         </button>
       </div>
-      <Typography variant="body2" sx={{ mb: 2 }}>
-        Child background hatching is enabled per child in Members. Active parties linked to current household members
-        count as within the household; active parties with no member link count as outside. Link at least one active party to enable hatching.
-        Unknown periods, stale member links, and archived parties remain unshaded. This is a background cue, not event timing or a change of responsibility.
-      </Typography>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting parties">
         <thead><tr><th>Name</th><th>Household member</th><th>Status</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.parties.map((party) => <tr key={party.id}>
@@ -316,7 +313,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     </section>
 
     <section className="settings-card">
-      <div className="section-toolbar"><h2>Regular parenting-time handovers</h2>
+      <div className="section-toolbar"><span className="section-title-info"><h2>Regular parenting-time handovers</h2>
+        <SettingsInfo label="Regular handovers information" text="This schedule applies to all children in this household and is for practical planning, not legal advice or proof of custody. Define recurring handovers to show when responsibility changes; parenting periods are resolved between handovers." />
+      </span>
         <button type="button" className="primary-pill no-wrap-button" onClick={() => {
           if (!data.plan && planDraft?.handovers?.length === 0 && planDraft) {
             setPlanDraft({ ...planDraft, handovers: defaultHandovers(data.parties) });
@@ -327,7 +326,6 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           {data.plan ? "Edit handovers" : "Create schedule"}
         </button>
       </div>
-      <Typography variant="body2">Define when responsibility changes with recurring handovers. The server resolves the parenting periods between handovers.</Typography>
       {data.plan && <Typography variant="body2" sx={{ mt: 1 }}>
         {data.plan.active ? "Active" : "Inactive"} ·
         {" "}from {data.plan.effectiveFrom}{data.plan.effectiveTo ? ` until ${data.plan.effectiveTo}` : ""}
@@ -358,13 +356,15 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       <GlassDialog open={planDialogOpen} onClose={() => { if (!busy) setPlanDialogOpen(false); }}
         aria-labelledby="parenting-plan-title" maxWidth="lg" fullWidth>
         {planDraft && <Box component="form" onSubmit={(event) => { event.preventDefault(); void savePlan(); }}>
-          <DialogHeader><Typography id="parenting-plan-title" variant="h6">
-            {data.plan ? "Edit recurring handovers" : "Create recurring schedule"}
-          </Typography></DialogHeader>
+          <DialogHeader><span className="section-title-info">
+            <Typography id="parenting-plan-title" variant="h6">
+              {data.plan ? "Edit recurring handovers" : "Create recurring schedule"}
+            </Typography>
+            <SettingsInfo label="Schedule scope and legal information" text="This plan applies to all children in this household. It describes practical arrangements and is not legal advice or proof of custody." />
+          </span></DialogHeader>
           <DialogContentPanel><Box component="fieldset" disabled={busy}
             sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
             {error && <Alert severity="error">{error}</Alert>}
-            <Typography variant="body2">This plan applies to all children in this household. It describes practical arrangements and is not legal advice or proof of custody.</Typography>
             <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
               <DateField label="Effective from" value={planDraft.effectiveFrom}
                 onChange={(effectiveFrom) => { setPlanDraft({ ...planDraft, effectiveFrom }); setPreview([]); }} required />
@@ -378,7 +378,10 @@ export function ParentingTimeSettings({ householdId, members, request }: {
               setPlanDraft({ ...planDraft, active: event.target.checked }); setPreview([]);
             }} />} />
             <Stack sx={{ flexDirection: "row", justifyContent: "space-between", alignItems: "center" }}>
-              <Typography variant="subtitle1">Recurring handovers</Typography>
+              <span className="section-title-info">
+                <Typography variant="subtitle1">Recurring handovers</Typography>
+                <SettingsInfo label="Recurring handovers instructions" text="Add at least one handover, and as many as your schedule needs. Each changes responsibility from one party to another. Choose odd or even ISO weeks for alternating handovers; handovers must form a consistent recurring sequence." />
+              </span>
               <button type="button" className="primary-pill no-wrap-button" onClick={() => {
                 const parties = activeParties;
                 const current = planDraft.handovers ?? [];
@@ -402,9 +405,6 @@ export function ParentingTimeSettings({ householdId, members, request }: {
                 setPreview([]);
               }}><AddCircleOutlineIcon fontSize="small" /> Add handover</button>
             </Stack>
-            <Typography variant="body2">
-              Add at least one handover, and as many as your schedule needs. Each changes responsibility from one party to another. Choose odd or even ISO weeks for alternating handovers; handovers must form a consistent recurring sequence.
-            </Typography>
             {planDraft.handovers?.map((handover, index) => <Box key={handover.id} sx={{
               display: "grid", gap: 1.5, gridTemplateColumns: { xs: "1fr", md: "repeat(3, minmax(0, 1fr)) auto" },
               alignItems: "center", p: 2, border: "1px solid var(--dialog-border)", borderRadius: 2,
@@ -469,13 +469,14 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     </section>
 
     <section className="settings-card">
-      <div className="section-toolbar"><h2>Changes for a period</h2>
+      <div className="section-toolbar"><span className="section-title-info"><h2>Changes for a period</h2>
+        <SettingsInfo label="Parenting-time changes information" text="Holidays, swaps, or special agreements override the regular plan only during the selected time." />
+      </span>
         <button type="button" className="primary-pill no-wrap-button"
           disabled={busy || !data.plan?.active || activeParties.length === 0} onClick={() => setChangeDraft({
           partyId: activeParties[0]?.id ?? "", startAt: "", endAt: "", label: "",
         })}><AddCircleOutlineIcon fontSize="small" /> Add change</button>
       </div>
-      <Typography variant="body2">Holidays, swaps, or special agreements override the regular plan only during the selected time.</Typography>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time changes">
         <thead><tr><th>Period</th><th>With</th><th>Reason</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.changes.map((change) => <tr key={change.id}>

@@ -489,6 +489,13 @@ body,
   margin: 0;
 }
 
+.section-title-info {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  min-width: 0;
+}
+
 .settings-tabs {
   display: flex;
   justify-content: center;
