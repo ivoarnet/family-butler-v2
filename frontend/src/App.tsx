@@ -647,11 +647,6 @@ export function App() {
       navigateTo("/settings");
       return;
     }
-    if (target === "reports") {
-      navigateTo("/reports");
-      return;
-    }
-
     setSettingsSection(target);
     navigateTo("/profile");
   };
@@ -907,7 +902,7 @@ export function App() {
       {dataError ? <div role="alert">{dataError}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
-      <ReportsPage householdData={householdData} accessToken={authSession.access_token} onGoHome={() => navigateTo("/")} />
+      <ReportsPage householdName={householdData.householdName} onGoHome={() => navigateTo("/")} />
     </>
   ) : (
     <>
