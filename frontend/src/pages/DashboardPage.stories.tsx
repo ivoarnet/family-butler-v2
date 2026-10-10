@@ -348,6 +348,9 @@ export const MonthlyCalendarPdf: Story = {
     const pdf = await fetch(downloadLink.getAttribute("href")!).then((response) => response.text());
     await expect(pdf).toContain("%PDF-");
     await expect(pdf).toContain("/MediaBox [0 0 1190.55 841.89]");
+    await userEvent.click(canvas.getByRole("button", { name: "2 Weeks" }));
+    await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
+    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr")).toHaveLength(14);
   },
 };
 

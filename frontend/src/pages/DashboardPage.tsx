@@ -845,7 +845,10 @@ export function DashboardPage({
 
             <div className="pill-group view-switcher" role="group" aria-label="View switcher">
               <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
-                onClick={() => setViewMode("two-weeks")}>
+                onClick={() => {
+                  if (viewMode === "month") setPeriodStart(startOfWeekMonday(monthStart));
+                  setViewMode("two-weeks");
+                }}>
                 2 Weeks
               </button>
               <button type="button" className={viewMode === "month" ? "active" : ""} aria-pressed={viewMode === "month"}
@@ -935,7 +938,10 @@ export function DashboardPage({
             ))}
             <div className="pill-group view-switcher compact-calendar-view-switcher" role="group" aria-label="Calendar view">
               <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
-                onClick={() => setViewMode("two-weeks")}>2 Weeks</button>
+                onClick={() => {
+                  if (viewMode === "month") setPeriodStart(startOfWeekMonday(monthStart));
+                  setViewMode("two-weeks");
+                }}>2 Weeks</button>
               <button type="button" className={viewMode === "month" ? "active" : ""} aria-pressed={viewMode === "month"}
                 onClick={() => {
                   const focusDate = addDays(periodStart, 7);
