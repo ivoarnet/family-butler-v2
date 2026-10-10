@@ -55,19 +55,26 @@ export const CalendarReport: Story = {
     const threeMonthsLater = new Date(firstOfNextMonth.getFullYear(), firstOfNextMonth.getMonth() + 3, 0);
     await expect(fromDate.value).toBe(firstReportDate);
     await expect(toDate.value).toBe(isoDate(threeMonthsLater));
-    await expect(canvas.getByRole("rowheader", { name: "Alex" })).toBeVisible();
-    await expect(canvas.getByRole("rowheader", { name: "Sam" })).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Alex" })).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Sam" })).toBeVisible();
     await expect(canvas.getByText(/Music lesson/)).toBeVisible();
     await expect(canvas.getByText(/Family dinner/)).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Day" })).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Events" })).toBeVisible();
+    await expect(canvas.getByRole("columnheader", { name: "Specials" })).toBeVisible();
+    const dayRows = canvasElement.querySelectorAll(".report-table tbody tr");
+    await expect(dayRows.length).toBeGreaterThanOrEqual(89);
+    await expect(dayRows.length).toBeLessThanOrEqual(92);
 
     const link = await canvas.findByRole("link", { name: `Download calendar report from ${fromDate.value} to ${toDate.value} as PDF` });
     await waitFor(() => expect(link.getAttribute("href")).toMatch(/^blob:/));
     await expect(link.getAttribute("download")).toContain(`family-calendar-${fromDate.value}-to-${toDate.value}.pdf`);
     const pdf = await fetch(link.getAttribute("href")!).then((response) => response.arrayBuffer());
-    const pdfHeader = new TextDecoder().decode(pdf.slice(0, 8));
     const pdfContents = new TextDecoder().decode(pdf);
+    const pdfHeader = pdfContents.slice(0, 8);
     await expect(pdfHeader).toContain("%PDF-");
-    await expect(pdfContents).toContain("/MediaBox [0 0 1190.55 841.89]");
+    await expect(pdfContents).toMatch(/\/MediaBox \[0 0 841\.89\d* 1190\.55\d*\]/);
+    await expect(pdfContents.match(/\/Type\s*\/Page\b/g) ?? []).toHaveLength(3);
 
     const previousDate = new Date(firstOfNextMonth);
     previousDate.setDate(previousDate.getDate() - 1);

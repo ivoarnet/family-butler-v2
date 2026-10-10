@@ -4,7 +4,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import { HouseholdData } from "../features/app/types";
-import type { CalendarReportDay } from "../features/reports/components/CalendarReportPdf";
+import type { CalendarReportDay, CalendarReportMonth } from "../features/reports/components/CalendarReportPdf";
 import { DayConfiguration, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval } from "../types/family";
 
 const CalendarReportPdf = lazy(() => import("../features/reports/components/CalendarReportPdf")
@@ -202,6 +202,7 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
     return {
       date: isoDate,
       label: `${new Intl.DateTimeFormat(REPORT_LOCALE, { weekday: "short" }).format(day)} ${day.getDate()}`,
+      inRange: true,
       memberEntries,
       sharedEntries,
       specials: [...configurations, ...childcare, ...birthdays, ...handovers],
@@ -209,10 +210,37 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
   }), [childcareOccurrences, days, householdData.contacts, householdData.dayConfigurations, householdData.eventTypes,
     householdData.events, householdData.familyMembers, members, parentingIntervals]);
 
-  const reportWeeks = useMemo(() => Array.from(
-    { length: Math.ceil(reportDays.length / 7) },
-    (_, index) => reportDays.slice(index * 7, index * 7 + 7)
-  ), [reportDays]);
+  const reportMonths = useMemo<CalendarReportMonth[]>(() => {
+    const start = parseDate(range.startDate);
+    const end = parseDate(range.endDate);
+    if (!start || !end || end < start) return [];
+    const daysByDate = new Map(reportDays.map((day) => [day.date, day]));
+    const months: CalendarReportMonth[] = [];
+    for (let monthDate = new Date(start.getFullYear(), start.getMonth(), 1);
+      monthDate <= end;
+      monthDate = new Date(monthDate.getFullYear(), monthDate.getMonth() + 1, 1)) {
+      const year = monthDate.getFullYear();
+      const month = monthDate.getMonth();
+      const monthDays = Array.from({ length: new Date(year, month + 1, 0).getDate() }, (_, index) => {
+        const day = new Date(year, month, index + 1);
+        const date = toIsoDate(day);
+        return daysByDate.get(date) ?? {
+          date,
+          label: `${new Intl.DateTimeFormat(REPORT_LOCALE, { weekday: "short" }).format(day)} ${day.getDate()}`,
+          inRange: false,
+          memberEntries: {},
+          sharedEntries: [],
+          specials: [],
+        };
+      });
+      months.push({
+        key: `${year}-${String(month + 1).padStart(2, "0")}`,
+        label: new Intl.DateTimeFormat(REPORT_LOCALE, { month: "long", year: "numeric" }).format(monthDate),
+        days: monthDays,
+      });
+    }
+    return months;
+  }, [range.endDate, range.startDate, reportDays]);
   const updateRange = (field: "startDate" | "endDate", value: string) => setRange((current) => ({ ...current, [field]: value }));
 
   return (
@@ -233,7 +261,7 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
           <div className="report-intro">
             <div>
               <h2>Calendar report</h2>
-              <p>Choose an inclusive date range and download a landscape A3 calendar with household members as rows.</p>
+              <p>Choose an inclusive date range and download one A3 portrait calendar page per month, with household members as columns.</p>
             </div>
             <div className="report-export">
               {isValidRange && <Suspense fallback={<span role="status">Preparing PDF…</span>}>
@@ -241,7 +269,7 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
                   startDate={range.startDate}
                   endDate={range.endDate}
                   members={members.map((member) => ({ id: member.id, name: member.firstName }))}
-                  days={reportDays}
+                  months={reportMonths}
                 />
               </Suspense>}
             </div>
@@ -259,30 +287,30 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
           {loadError && <p className="report-error" role="status">{loadError} The PDF still includes calendar events and configured special days.</p>}
           {isLoading && <p className="report-loading" role="status">Loading childcare and parenting time…</p>}
           {isValidRange && <div className="report-preview">
-            {reportWeeks.map((week, index) => (
-              <div className="report-week" key={week[0]?.date ?? index}>
+            {reportMonths.map((month) => (
+              <div className="report-week" key={month.key}>
+                <h3>{month.label}</h3>
                 <table className="report-table">
                   <thead>
-                    <tr><th scope="col">Member</th>{week.map((day) => <th scope="col" key={day.date}>{day.label}</th>)}</tr>
+                    <tr>
+                      <th scope="col">Day</th>
+                      {members.map((member) => <th scope="col" key={member.id}>{member.firstName}</th>)}
+                      <th scope="col">Events</th>
+                      <th scope="col">Specials</th>
+                    </tr>
                   </thead>
                   <tbody>
-                    {members.map((member) => (
-                      <tr key={member.id}>
-                        <th scope="row">{member.firstName}</th>
-                        {week.map((day) => <td key={day.date}>{(day.memberEntries[member.id] ?? []).map((entry, entryIndex) =>
+                    {month.days.map((day) => (
+                      <tr key={day.date} className={!day.inRange ? "report-outside-range" : ""}>
+                        <th scope="row">{day.label}</th>
+                        {members.map((member) => <td key={member.id}>{(day.memberEntries[member.id] ?? []).map((entry, entryIndex) =>
                           <span className="report-entry" key={entryIndex}>{entry}</span>)}</td>)}
+                        <td>{day.sharedEntries.map((entry, entryIndex) =>
+                          <span className="report-entry" key={entryIndex}>{entry}</span>)}</td>
+                        <td>{day.specials.map((entry, entryIndex) =>
+                          <span className="report-entry" key={entryIndex}>{entry}</span>)}</td>
                       </tr>
                     ))}
-                    <tr className="report-secondary-row">
-                      <th scope="row">Shared</th>
-                      {week.map((day) => <td key={day.date}>{day.sharedEntries.map((entry, entryIndex) =>
-                        <span className="report-entry" key={entryIndex}>{entry}</span>)}</td>)}
-                    </tr>
-                    <tr className="report-secondary-row">
-                      <th scope="row">Specials</th>
-                      {week.map((day) => <td key={day.date}>{day.specials.map((entry, entryIndex) =>
-                        <span className="report-entry" key={entryIndex}>{entry}</span>)}</td>)}
-                    </tr>
                   </tbody>
                 </table>
               </div>

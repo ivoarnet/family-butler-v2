@@ -139,6 +139,13 @@ body,
   border-radius: 0.75rem;
 }
 
+.report-week h3 {
+  margin: 0;
+  padding: 0.65rem 0.75rem;
+  background: var(--surface-strong);
+  font-size: 1rem;
+}
+
 .report-table {
   width: 100%;
   min-width: 760px;
@@ -162,7 +169,7 @@ body,
 }
 
 .report-table th:first-child {
-  width: 10rem;
+  width: 7rem;
 }
 
 .report-table tbody th {
@@ -171,6 +178,11 @@ body,
 
 .report-secondary-row {
   background: var(--row);
+}
+
+.report-outside-range {
+  color: var(--text-secondary);
+  background: rgba(127, 139, 255, 0.04);
 }
 
 .report-entry {
