@@ -89,5 +89,12 @@ export const ChildMemberDetails: Story = {
     await expect(dialog.getByRole("switch", { name: /Hatch background/ })).toBeChecked();
     await expect(dialog.getByRole("textbox", { name: "School building" })).toHaveValue("Sagenhof");
     await expect(dialog.getByRole("textbox", { name: "School class" })).toHaveValue("5f");
+    const colorInput = dialog.getByRole("textbox", { name: "Avatar color hex value" });
+    await expect(dialog.getByLabelText("Avatar color color wheel")).toHaveValue("#3b82f6");
+    await userEvent.click(dialog.getByRole("button", { name: "Select #f97316 avatar color" }));
+    await expect(colorInput).toHaveValue("#f97316");
+    await userEvent.clear(colorInput);
+    await userEvent.type(colorInput, "#12abef");
+    await expect(dialog.getByLabelText("Avatar color color wheel")).toHaveValue("#12abef");
   },
 };

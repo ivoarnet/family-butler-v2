@@ -76,7 +76,7 @@ function BirthdayCalendarEntry({ event }: { event: SpecialEvent }) {
   const label = formatBirthdayLabel(event);
 
   return (
-    <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}`}>
+    <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}. Birthday`}>
       <CakeIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
       <strong>{label}</strong>
       <small>Birthday</small>

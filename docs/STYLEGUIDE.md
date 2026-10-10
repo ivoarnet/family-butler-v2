@@ -59,6 +59,25 @@
 - Card radius: `~1.45rem`
 - Cell padding: `~0.75rem`–`0.9rem`
 
+## Shared form controls
+
+- Use `SecondaryButton` for non-primary dialog actions and `GradientButton` for the primary action.
+- Use the shared date picker for date-only values. It displays Swiss German `DD.MM.YYYY`; form and API state remains the local calendar date in ISO `YYYY-MM-DD` format.
+- Use the shared time picker for time entry. It uses a 24-hour clock, 5-minute picker steps, and preserves `HH:mm` values.
+- Use the shared color picker for member and event-type colors. The color input and editable hex field accept free choice, and existing preset colors remain quick selections.
+- Calendar Specials use a consistent icon, title, and subtitle. Birthday subtitles identify the occasion, childcare subtitles identify participants, and parenting subtitles show the handover or responsible party.
+
+### Shared control and calendar references
+
+Desktop and mobile shared form controls:
+
+![Shared form controls on desktop](./screenshots/shared-form-controls.png)
+![Shared form controls on mobile](./screenshots/shared-form-controls-mobile.png)
+
+Calendar Specials entry layout:
+
+![Calendar Specials layout](./screenshots/calendar-specials-layout.png)
+
 ## Glassmorphism recipe
 
 Used for the sticky header and calendar card:
@@ -75,6 +94,7 @@ Used for the sticky header and calendar card:
 - Use tokenized colors (`--*`) rather than hardcoding new neutrals.
 - Keep controls rounded and high-contrast against translucent surfaces.
 - Preserve locale-aware date rendering for calendar text.
+- Keep date parsing and serialization timezone-free; do not convert date-only values through UTC timestamps.
 
 ### Don’t
 

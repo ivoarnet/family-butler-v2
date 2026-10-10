@@ -8,6 +8,7 @@ import {
   Select,
   TextField,
   Typography,
+  type TypographyProps,
 } from "@mui/material";
 import { alpha, styled } from "@mui/material/styles";
 
@@ -58,7 +59,11 @@ export const GlassPanel = styled(Box)(({ theme }) => ({
   background: "transparent",
 }));
 
-export const FieldTitle = styled(Typography)({
+const FieldTitleBase = ({ component = "h3", ...props }: TypographyProps) => (
+  <Typography {...props} component={component} />
+);
+
+export const FieldTitle = styled(FieldTitleBase)({
   color: "var(--text-primary)",
   fontWeight: 700,
 });

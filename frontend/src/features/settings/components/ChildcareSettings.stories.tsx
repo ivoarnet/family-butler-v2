@@ -158,11 +158,33 @@ const chooseScheduleOption = async (canvasElement: HTMLElement, label: string, o
   await userEvent.click(within(canvasElement).getByRole("combobox", { name: label }));
   await userEvent.click(within(canvasElement.ownerDocument.body).getByRole("option", { name: option }));
 };
+const setPickerDate = async (root: HTMLElement, label: string, value: string) => {
+  const [year, month, day] = value.split("-");
+  for (const [section, part] of [["Day", day], ["Month", month], ["Year", year]]) {
+    const field = within(root).getByRole("group", { name: label });
+    const segment = within(field).getByRole("spinbutton", { name: section });
+    await userEvent.click(segment);
+    await userEvent.keyboard(part);
+  }
+};
+const pickerDateValue = (root: HTMLElement, label: string) => {
+  const field = within(root).getByRole("group", { name: label });
+  return (field.querySelector("input") as HTMLInputElement | null)?.value ?? "";
+};
+const setPickerTime = async (root: HTMLElement, label: string, value: string) => {
+  const [hours, minutes] = value.split(":");
+  for (const [section, part] of [["Hours", hours], ["Minutes", minutes]]) {
+    const field = within(root).getByRole("group", { name: label });
+    const segment = within(field).getByRole("spinbutton", { name: section });
+    await userEvent.click(segment);
+    await userEvent.keyboard(part);
+  }
+};
 const showOctoberSchedule = async (canvasElement: HTMLElement) => {
   const canvas = within(canvasElement);
-  await waitFor(() => expect(canvas.getByLabelText("Range start")).toBeEnabled());
-  await fireEvent.change(canvas.getByLabelText("Range start"), { target: { value: "2026-10-01" } });
-  await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2026-10-31" } });
+  await waitFor(() => expect(canvas.getByRole("group", { name: "Range start" })).toBeInTheDocument());
+  await setPickerDate(canvasElement, "Range start", "2026-10-01");
+  await setPickerDate(canvasElement, "Range end", "2026-10-31");
   await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
   await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
 };
@@ -206,9 +228,9 @@ export const ProviderSchedule: Story = {
       await expect(canvas.queryByRole("button", { name: label })).not.toBeInTheDocument();
       await expect(canvas.queryByRole("link", { name: label })).not.toBeInTheDocument();
     }
-    await expect(canvas.getByLabelText("Range start")).toHaveValue("2026-10-01");
-    await expect(canvas.getByLabelText("Range end")).toHaveValue("2026-10-31");
-    await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2020-01-01" } });
+    await expect(pickerDateValue(canvasElement, "Range start")).toBe("01.10.2026");
+    await expect(pickerDateValue(canvasElement, "Range end")).toBe("31.10.2026");
+    await setPickerDate(canvasElement, "Range end", "2020-01-01");
     await expect(canvas.getByRole("button", { name: "Show care" })).toBeDisabled();
     await showOctoberSchedule(canvasElement);
     await chooseScheduleOption(canvasElement, "Schedule provider", "Grandma Jo (Inactive)");
@@ -233,7 +255,7 @@ export const ProviderScheduleRetry: Story = {
     const canvas = within(canvasElement);
     await showOctoberSchedule(canvasElement);
     await expect(canvas.getByRole("table", { name: "Childcare occurrences" })).toBeInTheDocument();
-    await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: "2026-11-30" } });
+    await setPickerDate(canvasElement, "Range end", "2026-11-30");
     await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
     await canvas.findByText("Schedule connection lost.");
     await expect(canvas.queryByRole("table", { name: "Childcare occurrences" })).not.toBeInTheDocument();
@@ -247,13 +269,13 @@ export const ProviderCalendarBoundaries: Story = {
   render: () => <ChildcareSettings householdId={householdId} members={members} request={providerScheduleRequest} />,
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByLabelText("Range start")).toBeEnabled());
+    await waitFor(() => expect(canvas.getByRole("group", { name: "Range start" })).toBeInTheDocument());
     await chooseScheduleOption(canvasElement, "Schedule view", "Calendar");
     for (const [start, end, months] of [
       ["2028-02-01", "2028-03-01", 2], ["9999-12-01", "9999-12-31", 1],
     ] as const) {
-      await fireEvent.change(canvas.getByLabelText("Range start"), { target: { value: start } });
-      await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: end } });
+      await setPickerDate(canvasElement, "Range start", start);
+      await setPickerDate(canvasElement, "Range end", end);
       await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
       await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
       await expect(canvas.getAllByRole("table", { name: /Provider care calendar/ })).toHaveLength(months);
@@ -312,8 +334,8 @@ export const LocalDateDefaults: Story = {
     const lastDay = new Date(end.getFullYear(), end.getMonth() + 1, 0).getDate();
     end.setDate(Math.min(day, lastDay) - 1);
     const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
-    await expect(canvas.getByLabelText("Range start")).toHaveValue(date());
-    await expect(canvas.getByLabelText("Range end")).toHaveValue(endDate);
+    await expect(pickerDateValue(canvasElement, "Range start")).toBe(date().split("-").reverse().join("."));
+    await expect(pickerDateValue(canvasElement, "Range end")).toBe(endDate.split("-").reverse().join("."));
     await expect(canvas.getByRole("combobox", { name: "Schedule view" })).toHaveTextContent("List");
     await expect(canvas.queryByRole("table", { name: /Provider care calendar/ })).not.toBeInTheDocument();
     await expect(calls.mock.calls.some(([path]) => String(path).includes(`/occurrences?startDate=${date()}&endDate=${endDate}`))).toBe(true);
@@ -324,8 +346,8 @@ export const HistoricalCareReadOnly: Story = {
     const canvas = within(canvasElement);
     const reload = await canvas.findByRole("button", { name: "Show care" });
     await waitFor(() => expect(reload).toBeEnabled());
-    await fireEvent.change(canvas.getByLabelText("Range start"), { target: { value: date(-7) } });
-    await fireEvent.change(canvas.getByLabelText("Range end"), { target: { value: date(-1) } });
+    await setPickerDate(canvasElement, "Range start", date(-7));
+    await setPickerDate(canvasElement, "Range end", date(-1));
     await userEvent.click(reload);
     const care = within(await canvas.findByRole("table", { name: "Childcare occurrences" }));
     await expect(care.queryByRole("button", { name: /Change care/ })).not.toBeInTheDocument();
@@ -421,16 +443,16 @@ export const AddAnExtraCareDay: Story = {
     await waitFor(() => expect(add).toBeEnabled());
     await userEvent.click(add);
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
-    const dateInput = dialog.getByLabelText("Added care date");
-    const addedDate = dateInput.getAttribute("value") ?? (dateInput as HTMLInputElement).value;
+    const dialogElement = within(canvasElement.ownerDocument.body).getByRole("dialog");
+    const addedDate = pickerDateValue(dialogElement, "Added care date").split(".").reverse().join("-");
     expect(new Date(`${addedDate}T00:00:00Z`).getUTCDay()).not.toBe(1);
     await expect(dialog.getByText("Using Grandma Jo for Alex, Sam · 09:00–16:00. The weekly arrangement stays unchanged.")).toBeInTheDocument();
     const scheduledDate = Array.from({ length: 8 }, (_, offset) => date(offset))
       .find((candidate) => new Date(`${candidate}T00:00:00Z`).getUTCDay() === 1)!;
-    await fireEvent.change(dateInput, { target: { value: scheduledDate } });
+    await setPickerDate(dialogElement, "Added care date", scheduledDate);
     await expect(dialog.getByText("This date is already covered by the arrangement.")).toBeInTheDocument();
     await expect(dialog.getByRole("button", { name: "Add childcare day" })).toBeDisabled();
-    await fireEvent.change(dateInput, { target: { value: addedDate } });
+    await setPickerDate(dialogElement, "Added care date", addedDate);
     await expect(dialog.getByRole("button", { name: "Add childcare day" })).toBeEnabled();
     await userEvent.click(dialog.getByRole("button", { name: "Add childcare day" }));
     const care = within(await canvas.findByRole("table", { name: "Childcare occurrences" }));
@@ -452,12 +474,13 @@ export const FutureArrangementPreviewRange: Story = {
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
     await userEvent.click(dialog.getByRole("checkbox", { name: "Alex" }));
     await userEvent.click(dialog.getByRole("checkbox", { name: "Monday" }));
-    await fireEvent.change(dialog.getByLabelText(/Effective start/), { target: { value: date(120) } });
+    const dialogElement = within(canvasElement.ownerDocument.body).getByRole("dialog");
+    await setPickerDate(dialogElement, "Effective start", date(120));
     await userEvent.click(dialog.getByRole("button", { name: "Preview care" }));
     await dialog.findByText("No care occurrences in this range.");
     await waitFor(() => expect(dialog.getByRole("button", { name: "Save arrangement" })).toBeEnabled());
-    await fireEvent.change(dialog.getByLabelText("Preview start"), { target: { value: date(120) } });
-    await fireEvent.change(dialog.getByLabelText("Preview end"), { target: { value: date(147) } });
+    await setPickerDate(dialogElement, "Preview start", date(120));
+    await setPickerDate(dialogElement, "Preview end", date(147));
     await expect(dialog.getByRole("button", { name: "Save arrangement" })).toBeDisabled();
     await userEvent.click(dialog.getByRole("button", { name: "Preview care" }));
     await dialog.findByRole("table", { name: "Childcare preview" });
@@ -591,8 +614,8 @@ export const OneOffProviderAndTimingReplacement: Story = {
     const replacementId = option.getAttribute("data-value");
     await expect(replacementId).toEqual(expect.any(String));
     await userEvent.click(option);
-    await fireEvent.change(dialog.getByLabelText(/Start time/), { target: { value: "10:00" } });
-    await fireEvent.change(dialog.getByLabelText(/End time/), { target: { value: "17:30" } });
+    await setPickerTime(within(canvasElement.ownerDocument.body).getByRole("dialog"), "Start time", "10:00");
+    await setPickerTime(within(canvasElement.ownerDocument.body).getByRole("dialog"), "End time", "17:30");
     await userEvent.click(dialog.getByRole("button", { name: "Save one-off change" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) => String(path).endsWith("/overrides") && init.method === "PUT")).toBe(true));
     const saved = calls.mock.calls.find(([path, init]) => String(path).endsWith("/overrides") && init.method === "PUT");
@@ -636,9 +659,9 @@ export const MoveChangedOccurrence: Story = {
     await expect(dialog.getByText(`Original scheduled date: ${date(2)}. Weekly care remains unchanged.`)).toBeInTheDocument();
     await userEvent.click(dialog.getByRole("combobox", { name: "One-off action" }));
     await userEvent.click(page.getByRole("option", { name: "Move care date" }));
-    const moved = dialog.getByLabelText(/Moved date/);
-    await fireEvent.change(moved, { target: { value: date(5) } });
-    await expect(moved).toHaveValue(date(5));
+    const dialogElement = page.getByRole("dialog");
+    await setPickerDate(dialogElement, "Moved date", date(5));
+    await expect(pickerDateValue(dialogElement, "Moved date")).toBe(date(5).split("-").reverse().join("."));
     await userEvent.click(dialog.getByRole("button", { name: "Save one-off change" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) => String(path).endsWith("/overrides")
       && JSON.parse(init.body).originalDate === date(2) && JSON.parse(init.body).movedDate === date(5))).toBe(true));
@@ -653,7 +676,8 @@ export const EditMovedCarePreservesDate: Story = {
     const dialog = within(within(canvasElement.ownerDocument.body).getByRole("dialog"));
     await expect(dialog.getByRole("combobox", { name: "One-off action" })).toHaveTextContent("Move care date");
     await expect(dialog.getByText(`Effective care date: ${date(3)}.`)).toBeInTheDocument();
-    await expect(dialog.getByLabelText(/Moved date/)).toHaveValue(date(3));
+    await expect(pickerDateValue(within(canvasElement.ownerDocument.body).getByRole("dialog"), "Moved date"))
+      .toBe(date(3).split("-").reverse().join("."));
     await userEvent.click(dialog.getByRole("checkbox", { name: "All-day care" }));
     await userEvent.click(dialog.getByRole("button", { name: "Save one-off change" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) => String(path).endsWith("/overrides") && init.method === "PUT")).toBe(true));

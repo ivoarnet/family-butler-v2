@@ -12,7 +12,13 @@ interface ColorPickerProps {
 }
 
 const isHexColor = (value: string) => /^#(?:[\da-f]{3}|[\da-f]{6})$/i.test(value);
-const pickerColor = (value: string) => (isHexColor(value) ? value : "#000000");
+const pickerColor = (value: string) => {
+  if (/^#[\da-f]{6}$/i.test(value)) return value;
+  if (/^#[\da-f]{3}$/i.test(value)) {
+    return `#${value.slice(1).split("").map((digit) => `${digit}${digit}`).join("")}`;
+  }
+  return "#000000";
+};
 
 export function ColorPicker({ label, value, onChange, helperText, disabled = false, presets = [] }: ColorPickerProps) {
   const [textValue, setTextValue] = useState(value);
