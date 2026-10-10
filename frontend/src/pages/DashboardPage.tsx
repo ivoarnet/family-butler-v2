@@ -3,6 +3,7 @@ import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
+import FamilyRestroomIcon from "@mui/icons-material/FamilyRestroom";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
@@ -14,9 +15,11 @@ import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
 import { EventDialog, EventDialogFormState } from "../features/dashboard/components/EventDialog";
 import { EventDetailDialog } from "../features/dashboard/components/EventDetailDialog";
+import { ParentingResponsibilityWarning } from "../features/dashboard/components/ParentingResponsibilityWarning";
+import { ParentingAwayBackground } from "../features/dashboard/components/ParentingAwayBackground";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
-import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence } from "../types/family";
+import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval, ParentingParty } from "../types/family";
 import type { Dispatch, ElementType, SetStateAction } from "react";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
@@ -75,6 +78,40 @@ function BirthdayCalendarEntry({ event }: { event: SpecialEvent }) {
     <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}`}>
       <CakeIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
       <strong>{label}</strong>
+    </div>
+  );
+}
+
+function ParentingCalendarEntry({ interval, day, intervals }: {
+  interval: ResolvedParentingInterval;
+  day: Date;
+  intervals: ResolvedParentingInterval[];
+}) {
+  const start = new Date(interval.startAt);
+  const end = new Date(interval.endAt);
+  const nextDay = addDays(day, 1);
+  const time = (date: Date) => date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hourCycle: "h23" });
+  const previous = intervals.find((item) => item.endAt === interval.startAt && item.partyId !== interval.partyId);
+  const next = intervals.find((item) => item.startAt === interval.endAt && item.partyId !== interval.partyId);
+  const change = interval.source.type === "change";
+  const partyName = interval.partyName ?? "Parenting party";
+  const timeLabel = start <= day && end >= nextDay ? "All day"
+    : `${start <= day ? "00:00" : time(start)} – ${end >= nextDay ? "24:00" : time(end)}`;
+  const handOffTime = previous && start >= day && start < nextDay ? time(start) : null;
+  const details = [
+    timeLabel,
+    `${change ? "Adjusted responsibility" : "Normal plan"}: ${start.toLocaleString()} – ${end.toLocaleString()}`,
+    change && `One-off change${interval.source.type === "change" && interval.source.label ? ` · ${interval.source.label}` : ""}`,
+    previous && start >= day && start < nextDay && `Handover from ${previous.partyName} at ${time(start)}`,
+    next && end > day && end <= nextDay && `Handover to ${next.partyName} at ${time(end)}`,
+  ].filter(Boolean).join(" · ");
+  return (
+    <div className="specials-entry calendar-parenting-entry"
+      title={`Parenting · ${partyName} · ${details}`}
+      aria-label={`Parenting: ${partyName}. ${details}`}>
+      <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
+      <strong>Parenting</strong>
+      {handOffTime && <small>{handOffTime} → {partyName}</small>}
     </div>
   );
 }
@@ -343,6 +380,9 @@ export function DashboardPage({
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
   const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
   const [childcareLoadError, setChildcareLoadError] = useState(false);
+  const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
+  const [parentingStatus, setParentingStatus] = useState("");
+  const [parentingParties, setParentingParties] = useState<ParentingParty[]>([]);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
@@ -389,6 +429,44 @@ export function DashboardPage({
 
     return () => controller.abort();
   }, [accessToken, days, householdData.householdId]);
+
+  useEffect(() => {
+    setParentingIntervals([]);
+    setParentingParties([]);
+    setParentingStatus("");
+    if (!householdData.householdId || !accessToken) return;
+    const controller = new AbortController();
+    const query = new URLSearchParams({
+      startAt: days[0].toISOString(),
+      endAt: addDays(days[days.length - 1], 1).toISOString(),
+    });
+    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/parenting-time/resolve?${query}`, {
+      headers: { Authorization: ["Bearer", accessToken].join(" "), "x-supabase-auth-token": accessToken },
+      signal: controller.signal,
+    })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Parenting time could not be loaded");
+        return response.json() as Promise<{ intervals: ResolvedParentingInterval[]; parties?: ParentingParty[]; status?: string }>;
+      })
+      .then((data) => {
+        if (controller.signal.aborted) return;
+        setParentingIntervals(data.intervals);
+        setParentingParties(data.parties ?? []);
+        if (data.status === "cannot_determine") setParentingStatus("Parenting responsibility cannot be determined: no active valid plan covers this range.");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setParentingStatus("Parenting time could not be loaded; responsibility cannot be determined.");
+      });
+    return () => controller.abort();
+  }, [accessToken, days, householdData.householdId]);
+
+  const activeParentingPartyIds = parentingParties.filter((party) => party.active === true
+    && (party.memberId == null || orderedMembers.some((member) => member.id === party.memberId))).map((party) => party.id);
+  const householdParentingPartyIds = parentingParties.filter((party) => party.active === true
+    && orderedMembers.some((member) => member.id === party.memberId)).map((party) => party.id);
+  const hasOptedInChildren = orderedMembers.some((member) => member.isChild === true && member.hatchParentingAway === true);
+  const isHatchedChild = (memberId: string) => householdParentingPartyIds.length > 0
+    && orderedMembers.some((member) => member.id === memberId && member.isChild === true && member.hatchParentingAway === true);
 
   const birthdayEventsByDate = useMemo(() => {
     const grouped = new Map<string, SpecialEvent[]>();
@@ -808,6 +886,13 @@ export function DashboardPage({
                 : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
+          {parentingStatus && <p role="status">{parentingStatus}</p>}
+          {hasOptedInChildren && parentingParties.length > 0 && householdParentingPartyIds.length === 0 && <p role="status">
+            Link an active parenting party to a current household member in Settings → Parenting time to enable child hatching.
+          </p>}
+          {hasOptedInChildren && householdParentingPartyIds.length > 0 && <p className="parenting-hatching-legend">
+            Hatched background: opted-in children scheduled outside household members' parenting parties. Boundaries are a proportional daily cue, not event positions.
+          </p>}
           <div className="calendar-scroll">
             <table className="calendar-grid">
               <thead>
@@ -835,6 +920,10 @@ export function DashboardPage({
                   const isWeekend = day.getDay() === 0 || day.getDay() === 6;
                   const birthdayEntries = birthdayEventsByDate.get(isoDate) ?? [];
                   const childcareEntries = childcareByDate.get(isoDate) ?? [];
+                  const parentingEntries = parentingIntervals.filter((interval) =>
+                    new Date(interval.startAt) >= day && new Date(interval.startAt) < addDays(day, 1)
+                    && parentingIntervals.some((previous) =>
+                      previous.endAt === interval.startAt && previous.partyId !== interval.partyId));
                   const dayDecorations = dayDecorationsByDate.get(isoDate) ?? { corners: [] };
                   const isFirstDayOfWeek = dayIndex % 7 === 0;
                   const weekNumber = getIsoWeekNumber(day);
@@ -873,7 +962,9 @@ export function DashboardPage({
                       {visibleMembers.map((member) => {
                         const entries = eventsByDateAndMember.get(`${isoDate}|${member.id}`) ?? [];
                         return (
-                          <td key={`${isoDate}-${member.id}`} className="event-cell member-event-cell">
+                          <td key={`${isoDate}-${member.id}`} className={`event-cell member-event-cell${isHatchedChild(member.id) ? " parenting-hatched-cell" : ""}`}>
+                            {isHatchedChild(member.id) && <ParentingAwayBackground day={day}
+                              intervals={parentingIntervals} householdPartyIds={householdParentingPartyIds} activePartyIds={activeParentingPartyIds} />}
                             {entries.map((entry) => {
                               const eventType = entry.eventTypeId ? eventTypeById.get(entry.eventTypeId) : null;
                               const assignedMembers = entry.memberIds
@@ -895,7 +986,9 @@ export function DashboardPage({
                         );
                       })}
 
-                      <td className="event-cell shared-events-column">
+                      <td className={`event-cell shared-events-column${selectedMember && isHatchedChild(selectedMember.id) ? " parenting-hatched-cell" : ""}`}>
+                        {selectedMember && isHatchedChild(selectedMember.id) && <ParentingAwayBackground day={day}
+                          intervals={parentingIntervals} householdPartyIds={householdParentingPartyIds} activePartyIds={activeParentingPartyIds} />}
                         {(eventsByDateAndMember.get(isoDate) ?? [])
                           .filter((entry) => !selectedMember || entry.memberIds.length === 0 || entry.memberIds.includes(selectedMember.id))
                           .map((entry) => (
@@ -910,7 +1003,10 @@ export function DashboardPage({
                           ))}
                       </td>
 
-                      <td className={`specials-cell${childcareEntries.length > 0 || birthdayEntries.length > 0 ? " has-specials-entries" : ""}`}>
+                      <td className={`specials-cell${childcareEntries.length > 0 || birthdayEntries.length > 0 || parentingEntries.length > 0 ? " has-specials-entries" : ""}`}>
+                        {parentingEntries.map((interval) => (
+                          <ParentingCalendarEntry key={`${interval.startAt}-${interval.partyId}`} interval={interval} day={day} intervals={parentingIntervals} />
+                        ))}
                         {childcareEntries.map((occurrence) => (
                           <ChildcareCalendarEntry
                             key={occurrence.id}
@@ -949,6 +1045,8 @@ export function DashboardPage({
         endDateError={eventEndDateError}
         memberSelectionError={eventMemberSelectionError}
         timeErrorMessage={eventTimeErrorMessage}
+        planningAssistance={isEventDialogOpen ? <ParentingResponsibilityWarning
+          key={householdData.householdId} householdId={householdData.householdId} accessToken={accessToken} formState={eventFormState} /> : null}
         onClose={closeEventDialog}
         onSubmit={submitEvent}
         onFormStateChange={(updater) => setEventFormState((current) => updater(current))}

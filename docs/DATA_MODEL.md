@@ -37,6 +37,14 @@ erDiagram
 - Day configurations are persisted in the `day_configurations` table and are available through the household API and agent tools.
 - Service-layer validation must enforce same-household consistency for cross-table references.
 
+## Household members — child classification and school details
+
+Settings → Members records whether a household member **is a child**, independently of the optional free-text role/relationship. `isChild` defaults to false; no role, name, or school value is used to infer it. Optional `schoolBuilding` (up to 100 characters, for example, `Sagenhof`) and `schoolClass` (up to 50 characters, for example, `5f`) are member metadata, not separate schools, enrollment workflows, or a child-specific parenting plan. These fields are persisted through the household API and remain available after refresh. Omitting them in an older client's update preserves existing values; blank school fields explicitly clear them.
+
+Child members can opt into **Hatch background when parenting is not with a household member** (`hatchParentingAway`, default false). A parenting party's optional `memberId` link identifies responsibility within the household; no separate calendar party selector or acting-user identity inference is needed. School details and the hatch preference are retained when child classification is switched off, but only child members with the hatch preference enabled are shaded.
+
+Apply `docs/sql/household-member-details.sql` before deploying this version. On its first run, previously explicit Parenting calendar child-column selections are copied to member classification, and the hatch preference is enabled for those members only if the old display preference was enabled; subsequent runs do not overwrite user changes. Thereafter member settings and party-member links are the sources for parenting hatching.
+
 ## Parenting time — persisted plan and server resolver
 
 Parenting time models who is responsible for all children in a household. It is separate from childcare, ordinary `Event` records, and `DayConfiguration`. A `ParentingTimeParty` can optionally link to a `HouseholdMember` in the same household; it does not require one, so a co-parent need not be represented as a household member.
@@ -48,6 +56,7 @@ Apply `docs/sql/parenting-time.sql` after the core Supabase schema.
 - `parenting_time_parties`: household-owned named parties (for example, Mum and Dad), with an optional `memberId` link to a same-household `HouseholdMember` and an `active` flag. Parties can be renamed, linked, archived, and restored; archive preserves references from existing plans and changes. Standalone parties remain supported.
 - `parenting_time_plans`: at most one household-wide plan, local effective-from date, optional inclusive effective-through date, IANA time zone, recurrence mode (`weekly` or `alternating`), activation state, compiled recurring rules, and the editable handover list. A handover has a stable UUID, ISO weekday (Monday = 1 through Sunday = 7), local time, `fromPartyId`, `toPartyId`, and optional `weekParity` (`odd` or `even`). Add one or more handovers; the resolver requires their recurring sequence to be consistent and to define responsibility across the entire week/two-week cycle. Handovers compile server-side into recurring rules, so gaps and overlaps between different parties are rejected. The legacy period-rule format remains supported for existing plans.
 - `parenting_time_changes`: dated, half-open `[startAt, endAt)` timestamp interval, responsible party, and explanatory label. Changes must not overlap one another and take precedence over the recurring plan only within their interval.
+- `parenting_time_calendar_settings`: legacy household display preferences (`showAwayHatching`, `householdPartyId`, `childMemberIds`). Retained for API compatibility and one-time migration; the calendar now uses member classification, per-child hatching preferences, and parenting-party member links instead. Children still share the household-wide schedule.
 
 Recurring rule times are household-local wall-clock times in the plan's IANA time zone. When a wall time occurs twice at a daylight-saving transition the resolver uses the earlier occurrence; a nonexistent wall time is reported as invalid for that requested range. One-off change timestamps and resolver range bounds are timezone-bearing ISO 8601 date-times and are normalized to UTC.
 
@@ -70,7 +79,10 @@ All paths are relative to `/api/households/{householdId}/parenting-time`. Reques
 | POST or PUT | `/changes` | Create a one-off interval or update one using its `id`. |
 | DELETE | `/changes?id=<change UUID>` | Remove a one-off change. |
 | POST | `/preview` | Resolve a draft plan without saving: `{ plan, startAt, endAt }` → `{ intervals }`, using the same server resolver and persisted changes. |
-| GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return `{ intervals }` for a range of at most 366 days. |
+| GET | `/resolve?startAt=2026-10-08T00:00:00Z&endAt=2026-10-13T00:00:00Z` | Return resolved intervals and determination status for a range of at most 366 days. |
+| POST | `/check` | Read-only advisory check: `{ partyId, startAt, endAt }` → `{ status, responsible, overlaps, reason? }`. |
+| GET | `/calendar-settings` | Legacy API: read persisted `{ showAwayHatching, householdPartyId, childMemberIds }`, or disabled defaults. Not used by the current calendar. |
+| PUT | `/calendar-settings` | Legacy API: validate and save the previous household display preferences. Not used by the current calendar. |
 
 Create the representative plan (using returned party UUIDs) with its handover events:
 
@@ -95,7 +107,17 @@ On an odd ISO Friday-week, Father's Thursday period continues through Sunday and
 { "partyId": "<mother>", "startAt": "2026-10-09T18:00:00Z", "endAt": "2026-10-09T20:00:00Z", "label": "Agreed swap" }
 ```
 
-Settings → Parenting Time provides household-wide party, recurring-handover, and dated-change management. Add or remove handovers as needed; each has a weekday/time, from/to parties, and a weekly, odd ISO-week, or even ISO-week recurrence. The handover list supports schedules such as weekday handovers combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data. Calendar presentation and agent tools are not included.
+Settings → Parenting Time provides household-wide party, recurring-handover, and dated-change management. Add or remove handovers as needed; each has a weekday/time, from/to parties, and a weekly, odd ISO-week, or even ISO-week recurrence. The handover list supports schedules such as weekday handovers combined with alternating weekends. It previews the next 14 days through `/preview`; persisted schedule views and the household calendar use `/resolve`. The resolver does not pre-generate future occurrences or create generic events. Ordinary household saves do not replace parenting-time data.
+
+The calendar's Specials column renders only incoming handovers confirmed by adjacent resolved intervals with different parties, on the local day of the transition. Each entry shows the parenting icon and `Parenting`, then `HH:mm → Party`; hover details retain the interval and normal-plan/one-off-change provenance. Continuing responsibility, same-party changes, and clipped range starts without a confirmed predecessor do not create entries. All resolved intervals remain available for hatching and planning checks.
+
+Responsibility checks reuse persisted plan resolution and half-open bounds: an event ending exactly at a handover does not overlap the next party's interval. `status: "determined"` includes `responsible: true` when any interval belongs to the selected active household party, otherwise `false`. `overlaps` preserve normal-plan or one-off-change provenance. Missing/inactive/invalid plans, unresolved responsibility, or ranges not fully covered by plan effective dates return `status: "cannot_determine"` and `responsible: null`, never a guessed no-conflict result. Malformed requests or invalid acting-party IDs are rejected. Checks are advisory, never event-creation restrictions; childcare is not a transfer of responsibility.
+
+The event dialog's explicit personal-event opt-in and acting-party selection are development-only until authenticated users can be securely mapped to parenting parties. Selection is transient and is not an authorization claim. Calendar days and event form times use the browser's local timezone and are sent as timezone-bearing UTC timestamps; recurring parenting handovers remain resolved in the persisted plan timezone. All-day events include the last day through the following local midnight. The dialog checks the first occurrence only, not an entire event recurrence. Agents can invoke `check_parenting_responsibility` using an explicit party UUID within the authenticated household context; they must ask for that party instead of inferring “me”. Supabase privileged access remains server-side.
+
+Optional absence hatching uses active parenting parties' optional links to current household members, not the acting-user party. Once at least one active party is linked to a household member, intervals assigned to active unlinked parties are shown as away. A non-null link to a missing member is unknown and remains unshaded, rather than being treated as explicitly unlinked. All household-linked parties count as within the household, so switching between them does not imply absence. With no household-linked party, hatching stays off rather than guessing.
+
+It clips away intervals to each local calendar day and shades only members marked `isChild: true` with `hatchParentingAway: true`, using the actual day's duration (including DST) for proportional boundaries. Hand-off markers come only from adjacent resolved intervals that change parties. The decoration ignores pointer events and never filters, blocks, moves, or creates events; existing event cards are not a time-grid. In compact layouts it is applied only to the Events cell when filtering for a child who opted in. Unknown/uncovered periods and missing/inactive interval parties remain unshaded. Member settings survive reload through the authorized household API and do not affect agent responsibility checks or childcare.
 
 ## Childcare — implemented
 

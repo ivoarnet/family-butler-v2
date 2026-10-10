@@ -1,8 +1,9 @@
 const db = require("../shared/db");
 const { getAuthenticatedUserId } = require("../shared/auth");
 const {
-  assert, validateId, validateParty, validatePlan, validateHandovers, compileHandovers,
+  assert, validateId, validateParty, validateCalendarSettings, validatePlan, validateHandovers, compileHandovers,
   validateChange, resolveParentingTime, getPlanStartTimestamp, getPlanEndTimestamp,
+  resolvePersistedParentingTime, checkParentingResponsibility,
 } = require("../shared/parentingTime");
 
 const validatedPlan = (body, parties) => {
@@ -30,17 +31,35 @@ module.exports = async function parentingTime(context, req) {
       return;
     }
     const method = request.method.toUpperCase();
+    if (resource === "calendar-settings") {
+      if (method === "GET") {
+        context.res = { status: 200, body: await db.getParentingCalendarSettings(householdId) };
+      } else if (method === "PUT") {
+        const parties = await db.getParentingParties(householdId);
+        const settings = validateCalendarSettings(request.body, parties, household.memberIds);
+        context.res = { status: 200, body: await db.saveParentingCalendarSettings(householdId, settings) };
+      } else {
+        context.res = { status: 405, body: { error: "calendar-settings supports GET and PUT" } };
+      }
+      return;
+    }
     if (method === "GET" && (!resource || resource === "resolve")) {
       const data = await db.getParentingTime(householdId);
       context.res = {
         status: 200,
         body: resource === "resolve"
-          ? { intervals: resolveParentingTime(data, request.query?.startAt, request.query?.endAt) }
+          ? resolvePersistedParentingTime(data, request.query?.startAt, request.query?.endAt, { allowPartial: true })
           : data,
       };
       return;
     }
     const body = request.body;
+    if (method === "POST" && resource === "check") {
+      assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
+      const data = await db.getParentingTime(householdId);
+      context.res = { status: 200, body: checkParentingResponsibility(data, body.partyId, body.startAt, body.endAt) };
+      return;
+    }
     if (method === "POST" && resource === "preview") {
       assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
       const data = await db.getParentingTime(householdId);

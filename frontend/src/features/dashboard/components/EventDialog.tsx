@@ -1,4 +1,4 @@
-import { FormEvent } from "react";
+import { FormEvent, ReactNode } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import { Box, Button, FormControl, FormControlLabel, MenuItem, Switch, Typography, useMediaQuery } from "@mui/material";
 import { alpha, styled, useTheme } from "@mui/material/styles";
@@ -124,6 +124,7 @@ interface EventDialogProps {
   endDateError: boolean;
   memberSelectionError: boolean;
   timeErrorMessage: string | null;
+  planningAssistance?: ReactNode;
   onClose: () => void;
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onFormStateChange: (updater: (current: EventDialogFormState) => EventDialogFormState) => void;
@@ -140,6 +141,7 @@ export function EventDialog({
   endDateError,
   memberSelectionError,
   timeErrorMessage,
+  planningAssistance,
   onClose,
   onSubmit,
   onFormStateChange,
@@ -373,6 +375,8 @@ export function EventDialog({
               </Typography>
             ) : null}
           </GlassPanel>
+
+          {planningAssistance}
 
           <GlassPanel>
             <FieldTitle variant="subtitle1">Details</FieldTitle>

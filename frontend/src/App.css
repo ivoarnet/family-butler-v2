@@ -904,6 +904,40 @@ body,
   margin-bottom: 0.3rem;
 }
 
+.parenting-hatched-cell {
+  position: relative;
+  isolation: isolate;
+}
+
+.parenting-away-background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.parenting-away-segment {
+  position: absolute;
+  left: 0;
+  right: 0;
+  background: repeating-linear-gradient(135deg, transparent 0, transparent 7px, var(--border) 7px, var(--border) 9px);
+}
+
+.parenting-handoff-marker {
+  position: absolute;
+  right: 0.4rem;
+  color: var(--text-secondary);
+  font-size: 0.65rem;
+  font-weight: 700;
+}
+
+.parenting-hatching-legend {
+  padding: 0 0.75rem;
+  color: var(--text-secondary);
+  font-size: 0.75rem;
+}
+
 .specials-entry {
   display: flex;
   align-items: baseline;
@@ -918,10 +952,12 @@ body,
   cursor: help;
 }
 
-.calendar-childcare-entry {
+.calendar-childcare-entry,
+.calendar-parenting-entry {
   flex-wrap: wrap;
 }
 
+.calendar-parenting-entry small,
 .calendar-childcare-entry small {
   flex-basis: 100%;
   padding-left: 1.35rem;

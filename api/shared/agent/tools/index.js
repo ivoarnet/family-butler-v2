@@ -3,6 +3,7 @@ const createGetNextBirthdayTool = require("./getNextBirthdayTool");
 const createGetContactsTool = require("./getContactsTool");
 const createGetDayConfigurationsTool = require("./getDayConfigurationsTool");
 const createGetChildcareCoverageTool = require("./getChildcareCoverageTool");
+const createCheckParentingResponsibilityTool = require("./checkParentingResponsibilityTool");
 const createAddDayConfigurationsTool = require("./addDayConfigurationsTool");
 const createGetEventsTool = require("./getEventsTool");
 const createAddEventTool = require("./addEventTool");
@@ -15,6 +16,7 @@ module.exports = function createAgentTools(context) {
     createGetContactsTool(context),
     createGetDayConfigurationsTool(context),
     createGetChildcareCoverageTool(context),
+    createCheckParentingResponsibilityTool(context),
     createAddDayConfigurationsTool(context),
     createGetEventsTool(context),
     createAddEventTool(context),

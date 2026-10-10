@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import { ParentingTimeSettings, type ParentingTimeRequest } from "./ParentingTimeSettings";
 
 const householdId = "00000000-0000-0000-0000-000000000001";
@@ -9,10 +9,14 @@ const motherId = "00000000-0000-0000-0000-000000000003";
 const members = [
   { id: fatherId, firstName: "Dad" },
   { id: motherId, firstName: "Mum" },
+  { id: "00000000-0000-0000-0000-000000000007", firstName: "Elsa", isChild: true },
 ];
 const calls = fn();
 
-function ParentingTimeStory({ withPlan = false }: { withPlan?: boolean }) {
+function ParentingTimeStory({ withPlan = false }: {
+  withPlan?: boolean;
+}) {
+  const [refresh, setRefresh] = useState(0);
   const request = useMemo(() => {
     const data: {
       parties: Array<{ id: string; name: string; memberId: string | null; active: boolean }>;
@@ -21,7 +25,7 @@ function ParentingTimeStory({ withPlan = false }: { withPlan?: boolean }) {
     } = {
       parties: [
         { id: fatherId, name: "Dad", memberId: fatherId, active: true },
-        { id: motherId, name: "Mum", memberId: motherId, active: true },
+        { id: motherId, name: "Mum", memberId: null, active: true },
       ],
       plan: withPlan ? {
         id: "00000000-0000-0000-0000-000000000006",
@@ -65,8 +69,10 @@ function ParentingTimeStory({ withPlan = false }: { withPlan?: boolean }) {
     }) as ParentingTimeRequest;
   }, [withPlan]);
   return <div className="app-shell" style={{ padding: 24 }}>
+    <button type="button" onClick={() => setRefresh((current) => current + 1)}>Reload saved settings</button>
     <section className="settings-section">
-      <ParentingTimeSettings householdId={householdId} members={members} request={request} />
+      <ParentingTimeSettings key={refresh} householdId={householdId}
+        members={members} request={request} />
     </section>
   </div>;
 }
@@ -84,11 +90,12 @@ export const HouseholdPlan: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
-    await waitFor(() => expect(canvas.getByText("Dad")).toBeInTheDocument());
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Edit parenting party Dad" })).toBeEnabled());
     await userEvent.click(canvas.getByRole("button", { name: "Edit parenting party Dad" }));
     const partyDialog = page.getByRole("dialog", { name: "Edit parenting party" });
     await expect(partyDialog).toBeInTheDocument();
     await userEvent.click(within(partyDialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Create schedule" })).toBeVisible());
     await userEvent.click(canvas.getByRole("button", { name: "Create schedule" }));
     const planDialog = within(page.getByRole("dialog", { name: "Create recurring schedule" }));
     await userEvent.click(planDialog.getAllByRole("combobox", { name: "From → To" })[0]);
@@ -145,5 +152,47 @@ export const ChangeDateTimePicker: Story = {
       .toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
     await userEvent.click(page.getByRole("button", { name: "pick time" }));
     await expect(page.getByRole("option", { name: "13 hours" })).toBeInTheDocument();
+  },
+};
+
+export const PartyMemberLinking: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Edit parenting party Mum" })).toBeEnabled());
+    await expect(canvas.getByText(/Child background hatching is enabled per child in Members/)).toBeVisible();
+    await expect(canvas.queryByRole("combobox", { name: "Household parenting party" })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Save calendar display" })).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Edit parenting party Mum" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Edit parenting party" }));
+    await expect(dialog.getByRole("combobox", { name: "Link to household member (optional)" })).toHaveTextContent("No linked member");
+    await userEvent.click(dialog.getByRole("combobox", { name: "Link to household member (optional)" }));
+    await userEvent.click(page.getByRole("option", { name: "Mum" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Save party" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Reload saved settings" })).toBeEnabled());
+    const save = calls.mock.calls.find(([path, init]) => String(path).endsWith("/parties") && init?.method === "PUT");
+    expect(JSON.parse(String(save?.[1]?.body))).toEqual({
+      id: motherId, name: "Mum", memberId: motherId, active: true,
+    });
+    await userEvent.click(canvas.getByRole("button", { name: "Reload saved settings" }));
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Edit parenting party Mum" })).toBeEnabled());
+    const row = canvas.getByRole("button", { name: "Edit parenting party Mum" }).closest("tr")!;
+    await expect(within(row).getAllByText("Mum")).toHaveLength(2);
+    expect(calls.mock.calls.some(([path]) => String(path).endsWith("/calendar-settings"))).toBe(false);
+    expect(calls.mock.calls.some(([path, init]) => String(path).endsWith("/plan") && init?.method === "PUT")).toBe(false);
+  },
+};
+
+export const HouseholdPartyLinks: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Edit parenting party Dad" })).toBeEnabled());
+    await expect(canvas.getByText(/Child background hatching is enabled per child in Members/)).toBeVisible();
+    const mumRow = canvas.getByRole("button", { name: "Edit parenting party Mum" }).closest("tr")!;
+    await expect(within(mumRow).getByText("Not linked")).toBeVisible();
+    expect(calls.mock.calls.some(([path]) => String(path).endsWith("/calendar-settings"))).toBe(false);
   },
 };

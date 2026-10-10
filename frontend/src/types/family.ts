@@ -4,6 +4,10 @@ export interface HouseholdMember {
   id: string;
   firstName: string;
   role?: string;
+  isChild?: boolean;
+  hatchParentingAway?: boolean;
+  schoolBuilding?: string;
+  schoolClass?: string;
   avatarColor: MemberAvatarColor;
   visibleInCalendar: boolean;
   order: number;
@@ -57,6 +61,28 @@ export interface ResolvedChildcareOccurrence {
   startTime: string | null;
   endTime: string | null;
   overrideAction: "add" | "replace" | "move" | null;
+}
+
+export interface ParentingParty {
+  id: string;
+  name: string;
+  memberId?: string | null;
+  active: boolean;
+}
+
+export interface ResolvedParentingInterval {
+  startAt: string;
+  endAt: string;
+  partyId: string;
+  partyName: string | null;
+  source: { type: "plan"; planId: string } | { type: "change"; changeId: string; label?: string };
+}
+
+export interface ParentingResponsibilityResult {
+  status: "determined" | "cannot_determine";
+  responsible: boolean | null;
+  reason?: string;
+  overlaps: ResolvedParentingInterval[];
 }
 
 export type DayConfigurationCategory = "school_off" | "bank_holiday" | "bridge_day";

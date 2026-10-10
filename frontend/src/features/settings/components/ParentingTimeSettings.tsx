@@ -142,7 +142,7 @@ const id = () => {
   return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
 };
 export function ParentingTimeSettings({ householdId, members, request }: {
-  householdId: string; members: Array<{ id: string; firstName: string }>; request: ParentingTimeRequest;
+  householdId: string; members: Array<{ id: string; firstName: string; isChild?: boolean }>; request: ParentingTimeRequest;
 }) {
   const base = `/api/households/${encodeURIComponent(householdId)}/parenting-time`;
   const [data, setData] = useState<Data>(emptyData);
@@ -262,6 +262,11 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           <AddCircleOutlineIcon fontSize="small" /> Add party
         </button>
       </div>
+      <Typography variant="body2" sx={{ mb: 2 }}>
+        Child background hatching is enabled per child in Members. Active parties linked to current household members
+        count as within the household; active parties with no member link count as outside. Link at least one active party to enable hatching.
+        Unknown periods, stale member links, and archived parties remain unshaded. This is a background cue, not event timing or a change of responsibility.
+      </Typography>
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting parties">
         <thead><tr><th>Name</th><th>Household member</th><th>Status</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>{data.parties.map((party) => <tr key={party.id}>
@@ -295,7 +300,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             <FormField autoFocus required label="Party name (for example, Mum or Dad)" value={partyDraft.name}
               onChange={(event) => setPartyDraft({ ...partyDraft, name: event.target.value })} />
             <FormField select label="Link to household member (optional)" value={partyDraft.memberId}
-              slotProps={{ select: { MenuProps: selectMenuProps } }}
+              helperText="Linked active parties count as within the household for opted-in children's background hatching."
+              slotProps={{ inputLabel: { shrink: true }, select: { displayEmpty: true, MenuProps: selectMenuProps } }}
               onChange={(event) => setPartyDraft({ ...partyDraft, memberId: event.target.value })}>
               <MenuItem value="">No linked member</MenuItem>
               {members.map((member) => <MenuItem key={member.id} value={member.id}>{member.firstName}</MenuItem>)}

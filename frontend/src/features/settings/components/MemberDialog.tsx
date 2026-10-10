@@ -88,6 +88,10 @@ const ColorSwatchButton = styled("button")<{ $selected: boolean; $swatch: string
 export interface MemberDialogFormState {
   firstName: string;
   role: string;
+  isChild: boolean;
+  hatchParentingAway: boolean;
+  schoolBuilding: string;
+  schoolClass: string;
   avatarColor: MemberAvatarColor;
   visibleInCalendar: boolean;
 }
@@ -102,6 +106,10 @@ interface MemberDialogProps {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onFirstNameChange: (value: string) => void;
   onRoleChange: (value: string) => void;
+  onIsChildChange: (value: boolean) => void;
+  onHatchParentingAwayChange: (value: boolean) => void;
+  onSchoolBuildingChange: (value: string) => void;
+  onSchoolClassChange: (value: string) => void;
   onAvatarColorChange: (value: MemberAvatarColor) => void;
   onVisibleInCalendarChange: (value: boolean) => void;
 }
@@ -116,6 +124,10 @@ export function MemberDialog({
   onSubmit,
   onFirstNameChange,
   onRoleChange,
+  onIsChildChange,
+  onHatchParentingAwayChange,
+  onSchoolBuildingChange,
+  onSchoolClassChange,
   onAvatarColorChange,
   onVisibleInCalendarChange,
 }: MemberDialogProps) {
@@ -166,6 +178,36 @@ export function MemberDialog({
                 helperText="Optional"
                 onChange={(event) => onRoleChange(event.target.value)}
               />
+              <Box sx={{ gridColumn: "1 / -1" }}>
+                <CalendarVisibilityToggle
+                  control={<Switch checked={formState.isChild}
+                    onChange={(event) => onIsChildChange(event.target.checked)}
+                    slotProps={{ input: { "aria-label": "Child" } }} />}
+                  label="Child"
+                />
+                <Typography variant="body2" sx={{ color: "var(--dialog-muted)" }}>
+                  Marks this member's calendar column as a child. Role and school details do not determine this.
+                </Typography>
+              </Box>
+              {formState.isChild && <>
+                <Box sx={{ gridColumn: "1 / -1" }}>
+                  <CalendarVisibilityToggle
+                    control={<Switch checked={formState.hatchParentingAway}
+                      onChange={(event) => onHatchParentingAwayChange(event.target.checked)}
+                      slotProps={{ input: { "aria-label": "Hatch background when parenting is not with a household member" } }} />}
+                    label="Hatch background when parenting is not with a household member"
+                  />
+                  <Typography variant="body2" sx={{ color: "var(--dialog-muted)" }}>
+                    Uses active parenting parties linked to household members. Unknown periods stay unshaded.
+                  </Typography>
+                </Box>
+                <FormField label="School building" value={formState.schoolBuilding} helperText="Optional"
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 100 } }}
+                  onChange={(event) => onSchoolBuildingChange(event.target.value)} />
+                <FormField label="School class" value={formState.schoolClass} helperText="Optional"
+                  slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 50 } }}
+                  onChange={(event) => onSchoolClassChange(event.target.value)} />
+              </>}
               <ColorPickerContainer role="radiogroup" aria-label="Color">
                 <ColorPickerLabel>Color</ColorPickerLabel>
                 <ColorPickerSwatches>

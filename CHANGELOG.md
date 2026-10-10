@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+- Show only confirmed parenting handovers in the calendar's Specials column, with the parenting icon/title and `HH:mm → Party` on the next line. Continuing periods and same-party changes no longer add entries; hatching and responsibility checks are unchanged. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+- Moved child classification to Settings → Members and added optional school building/class details and a per-child parenting hatch switch. Hatching now uses parenting parties' optional household-member links, without separate calendar party/child-column selectors. Apply `docs/sql/household-member-details.sql`; legacy explicit selections are migrated once. Updated screenshots: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-child-school-details.png` and `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-hatching.png`.
+
+- Added persisted Parenting Time calendar-display settings for an explicit household party and child columns. Optional subtle hatching shows resolved other-party responsibility behind events with hand-off markers; unknown periods stay unshaded and event interactions remain unchanged. Rerun `docs/sql/parenting-time.sql` before using the setting. Updated screenshots: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-hatching.png` and `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/parenting-calendar-display-settings.png`.
+
+- Replaced visible parenting period ranges with incoming hand-off times; continuing periods and same-party adjustments retain the party label without a time. Full intervals remain available on hover. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+
+- Simplified parenting entries in Specials to show only title and time, with interval, adjustment, and handover details on hover like childcare records. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+
+- Removed parenting-time card borders in Specials and matched childcare's compact icon, text, and separator styling while retaining expandable handover details. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+
+- Displayed persisted parenting responsibility in the household calendar, with distinct expandable entries, handovers, and one-off adjustment labels. Added authorized, read-only API/agent responsibility checks and optional non-blocking personal-event warnings with explicit development-only party selection. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
+
 - Replaced the fixed Parenting Time period editor with a flexible recurring-handover list using shared Settings form styling. Aligned Settings actions with existing icon buttons, displayed party transitions as a single “From → To” value with distinct-party selection, right-aligned action headers, moved schedule preview to its own section at the bottom, and added a Monday-first combined date/time picker with a 24-hour clock for dated changes. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/parenting-time-handovers.png`.
 - Defaulted childcare schedules to List with a three-calendar-month range starting today. Updated UI screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/provider-childcare-defaults.png`.
 

@@ -26,7 +26,7 @@ const validateDate = (value, name) => {
 };
 
 const validateDateTime = (value, name) => {
-  assert(typeof value === "string" && /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?(?:Z|[+-]\d{2}:\d{2})$/.test(value),
+  assert(typeof value === "string" && /^\d{4}-\d{2}-\d{2}T(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z|[+-](?:[01]\d|2[0-3]):[0-5]\d)$/.test(value),
     `${name} must be an ISO 8601 date-time with a timezone`);
   validateDate(value.slice(0, 10), name);
   const timestamp = Date.parse(value);
@@ -40,6 +40,31 @@ const validateParty = (data, memberIds = []) => {
   const memberId = data.memberId == null ? null : validateId(data.memberId, "memberId");
   assert(memberId === null || memberIds.includes(memberId), "memberId is not a household member");
   return { name: data.name.trim(), memberId };
+};
+
+const validateCalendarSettings = (data, parties, memberIds) => {
+  assert(data && typeof data === "object" && !Array.isArray(data), "JSON object body is required");
+  assert(typeof data.showAwayHatching === "boolean", "showAwayHatching must be a boolean");
+  const householdPartyId = data.householdPartyId === null
+    ? null : validateId(data.householdPartyId, "householdPartyId");
+  const activeParty = parties.some((party) => party.id === householdPartyId && party.active !== false);
+  assert(Array.isArray(data.childMemberIds), "childMemberIds must be an array");
+  const childMemberIds = data.childMemberIds.map((id) => validateId(id, "childMemberIds entry"));
+  assert(new Set(childMemberIds).size === childMemberIds.length, "childMemberIds must be distinct");
+  // Opting out must remain possible after a selected party or member is removed.
+  if (!data.showAwayHatching) {
+    return {
+      showAwayHatching: false,
+      householdPartyId: activeParty ? householdPartyId : null,
+      childMemberIds: childMemberIds.filter((id) => memberIds.includes(id)),
+    };
+  }
+  assert(householdPartyId === null || activeParty,
+    "householdPartyId must be an active parenting party in this household");
+  assert(childMemberIds.every((id) => memberIds.includes(id)), "childMemberIds must be members of this household");
+  assert(!data.showAwayHatching || (householdPartyId !== null && childMemberIds.length > 0),
+    "enabling away hatching requires a household party and selected children");
+  return { showAwayHatching: data.showAwayHatching, householdPartyId, childMemberIds };
 };
 
 const validTimeZone = (timeZone) => {
@@ -229,6 +254,7 @@ const assertRulesCoverSchedule = (rules, recurrenceMode) => {
 };
 
 const validatePlan = (data, parties) => {
+  assert(data && typeof data === "object" && !Array.isArray(data), "plan must be an object");
   assert(["weekly", "alternating"].includes(data.recurrenceMode), "recurrenceMode must be weekly or alternating");
   const effectiveFrom = validateDate(data.effectiveFrom, "effectiveFrom");
   const effectiveTo = data.effectiveTo == null || data.effectiveTo === "" ? null : validateDate(data.effectiveTo, "effectiveTo");
@@ -343,7 +369,7 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
   };
   for (const change of changes) {
     addInterval({ start: Date.parse(change.startAt), end: Date.parse(change.endAt), partyId: change.partyId,
-      source: { type: "change", changeId: change.id, label: change.label } });
+      source: { type: "change", planId: plan.id, changeId: change.id, label: change.label } });
   }
   for (let date = startDate; date <= endDate; date = shiftDate(date, 1)) {
     const weekday = isoWeekday(date);
@@ -403,8 +429,91 @@ const resolveParentingTime = ({ plan, parties, changes }, startAt, endAt) => {
   return result.map(({ _sourceKey, ...interval }) => interval);
 };
 
+const validateParentingRange = (startAt, endAt) => {
+  const start = validateDateTime(startAt, "startAt");
+  const end = validateDateTime(endAt, "endAt");
+  assert(end > start && end - start <= 366 * DAY_MS, "date-time range must be ordered and at most 366 days");
+  return { start, end };
+};
+
+// Validate requests outside the persisted-data boundary: only bad stored schedules become unknowns.
+const resolvePersistedParentingTime = (data, startAt, endAt, { allowPartial = false } = {}) => {
+  const { start, end } = validateParentingRange(startAt, endAt);
+  const parties = Array.isArray(data?.parties) ? data.parties : [];
+  const unknown = (reason, message) => ({
+    status: "cannot_determine", reason, message, intervals: [], parties, timeZone: null,
+  });
+  if (!data?.plan || data.plan.active === false) {
+    return unknown("no_active_plan", "Household has no active parenting-time plan.");
+  }
+  try {
+    assert(data.plan.active === true, "persisted plan must be active");
+    assert(parties.every((party) => party && typeof party === "object"), "persisted parties must be objects");
+    const activeParties = parties.filter((party) => party.active !== false);
+    const planId = validateId(data.plan.id, "plan.id");
+    const plan = { ...validatePlan(data.plan, activeParties), id: planId };
+    for (const rule of data.plan.rules) validateId(rule.id, "rule.id");
+    assert(data.plan.handovers == null || Array.isArray(data.plan.handovers), "persisted handovers must be an array");
+    if (data.plan.handovers?.length) {
+      compileHandovers(validateHandovers(data.plan.handovers, activeParties));
+    }
+    assert(Array.isArray(data.changes), "persisted changes must be an array");
+    const changes = [];
+    for (const change of data.changes) {
+      validateId(change?.id, "change.id");
+      assert(change.planId == null || change.planId === planId, "change references a different plan");
+      changes.push(validateChange(change, activeParties, changes));
+    }
+    assert(new Set(changes.map((change) => change.id)).size === changes.length, "change IDs must be unique");
+    const effectiveStart = getPlanStartTimestamp(plan);
+    const effectiveEnd = getPlanEndTimestamp(plan);
+    assert(changes.every((change) => Date.parse(change.startAt) >= effectiveStart
+      && (effectiveEnd === null || Date.parse(change.endAt) <= effectiveEnd)),
+    "persisted changes fall outside the effective plan");
+    const outsideEffectivePlan = start < effectiveStart || (effectiveEnd !== null && end > effectiveEnd);
+    const outsideResult = () => unknown("outside_effective_plan",
+      "Requested range is not fully covered by the plan's effective dates.");
+    if (outsideEffectivePlan && !allowPartial) return outsideResult();
+    const resolutionStart = Math.max(start, effectiveStart);
+    const resolutionEnd = Math.min(end, effectiveEnd ?? end);
+    if (resolutionEnd <= resolutionStart) {
+      return { ...outsideResult(), timeZone: plan.timeZone };
+    }
+    const intervals = resolveParentingTime({ plan, parties: activeParties, changes }, startAt, endAt);
+    let coveredUntil = resolutionStart;
+    for (const interval of intervals) {
+      assert(Date.parse(interval.startAt) === coveredUntil, "resolved plan leaves a gap");
+      coveredUntil = Date.parse(interval.endAt);
+    }
+    assert(coveredUntil === resolutionEnd, "resolved plan does not cover the effective requested range");
+    if (outsideEffectivePlan) return { ...outsideResult(), intervals, timeZone: plan.timeZone };
+    return { status: "determined", intervals, parties, timeZone: plan.timeZone };
+  } catch (error) {
+    if (error.status !== 400) throw error;
+    return unknown("invalid_plan", `Cannot determine responsibility from the persisted plan: ${error.message}`);
+  }
+};
+
+const checkParentingResponsibility = (data, partyId, startAt, endAt) => {
+  const id = validateId(partyId, "partyId");
+  validateParentingRange(startAt, endAt);
+  const party = Array.isArray(data?.parties)
+    ? data.parties.find((item) => item?.id === id && item.active !== false) : null;
+  assert(party, "partyId must be an active parenting party in this household");
+  const resolved = resolvePersistedParentingTime(data, startAt, endAt);
+  const overlaps = resolved.intervals.filter((interval) => interval.partyId === id);
+  return {
+    ...resolved, partyId: id, partyName: party.name ?? null,
+    startAt: new Date(Date.parse(startAt)).toISOString(),
+    endAt: new Date(Date.parse(endAt)).toISOString(),
+    responsible: resolved.status === "determined" ? overlaps.length > 0 : null,
+    overlaps,
+  };
+};
+
 module.exports = {
-  assert, validateId, validateParty, validatePlan, validateHandovers, compileHandovers,
+  assert, validateId, validateParty, validateCalendarSettings, validatePlan, validateHandovers, compileHandovers,
   validateChange, resolveParentingTime, isoWeekNumber,
   getPlanStartTimestamp, getPlanEndTimestamp,
+  validateParentingRange, resolvePersistedParentingTime, checkParentingResponsibility,
 };

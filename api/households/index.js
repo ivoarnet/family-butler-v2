@@ -9,6 +9,10 @@ const normalizeMember = (member) => ({
   id: member.id,
   firstName: member.firstName,
   role: member.role ?? undefined,
+  isChild: member.isChild === true,
+  hatchParentingAway: member.hatchParentingAway === true,
+  schoolBuilding: member.schoolBuilding ?? undefined,
+  schoolClass: member.schoolClass ?? undefined,
   avatarColor: member.avatarColor,
   visibleInCalendar: member.visibleInCalendar,
   order: member.sortOrder,
@@ -131,7 +135,15 @@ const isFiveMinuteStepTime = (value) => {
   return Number.parseInt(match[2], 10) % 5 === 0;
 };
 
-const parseIncomingMembers = (members) => {
+const parseMemberSchoolText = (value, field, maxLength) => {
+  if (value == null) return null;
+  if (typeof value !== "string" || [...value.trim()].length > maxLength) {
+    throw new Error(`member ${field} is invalid; must be a string of ${maxLength} characters or fewer`);
+  }
+  return cleanOptionalText(value);
+};
+
+const parseIncomingMembers = (members, existingMembers = []) => {
   if (!Array.isArray(members)) {
     return [];
   }
@@ -145,10 +157,23 @@ const parseIncomingMembers = (members) => {
       }
 
       const requestedId = typeof member.id === "string" && member.id ? member.id : null;
+      const existing = existingMembers.find((candidate) => candidate.id.toLowerCase() === requestedId?.toLowerCase());
+      if (member.isChild !== undefined && typeof member.isChild !== "boolean") {
+        throw new Error("member isChild is invalid; must be a boolean");
+      }
+      if (member.hatchParentingAway !== undefined && typeof member.hatchParentingAway !== "boolean") {
+        throw new Error("member hatchParentingAway is invalid; must be a boolean");
+      }
       return {
         id: requestedId || randomUUID(),
         firstName,
         role: cleanOptionalText(member.role),
+        isChild: member.isChild ?? (existing?.isChild === true),
+        hatchParentingAway: member.hatchParentingAway ?? (existing?.hatchParentingAway === true),
+        schoolBuilding: member.schoolBuilding === undefined
+          ? existing?.schoolBuilding ?? null : parseMemberSchoolText(member.schoolBuilding, "schoolBuilding", 100),
+        schoolClass: member.schoolClass === undefined
+          ? existing?.schoolClass ?? null : parseMemberSchoolText(member.schoolClass, "schoolClass", 50),
         avatarColor: cleanOptionalText(member.avatarColor) || "#3b82f6",
         visibleInCalendar: member.visibleInCalendar !== false,
         sortOrder: index,
@@ -459,7 +484,7 @@ module.exports = async function households(context, req) {
       const existingContactIds = new Set(existingHousehold.contacts.map((contact) => contact.id));
       const existingEventTypeIds = new Set((existingHousehold.eventTypes ?? []).map((eventType) => eventType.id));
       const existingDayConfigurationIds = new Set((existingHousehold.dayConfigurations ?? []).map((dayConfiguration) => dayConfiguration.id));
-      const members = parseIncomingMembers(httpRequest.body?.familyMembers);
+      const members = parseIncomingMembers(httpRequest.body?.familyMembers, existingHousehold.members);
       const contacts = parseIncomingContacts(httpRequest.body?.contacts);
       const eventTypes = parseIncomingEventTypes(httpRequest.body?.eventTypes);
       const events = parseIncomingEvents(httpRequest.body?.events);
