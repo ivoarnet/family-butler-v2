@@ -292,10 +292,11 @@ export const SettingsGridStyling: Story = {
       await expect(title.parentElement).toHaveClass("section-toolbar");
       await expect(title.closest("section")).toHaveClass("settings-card");
     }
-    for (const [name, text] of [["Add provider", "+ Provider"], ["Add arrangement", "+ Arrangement"]]) {
+    for (const [name, text] of [["Add provider", "Provider"], ["Add arrangement", "Arrangement"]]) {
       const add = canvas.getByRole("button", { name });
       await expect(add).toHaveClass("primary-pill", "no-wrap-button");
       await expect(add).toHaveTextContent(text);
+      await expect(add.querySelector("svg")).toBeInTheDocument();
       await expect(getComputedStyle(add).whiteSpace).toBe("nowrap");
     }
     await expect(canvas.getByRole("button", { name: "Show care" })).toHaveClass("primary-pill", "no-wrap-button");

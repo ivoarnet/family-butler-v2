@@ -211,7 +211,9 @@ export function ChildcareSettings({ householdId, members, request }: {
       <div className="section-toolbar">
         <h2>Providers</h2>
         <button type="button" className="primary-pill no-wrap-button" aria-label="Add provider" disabled={disabled}
-          onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>+ Provider</button>
+          onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>
+          <AddCircleOutlineIcon fontSize="small" /> Provider
+        </button>
       </div>
       {!loading && !data.providers.length && <Typography>No providers yet. Add a provider before creating an arrangement.</Typography>}
       {!!data.providers.length && <div className="table-scroll"><table className="settings-table" aria-label="Childcare providers">
@@ -247,7 +249,7 @@ export function ChildcareSettings({ householdId, members, request }: {
           setError(""); setPreview(null);
           setDraft({ providerId: data.providers.find((item) => item.active)!.id, childIds: [], weekdays: [],
             allDay: true, startTime: null, endTime: null, startDate: today(), endDate: null });
-        }}>+ Arrangement</button>
+        }}><AddCircleOutlineIcon fontSize="small" /> Arrangement</button>
       </div>
       {!loading && !data.arrangements.length && <Typography>No weekly arrangements yet.</Typography>}
       {!!data.arrangements.length && <div className="table-scroll"><table className="settings-table" aria-label="Childcare arrangements">

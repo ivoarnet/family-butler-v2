@@ -3,6 +3,7 @@
 ## Unreleased
 
 - Standardized dialog secondary actions, Swiss German date-only pickers, 24-hour/5-minute time pickers, and accessible free-choice color controls. Calendar Specials now share an icon/title/subtitle layout. Updated screenshots: `docs/screenshots/shared-form-controls.png`, `docs/screenshots/shared-form-controls-mobile.png`, and `docs/screenshots/calendar-specials-layout.png`. See `docs/STYLEGUIDE.md` for display and serialization behavior.
+- Aligned Childcare Provider and Arrangement add buttons with Parenting settings by using the shared add icon. Updated screenshot: `docs/screenshots/childcare-settings-add-button-icons.png`.
 - Removed parenting status and hatching guidance messages from the calendar. Updated screenshot: `docs/screenshots/calendar-parenting-notices-hidden.png`.
 - Added a dedicated Reports & exports workspace as a home for future report types and export formats. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/reports-exports-page.png`.
 - Added month navigation to the household calendar. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/monthly-calendar-view.png`.
