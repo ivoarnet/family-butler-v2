@@ -20,6 +20,7 @@ This repository contains the React frontend, Azure Functions backend, and Supaba
 ```text
 .
 ├── api
+│   ├── shared/validation.js
 │   ├── shared/db
 │   └── {function}/(function.json,index.js)
 ├── frontend
@@ -35,6 +36,7 @@ This repository contains the React frontend, Azure Functions backend, and Supaba
 ## Current Architecture Notes
 
 - API persistence remains provider-based under `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/db` (Supabase provider currently active).
+- API validation primitives shared across domain logic live under `/home/runner/work/family-butler-v2/family-butler-v2/api/shared`.
 - Frontend shared UI primitives are under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/ui`.
 - Shared member avatar color logic now lives in `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/shared/family/memberAvatarColors.ts` and is reused across app bootstrap/settings/dialog code.
 - Frontend feature UI is feature-first under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/<feature>/components` (for example auth screen under `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/auth/components`).
