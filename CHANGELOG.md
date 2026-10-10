@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a left-side module menu for Family Calendar, its Childcare and Shared Parenting (Parenting Time) settings, and the existing Reports & exports workspace. Documented module boundaries, development conventions, future cross-module reads/events and Bring! integration, with family-level enablement deferred. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
 - Standardized dialog secondary actions, Swiss German date-only pickers, 24-hour/5-minute time pickers, and accessible free-choice color controls. Calendar Specials now share an icon/title/subtitle layout. Updated screenshots: `docs/screenshots/shared-form-controls.png`, `docs/screenshots/shared-form-controls-mobile.png`, and `docs/screenshots/calendar-specials-layout.png`. See `docs/STYLEGUIDE.md` for display and serialization behavior.
 - Aligned Childcare Provider and Arrangement add buttons with Parenting settings by using the shared add icon. Updated screenshot: `docs/screenshots/childcare-settings-add-button-icons.png`.
 - Moved longer Parenting Time and Childcare guidance behind keyboard- and touch-accessible info buttons beside related headings. Updated screenshot: `docs/screenshots/settings-guidance-info-icons.png`.

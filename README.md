@@ -6,6 +6,8 @@ Family Butler is agent-first: agents are intended to be the primary way people a
 
 The product is organized around modules. Core household/calendar capabilities, **Childcare**, and **Parenting Time** settings, calendar display, and read-only agent planning checks are implemented. Parenting personal-event warnings currently use an explicit development-only party selection. See the [product overview](docs/PRODUCT_OVERVIEW.md) for current capabilities, module descriptions, status, and guidance for documenting future modules.
 
+**Family Calendar** is the main module, with Childcare and Shared Parenting (Parenting Time) as sub-features. A left-side module menu links to existing workspaces. The [modular architecture and developer guide](docs/modules/ARCHITECTURE.md) covers future Tasks, Shop & Cook, Gamification, cross-module interaction, and module conventions; those future modules are not implemented.
+
 This repository contains the React frontend, Azure Functions backend, and Supabase (PostgreSQL) data layer.
 
 ## Stack

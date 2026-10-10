@@ -10,6 +10,10 @@ Family Butler helps households coordinate the people and plans involved in famil
 
 ## Core household and calendar capabilities — implemented
 
+**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The left-side module menu opens from page headers and links to the calendar, these sub-features' existing Settings tabs, and the Reports & exports workspace. Existing calendar shortcuts remain available.
+
+See [Modular architecture and developer guide](modules/ARCHITECTURE.md) for module boundaries, navigation conventions, step-by-step integration, cross-module reads/events, and external-integration guidance.
+
 The current product supports:
 
 - Creating and managing households, and organizing household members.
@@ -43,6 +47,12 @@ Settings → Members records child classification, optional school building (for
 The event dialog offers an optional personal-event responsibility check. Until secure user-to-party mapping exists, party selection and warnings are development-only (`npm run dev`); production explains that identity cannot yet be determined. Warnings never block saving, and only the proposed first occurrence of a recurring event is checked. Childcare does not transfer parenting responsibility. Automated reminders, messaging, approvals, and parenting arrangement changes through agents remain out of scope. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
 
 ## Planned modules
+
+- **Tasks:** member-assigned Kanban tasks with due dates; planned Calendar integration shows due tasks by day/member.
+- **Shop & Cook:** shopping lists and items; future synchronization with Bring! through a server-side adapter.
+- **Gamification:** future Family Coins and reactions to committed events from other modules. Rules and mechanics are not defined in this release.
+
+None of these modules, their agent workflows, the event/outbox infrastructure, or Bring! synchronization is implemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
 
 ## Managing module documentation
 

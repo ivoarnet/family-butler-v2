@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type SetStateAction } from "react";
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type ReactNode, type SetStateAction } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -21,10 +21,9 @@ import { ChildcareSettings, type ChildcareRequest } from "../features/settings/c
 import { ParentingTimeSettings } from "../features/settings/components/ParentingTimeSettings";
 import { DEFAULT_MEMBER_COLOR, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
-import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
+import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, SettingsWorkspaceTab, ThemeMode } from "../features/app/types";
 
 
-type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare" | "parenting-time";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
 const DAY_CONFIGURATION_OPTIONS: Array<{
   value: DayConfigurationCategory;
@@ -129,6 +128,9 @@ export function SettingsPage({
   theme,
   setTheme,
   childcareRequest,
+  moduleNavigation,
+  workspaceTab,
+  onWorkspaceTabChange,
 }: {
   mode: "profile" | "settings";
   households: HouseholdSummary[];
@@ -152,6 +154,9 @@ export function SettingsPage({
   theme: ThemeMode;
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
   childcareRequest?: ChildcareRequest;
+  moduleNavigation?: ReactNode;
+  workspaceTab?: SettingsWorkspaceTab;
+  onWorkspaceTabChange?: (tab: SettingsWorkspaceTab) => void;
 }) {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSection);
   const [newHouseholdName, setNewHouseholdName] = useState("");
@@ -181,7 +186,12 @@ export function SettingsPage({
   const [profileSubmitAttempted, setProfileSubmitAttempted] = useState(false);
   const [profileSaveError, setProfileSaveError] = useState<string | null>(null);
   const [profileSaveInfo, setProfileSaveInfo] = useState<string | null>(null);
-  const [settingsWorkspaceTab, setSettingsWorkspaceTab] = useState<SettingsWorkspaceTab>("members");
+  const [localWorkspaceTab, setLocalWorkspaceTab] = useState<SettingsWorkspaceTab>("members");
+  const settingsWorkspaceTab = workspaceTab ?? localWorkspaceTab;
+  const setSettingsWorkspaceTab = (tab: SettingsWorkspaceTab) => {
+    setLocalWorkspaceTab(tab);
+    onWorkspaceTabChange?.(tab);
+  };
 
   const orderedMembers = useMemo(
     () => [...householdData.familyMembers].sort((a, b) => a.order - b.order),
@@ -657,6 +667,7 @@ export function SettingsPage({
           <ArrowBackIcon fontSize="small" />
         </button>
         <div className="header-branding">
+          {moduleNavigation}
           <div>
             <h1>{mode === "profile" ? "Profile" : "Settings"}</h1>
             <p>
