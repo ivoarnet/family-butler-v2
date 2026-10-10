@@ -14,7 +14,9 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
+  SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
+import { DateField } from "../../../shared/ui/PickerFields";
 
 export interface DayConfigurationDialogFormState {
   category: DayConfigurationCategory;
@@ -96,48 +98,33 @@ export function DayConfigurationDialog({
                 </MenuItem>
               ))}
             </FormField>
-            <FormField
+            <DateField
               required
-              type="date"
               label="Start date"
-              slotProps={{ inputLabel: { shrink: true } }}
               value={formState.startDate}
               error={startDateError || rangeError}
               helperText={startDateError ? "Start date is required." : rangeError ? "Start date must not be after end date." : " "}
-              onChange={(event) => onFormStateChange((current) => ({ ...current, startDate: event.target.value }))}
+              onChange={(date) => onFormStateChange((current) => ({ ...current, startDate: date }))}
             />
-            <FormField
+            <DateField
               required
-              type="date"
               label="End date"
-              slotProps={{ inputLabel: { shrink: true } }}
               value={formState.endDate}
               error={endDateError || rangeError}
               helperText={endDateError ? "End date is required." : rangeError ? "End date must be on or after start date." : " "}
-              onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
+              onChange={(date) => onFormStateChange((current) => ({ ...current, endDate: date }))}
             />
           </GlassPanel>
         </DialogContentPanel>
 
         <DialogActionsBar>
-          <Button
+          <SecondaryButton
             type="button"
             onClick={onClose}
             variant="outlined"
-            sx={{
-              borderRadius: "999px",
-              color: "var(--dialog-muted)",
-              borderColor: "var(--dialog-border)",
-              textTransform: "none",
-              minHeight: 42,
-              "&:hover": {
-                borderColor: "var(--accent-strong)",
-                background: "rgba(127, 139, 255, 0.12)",
-              },
-            }}
           >
             Cancel
-          </Button>
+          </SecondaryButton>
           <GradientButton type="submit" variant="contained" disableElevation>
             {editing ? "Save changes" : "Save day"}
           </GradientButton>

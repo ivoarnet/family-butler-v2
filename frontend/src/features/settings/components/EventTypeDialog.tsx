@@ -12,7 +12,9 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
+  SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
+import { ColorPicker } from "../../../shared/ui/ColorPicker";
 
 export interface EventTypeDialogFormState {
   name: string;
@@ -72,36 +74,23 @@ export function EventTypeDialog({ open, editing, formState, nameError, onClose, 
               helperText="Example: 🎓, 🩺, 🎉"
               onChange={(event) => onFormStateChange((current) => ({ ...current, icon: event.target.value }))}
             />
-            <FormField
-              label="Color (optional)"
-              type="color"
-              slotProps={{ inputLabel: { shrink: true } }}
+            <ColorPicker
+              label="Color"
               value={formState.color}
-              helperText="Used for event detail corner decoration."
-              onChange={(event) => onFormStateChange((current) => ({ ...current, color: event.target.value }))}
+              helperText="Optional; used for event detail corner decoration."
+              onChange={(color) => onFormStateChange((current) => ({ ...current, color }))}
             />
           </GlassPanel>
         </DialogContentPanel>
 
         <DialogActionsBar>
-          <Button
+          <SecondaryButton
             type="button"
             onClick={onClose}
             variant="outlined"
-            sx={{
-              borderRadius: "999px",
-              color: "var(--dialog-muted)",
-              borderColor: "var(--dialog-border)",
-              textTransform: "none",
-              minHeight: 42,
-              "&:hover": {
-                borderColor: "var(--accent-strong)",
-                background: "rgba(127, 139, 255, 0.12)",
-              },
-            }}
           >
             Cancel
-          </Button>
+          </SecondaryButton>
           <GradientButton type="submit" variant="contained" disableElevation>
             Save type
           </GradientButton>

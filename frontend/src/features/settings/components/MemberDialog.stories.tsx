@@ -20,7 +20,6 @@ const MemberDialogStory = ({ editing = false, child = false }: { editing?: boole
     <MemberDialog
       open
       editing={editing}
-      colors={MEMBER_COLORS}
       formState={formState}
       firstNameError={!formState.firstName.trim()}
       onClose={() => undefined}
@@ -89,5 +88,11 @@ export const ChildMemberDetails: Story = {
     await expect(dialog.getByRole("switch", { name: /Hatch background/ })).toBeChecked();
     await expect(dialog.getByRole("textbox", { name: "School building" })).toHaveValue("Sagenhof");
     await expect(dialog.getByRole("textbox", { name: "School class" })).toHaveValue("5f");
+    const colorInput = dialog.getByLabelText("Avatar color color wheel");
+    await expect(colorInput).toHaveValue("#3b82f6");
+    await expect(dialog.queryByRole("textbox", { name: "Avatar color hex value" })).toBeNull();
+    await expect(dialog.queryByRole("group", { name: "Avatar color presets" })).toBeNull();
+    await fireEvent.change(colorInput, { target: { value: "#f97316" } });
+    await expect(colorInput).toHaveValue("#f97316");
   },
 };

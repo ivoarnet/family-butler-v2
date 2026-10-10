@@ -19,8 +19,9 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
+  SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
-import { getMemberColorLabel } from "../../../shared/family/memberAvatarColors";
+import { ColorPicker } from "../../../shared/ui/ColorPicker";
 import { MemberAvatarColor } from "../../../types/family";
 
 const AvatarPanel = styled(Box)(({ theme }) => ({
@@ -43,48 +44,6 @@ const MemberDetailsSection = styled(Box)(({ theme }) => ({
 
 const RelationshipField = styled(FormField)({});
 
-const ColorPickerContainer = styled(Box)(({ theme }) => ({
-  position: "relative",
-  minHeight: 52,
-  borderRadius: 12,
-  border: "1px solid var(--dialog-border)",
-  background: "var(--dialog-field)",
-  padding: theme.spacing(1.35, 1.2, 1, 1.2),
-  display: "flex",
-  alignItems: "center",
-}));
-
-const ColorPickerLabel = styled("span")({
-  position: "absolute",
-  top: -9,
-  left: 11,
-  padding: "0 6px",
-  fontSize: "0.75rem",
-  lineHeight: 1,
-  color: "var(--dialog-muted)",
-  background: "var(--dialog-surface)",
-});
-
-const ColorPickerSwatches = styled(Box)(({ theme }) => ({
-  display: "flex",
-  alignItems: "center",
-  gap: theme.spacing(1),
-}));
-
-const ColorSwatchButton = styled("button")<{ $selected: boolean; $swatch: string }>(({ $selected, $swatch }) => ({
-  width: 28,
-  height: 28,
-  borderRadius: "999px",
-  border: $selected ? "2px solid var(--accent-strong)" : "1px solid rgba(255, 255, 255, 0.22)",
-  boxShadow: $selected ? "0 0 0 2px rgba(127, 139, 255, 0.24)" : "none",
-  background: $swatch,
-  cursor: "pointer",
-  "&:focus-visible": {
-    outline: "2px solid rgba(221, 226, 255, 0.9)",
-    outlineOffset: 2,
-  },
-}));
-
 export interface MemberDialogFormState {
   firstName: string;
   role: string;
@@ -99,7 +58,6 @@ export interface MemberDialogFormState {
 interface MemberDialogProps {
   open: boolean;
   editing: boolean;
-  colors: MemberAvatarColor[];
   formState: MemberDialogFormState;
   firstNameError: boolean;
   onClose: () => void;
@@ -117,7 +75,6 @@ interface MemberDialogProps {
 export function MemberDialog({
   open,
   editing,
-  colors,
   formState,
   firstNameError,
   onClose,
@@ -208,27 +165,8 @@ export function MemberDialog({
                   slotProps={{ inputLabel: { shrink: true }, htmlInput: { maxLength: 50 } }}
                   onChange={(event) => onSchoolClassChange(event.target.value)} />
               </>}
-              <ColorPickerContainer role="radiogroup" aria-label="Color">
-                <ColorPickerLabel>Color</ColorPickerLabel>
-                <ColorPickerSwatches>
-                  {colors.map((color) => {
-                    const selected = formState.avatarColor === color;
-                    return (
-                      <ColorSwatchButton
-                        key={color}
-                        type="button"
-                        role="radio"
-                        aria-label={`${getMemberColorLabel(color)} avatar color`}
-                        aria-checked={selected}
-                        title={getMemberColorLabel(color)}
-                        $selected={selected}
-                        $swatch={color}
-                        onClick={() => onAvatarColorChange(color)}
-                      />
-                    );
-                  })}
-                </ColorPickerSwatches>
-              </ColorPickerContainer>
+              <ColorPicker label="Avatar color" value={formState.avatarColor} showHexInput={false}
+                onChange={onAvatarColorChange} helperText="Choose a color." />
               <Box sx={{ display: "grid", alignContent: "center" }}>
                 <CalendarVisibilityToggle
                   control={
@@ -258,24 +196,13 @@ export function MemberDialog({
         </DialogContentPanel>
 
         <DialogActionsBar>
-          <Button
+          <SecondaryButton
             type="button"
             onClick={onClose}
             variant="outlined"
-            sx={{
-              borderRadius: "999px",
-              color: "var(--dialog-muted)",
-              borderColor: "var(--dialog-border)",
-              textTransform: "none",
-              minHeight: 42,
-              "&:hover": {
-                borderColor: "var(--accent-strong)",
-                background: "rgba(127, 139, 255, 0.12)",
-              },
-            }}
           >
             Cancel
-          </Button>
+          </SecondaryButton>
           <GradientButton type="submit" variant="contained" disableElevation>
             Save member
           </GradientButton>

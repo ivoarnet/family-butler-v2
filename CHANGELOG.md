@@ -2,6 +2,9 @@
 
 ## Unreleased
 
+- Standardized dialog secondary actions, Swiss German date-only pickers, 24-hour/5-minute time pickers, and accessible free-choice color controls. Calendar Specials now share an icon/title/subtitle layout. Updated screenshots: `docs/screenshots/shared-form-controls.png`, `docs/screenshots/shared-form-controls-mobile.png`, and `docs/screenshots/calendar-specials-layout.png`. See `docs/STYLEGUIDE.md` for display and serialization behavior.
+- Aligned Childcare Provider and Arrangement add buttons with Parenting settings by using the shared add icon. Updated screenshot: `docs/screenshots/childcare-settings-add-button-icons.png`.
+- Moved longer Parenting Time and Childcare guidance behind keyboard- and touch-accessible info buttons beside related headings. Updated screenshot: `docs/screenshots/settings-guidance-info-icons.png`.
 - Removed parenting status and hatching guidance messages from the calendar. Updated screenshot: `docs/screenshots/calendar-parenting-notices-hidden.png`.
 - Added a dedicated Reports & exports workspace as a home for future report types and export formats. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/reports-exports-page.png`.
 - Added month navigation to the household calendar. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/monthly-calendar-view.png`.
@@ -131,7 +134,7 @@
   - Dark: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-contact-dialog-dark-glass.png`
   - Light: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/settings-contact-dialog-light-glass.png`
 - Refined dialog visual hierarchy by removing extra inner frames and aligning floating labels with outlined field borders; added screenshot `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-clean-border-labels.png`.
-- Replaced the member avatar color dropdown with an accessible color swatch picker and added screenshot `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-color-picker.png`.
+- Replaced the member avatar color dropdown with a single free-choice color input; member color presets, the extra hex input, and members-list color column were removed. Updated screenshot: `docs/screenshots/member-dialog-color-picker.png`.
 - Migrated member avatar color persistence from semantic names to real color values (hex/rgb-friendly strings) with legacy value normalization, and added screenshot `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-dialog-hex-color-storage.png`.
 - Migrated API database access from Prisma/Azure SQL to a provider-based Supabase implementation under `/home/runner/work/family-butler-v2/family-butler-v2/api/shared/db`.
 - Updated `/api/households`, `/api/tasks`, and `/api/health?checks=1` to use Supabase-backed persistence and connectivity checks.

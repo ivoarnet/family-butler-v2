@@ -12,6 +12,19 @@ tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
 const followingMidnight = new Date(`${tomorrowDate}T00:00`);
 followingMidnight.setDate(followingMidnight.getDate() + 1);
+const setPickerDate = async (root: HTMLElement, label: string, value: string) => {
+  const [year, month, day] = value.split("-");
+  for (const [section, part] of [["Day", day], ["Month", month], ["Year", year]]) {
+    const field = within(root).getByRole("group", { name: label });
+    const segment = within(field).getByRole("spinbutton", { name: section });
+    await userEvent.click(segment);
+    await userEvent.keyboard(part);
+  }
+};
+const pickerDateValue = (root: HTMLElement, label: string) => {
+  const field = within(root).getByRole("group", { name: label });
+  return (field.querySelector("input") as HTMLInputElement | null)?.value ?? "";
+};
 const yesterday = new Date(today);
 yesterday.setDate(yesterday.getDate() - 1);
 const yesterdayDate = `${yesterday.getFullYear()}-${String(yesterday.getMonth() + 1).padStart(2, "0")}-${String(yesterday.getDate()).padStart(2, "0")}`;
@@ -217,13 +230,17 @@ export const Desktop: Story = {
       expect(firstChildcare.textContent).toContain("Grandparents");
       expect(firstChildcare.textContent).toContain("For Alex, Sam");
       expect(firstChildcare.querySelector(".calendar-childcare-icon")).not.toBeNull();
+      expect(firstChildcare.querySelector("strong")).not.toBeNull();
+      expect(firstChildcare.querySelector("small")?.textContent).toBe("For Alex, Sam");
       expect(getComputedStyle(firstChildcare.querySelector(".calendar-childcare-icon")!).color)
         .toBe(getComputedStyle(firstChildcare.querySelector("strong")!).color);
       expect(firstChildcare.getAttribute("title")).toContain("All day");
       expect(getComputedStyle(firstChildcare).borderBottomColor).toBe(getComputedStyle(todayRow).borderBottomColor);
       const birthdayEntry = specialsCell.querySelector(".calendar-birthday-entry")!;
       expect(birthdayEntry.textContent).toBe("Taylor");
+      expect(birthdayEntry.getAttribute("aria-label")).toBe("Birthday: Taylor. Birthday");
       expect(birthdayEntry.querySelector(".calendar-special-icon[data-testid='CakeIcon']")).not.toBeNull();
+      expect(birthdayEntry.querySelector("small")?.textContent).toBe("Birthday");
       expect(getComputedStyle(birthdayEntry.querySelector(".calendar-special-icon")!).color)
         .toBe(getComputedStyle(birthdayEntry.querySelector("strong")!).color);
       expect(specialsCell.textContent.indexOf("Grandparents")).toBeLessThan(specialsCell.textContent.indexOf("Taylor"));
@@ -365,10 +382,11 @@ export const MultiDayEvent: Story = {
     await expect(canvas.getAllByText("Continues").length).toBeGreaterThan(0);
 
     await userEvent.click(canvas.getByTitle("Create event"));
-    await userEvent.click(canvas.getByRole("checkbox", { name: "Multi-day event" }));
-    const lastDay = canvas.getByLabelText("Last day") as HTMLInputElement;
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(page.getByRole("switch", { name: "Multi-day event" }));
+    const lastDay = page.getByRole("group", { name: "Last day" });
     await expect(lastDay).toBeVisible();
-    await expect(lastDay.value).toBe(tomorrowDate);
+    await expect(pickerDateValue(canvasElement.ownerDocument.body, "Last day")).toBe(tomorrowDate.split("-").reverse().join("."));
   },
 };
 
@@ -383,6 +401,7 @@ export const ParentingTime: Story = {
     await expect(parentingEntry).toBeVisible();
     await expect(parentingEntry.textContent).toBe("Parenting12:00 → Dad");
     await expect(parentingEntry.querySelector("strong")?.textContent).toBe("Parenting");
+    await expect(parentingEntry.querySelector("small")?.textContent).toBe("12:00 → Dad");
     await expect(parentingEntry.querySelector(".calendar-special-icon[data-testid='FamilyRestroomIcon']")).not.toBeNull();
     await expect(parentingEntry.getAttribute("title")).toContain("12:00 – 18:00");
     await expect(canvas.queryByText("One-off change · Agreed swap")).toBeNull();
@@ -428,11 +447,10 @@ export const ParentingTime: Story = {
     await waitFor(() => expect(page.getByRole("alert")).toHaveTextContent("You can still save"));
     await expect(page.getByRole("alert")).toHaveTextContent("One-off change: Agreed swap");
     await expect(page.getByRole("button", { name: "Add event" })).toBeEnabled();
-    const dateInput = page.getByLabelText(/^Date/) as HTMLInputElement;
-    await fireEvent.change(dateInput, { target: { value: tomorrowDate } });
+    await setPickerDate(canvasElement.ownerDocument.body, "Date", tomorrowDate);
     await waitFor(() => expect(page.queryByRole("alert")).toBeNull());
     await waitFor(() => expect(page.getByText("No parenting responsibility overlap for this range.")).toBeVisible());
-    await fireEvent.change(dateInput, { target: { value: date } });
+    await setPickerDate(canvasElement.ownerDocument.body, "Date", date);
     await waitFor(() => expect(page.getByRole("alert")).toHaveTextContent("You can still save"));
     await userEvent.click(page.getByRole("combobox", { name: "Acting parenting party (development only)" }));
     await userEvent.click(await page.findByRole("option", { name: "Mum" }));

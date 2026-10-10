@@ -1,12 +1,8 @@
 import { FormEvent, ReactNode } from "react";
 import CloseIcon from "@mui/icons-material/Close";
 import { Box, Button, FormControl, FormControlLabel, MenuItem, Switch, Typography, useMediaQuery } from "@mui/material";
-import { alpha, styled, useTheme } from "@mui/material/styles";
-import dayjs, { Dayjs } from "dayjs";
-import customParseFormat from "dayjs/plugin/customParseFormat";
-import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
-import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
-import { MobileTimePicker } from "@mui/x-date-pickers/MobileTimePicker";
+import { styled, useTheme } from "@mui/material/styles";
+import dayjs from "dayjs";
 import {
   DialogActionsBar,
   DialogContentPanel,
@@ -18,10 +14,10 @@ import {
   GlassDialog,
   GlassPanel,
   GradientButton,
+  SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
+import { DateField, TimeField } from "../../../shared/ui/PickerFields";
 import { EventType, FamilyMember } from "../../../types/family";
-
-dayjs.extend(customParseFormat);
 
 const EventDetailsSection = styled(Box)(({ theme }) => ({
   display: "grid",
@@ -88,16 +84,6 @@ const MemberAvatar = styled("span")<{ $color: string }>(({ $color }) => ({
   fontSize: "0.75rem",
 }));
 
-const parseTimeValue = (value: string): Dayjs | null => {
-  if (!value) {
-    return null;
-  }
-  const parsed = dayjs(value, "HH:mm", true);
-  return parsed.isValid() ? parsed : null;
-};
-
-const formatTimeValue = (value: Dayjs | null): string => (value ? value.format("HH:mm") : "");
-
 export interface EventDialogFormState {
   title: string;
   memberIds: string[];
@@ -150,60 +136,7 @@ export function EventDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const titleId = "event-dialog-title";
   const descriptionId = "event-dialog-description";
-  const timePickerSlotProps = {
-    textField: {
-      error: Boolean(timeErrorMessage),
-      helperText: timeErrorMessage ?? " ",
-      fullWidth: true,
-      sx: {
-        "& .MuiPickersOutlinedInput-root": {
-          minHeight: 52,
-          borderRadius: "12px",
-          background: "var(--dialog-field)",
-          color: "var(--text-primary)",
-        },
-        "& .MuiInputLabel-root": {
-          color: "var(--dialog-muted)",
-        },
-        "& .MuiInputLabel-root.Mui-focused": {
-          color: "var(--accent-strong)",
-        },
-        "& .MuiPickersOutlinedInput-notchedOutline": {
-          borderColor: "var(--dialog-border)",
-        },
-        "& .MuiPickersOutlinedInput-root:hover .MuiPickersOutlinedInput-notchedOutline": {
-          borderColor: "var(--accent-strong)",
-        },
-        "& .MuiPickersOutlinedInput-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline": {
-          borderColor: "var(--accent-strong)",
-          boxShadow: "0 0 0 2px rgba(127, 139, 255, 0.2)",
-        },
-        "& .MuiSvgIcon-root": {
-          color: "var(--text-primary)",
-        },
-      },
-    },
-    mobilePaper: {
-      sx: {
-        background: "var(--dialog-surface)",
-        color: "var(--text-primary)",
-        border: "1px solid var(--dialog-border)",
-      },
-    },
-    layout: {
-      sx: {
-        "& .MuiTypography-root": {
-          color: "var(--text-primary)",
-        },
-        "& .MuiClockNumber-root, & .MuiClockPointer-thumb, & .MuiClock-pin, & .MuiPickersArrowSwitcher-button .MuiSvgIcon-root, & .MuiButton-root, & .MuiIconButton-root .MuiSvgIcon-root": {
-          color: "var(--text-primary)",
-        },
-      },
-    },
-  } as const;
-
   return (
-    <LocalizationProvider dateAdapter={AdapterDayjs}>
       <GlassDialog open={open} onClose={onClose} aria-labelledby={titleId} aria-describedby={descriptionId} fullScreen={fullScreen}>
         <Box component="form" onSubmit={onSubmit} noValidate>
         <DialogHeader>
@@ -233,15 +166,13 @@ export function EventDialog({
                 helperText={titleError ? "Title is required." : " "}
                 onChange={(event) => onFormStateChange((current) => ({ ...current, title: event.target.value }))}
               />
-              <FormField
+              <DateField
                 required
-                type="date"
                 label="Date"
-                slotProps={{ inputLabel: { shrink: true } }}
                 value={formState.date}
                 error={dateError}
                 helperText={dateError ? "Date is required." : " "}
-                onChange={(event) => onFormStateChange((current) => ({ ...current, date: event.target.value }))}
+                onChange={(date) => onFormStateChange((current) => ({ ...current, date }))}
               />
               <FormControlLabel
                 control={
@@ -268,15 +199,13 @@ export function EventDialog({
                 }}
               />
               {formState.multiDay ? (
-                <FormField
+                <DateField
                   required
-                  type="date"
                   label="Last day"
-                  slotProps={{ inputLabel: { shrink: true } }}
                   value={formState.endDate}
                   error={endDateError}
                   helperText={endDateError ? "Last day must be on or after the start date." : " "}
-                  onChange={(event) => onFormStateChange((current) => ({ ...current, endDate: event.target.value }))}
+                  onChange={(date) => onFormStateChange((current) => ({ ...current, endDate: date }))}
                 />
               ) : null}
               <TimeControlsSection>
@@ -303,30 +232,12 @@ export function EventDialog({
                 />
                 {!formState.allDay ? (
                   <TimeSection>
-                    <FormControl error={Boolean(timeErrorMessage)}>
-                      <MobileTimePicker
-                        ampm={false}
-                        views={["hours", "minutes"]}
-                        minutesStep={5}
-                        format="HH:mm"
-                        label="Begin"
-                        value={parseTimeValue(formState.startTime)}
-                        onChange={(value) => onFormStateChange((current) => ({ ...current, startTime: formatTimeValue(value) }))}
-                        slotProps={timePickerSlotProps}
-                      />
-                    </FormControl>
-                    <FormControl error={Boolean(timeErrorMessage)}>
-                      <MobileTimePicker
-                        ampm={false}
-                        views={["hours", "minutes"]}
-                        minutesStep={5}
-                        format="HH:mm"
-                        label="End"
-                        value={parseTimeValue(formState.endTime)}
-                        onChange={(value) => onFormStateChange((current) => ({ ...current, endTime: formatTimeValue(value) }))}
-                        slotProps={timePickerSlotProps}
-                      />
-                    </FormControl>
+                    <TimeField label="Begin" value={formState.startTime} error={Boolean(timeErrorMessage)}
+                      helperText={timeErrorMessage ?? " "} onChange={(time) =>
+                        onFormStateChange((current) => ({ ...current, startTime: time }))} />
+                    <TimeField label="End" value={formState.endTime} error={Boolean(timeErrorMessage)}
+                      helperText={timeErrorMessage ?? " "} onChange={(time) =>
+                        onFormStateChange((current) => ({ ...current, endTime: time }))} />
                   </TimeSection>
                 ) : null}
               </TimeControlsSection>
@@ -414,30 +325,18 @@ export function EventDialog({
         </DialogContentPanel>
 
         <DialogActionsBar>
-          <Button
+          <SecondaryButton
             type="button"
             onClick={onClose}
             variant="outlined"
-            sx={{
-              borderRadius: "999px",
-              color: "var(--dialog-muted)",
-              borderColor: "var(--dialog-border)",
-              textTransform: "none",
-              minHeight: 42,
-              "&:hover": {
-                borderColor: "var(--accent-strong)",
-                background: alpha("#7f8bff", 0.12),
-              },
-            }}
           >
             Cancel
-          </Button>
+          </SecondaryButton>
           <GradientButton type="submit" variant="contained" disableElevation>
             {editing ? "Save event" : "Add event"}
           </GradientButton>
         </DialogActionsBar>
         </Box>
       </GlassDialog>
-    </LocalizationProvider>
   );
 }

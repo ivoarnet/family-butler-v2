@@ -67,7 +67,7 @@ function ChildcareCalendarEntry({
     >
       <ChildCareIcon className="calendar-childcare-icon" fontSize="small" aria-hidden="true" />
       <strong>{providerName}</strong>
-      <small>For {childNames.join(", ") || "household children"}</small>
+      <small>{childNames.length ? `For ${childNames.join(", ")}` : "For household children"}</small>
     </div>
   );
 }
@@ -76,9 +76,10 @@ function BirthdayCalendarEntry({ event }: { event: SpecialEvent }) {
   const label = formatBirthdayLabel(event);
 
   return (
-    <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}`}>
+    <div className="specials-entry calendar-birthday-entry" title={`Birthday: ${label}`} aria-label={`Birthday: ${label}. Birthday`}>
       <CakeIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
       <strong>{label}</strong>
+      <small>Birthday</small>
     </div>
   );
 }
@@ -112,7 +113,7 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
       aria-label={`Parenting: ${partyName}. ${details}`}>
       <FamilyRestroomIcon className="calendar-special-icon" fontSize="small" aria-hidden="true" />
       <strong>Parenting</strong>
-      {handOffTime && <small>{handOffTime} → {partyName}</small>}
+      <small>{handOffTime ? `${handOffTime} → ${partyName}` : partyName}</small>
     </div>
   );
 }

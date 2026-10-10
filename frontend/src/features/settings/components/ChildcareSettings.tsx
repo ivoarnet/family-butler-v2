@@ -7,7 +7,9 @@ import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import type { FamilyMember } from "../../../types/family";
-import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton } from "../../../shared/ui/GlassFormDialog";
+import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../../../shared/ui/GlassFormDialog";
+import { DateField, TimeField } from "../../../shared/ui/PickerFields";
+import { SettingsInfo } from "./SettingsInfo";
 import { ProviderCareCalendar } from "./ProviderCareCalendar";
 
 export type ChildcareRequest = (path: string, init?: RequestInit) => Promise<unknown>;
@@ -51,10 +53,8 @@ function TimingFields({ value, onChange, disabled }: { value: Timing; onChange: 
     <FormControlLabel label="All-day care" control={<Checkbox disabled={disabled} checked={value.allDay} onChange={(_, allDay) =>
       onChange({ allDay, startTime: allDay ? null : "09:00", endTime: allDay ? null : "17:00" })} />} />
     {!value.allDay && <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-      <FormField label="Start time" type="time" value={value.startTime ?? ""} slotProps={{ inputLabel: { shrink: true } }}
-        onChange={(event) => onChange({ ...value, startTime: event.target.value })} required />
-      <FormField label="End time" type="time" value={value.endTime ?? ""} slotProps={{ inputLabel: { shrink: true } }}
-        onChange={(event) => onChange({ ...value, endTime: event.target.value })} required />
+      <TimeField label="Start time" value={value.startTime ?? ""} onChange={(time) => onChange({ ...value, startTime: time || null })} required />
+      <TimeField label="End time" value={value.endTime ?? ""} onChange={(time) => onChange({ ...value, endTime: time || null })} required />
     </Stack>}
   </>;
 }
@@ -202,17 +202,23 @@ export function ChildcareSettings({ householdId, members, request }: {
   ) : <Typography>No care occurrences in this range.</Typography>;
 
   return <Stack spacing={3}>
-    <Typography variant="h5" component="h2">Childcare</Typography>
-    <Typography>Manage recurring care separately from calendar events. One-off changes affect only the selected occurrence.</Typography>
+    <div className="section-title-info">
+      <Typography variant="h5" component="h2">Childcare</Typography>
+      <SettingsInfo label="Childcare information" text="Manage recurring care separately from calendar events. One-off changes affect only the selected occurrence." />
+    </div>
     {error && <Alert severity="error" action={!provider && !draft && !override ? <Button disabled={disabled} onClick={() => {
       setError(""); void load(requestedRange.current);
     }}>Retry</Button> : undefined}>{error}</Alert>}
     {loading && <Typography role="status">Loading childcare…</Typography>}
     <section className="settings-card">
       <div className="section-toolbar">
-        <h2>Providers</h2>
+        <span className="section-title-info"><h2>Providers</h2>
+          <SettingsInfo label="Providers information" text="Inactive providers are hidden from new care choices. Deactivation keeps existing recurring care and history; existing assignments remain valid." />
+        </span>
         <button type="button" className="primary-pill no-wrap-button" aria-label="Add provider" disabled={disabled}
-          onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>+ Provider</button>
+          onClick={() => { setError(""); setProvider({ name: "", type: "grandparent" }); }}>
+          <AddCircleOutlineIcon fontSize="small" /> Provider
+        </button>
       </div>
       {!loading && !data.providers.length && <Typography>No providers yet. Add a provider before creating an arrangement.</Typography>}
       {!!data.providers.length && <div className="table-scroll"><table className="settings-table" aria-label="Childcare providers">
@@ -238,7 +244,6 @@ export function ChildcareSettings({ householdId, members, request }: {
           </div></td>
         </tr>)}</tbody>
       </table></div>}
-      <Typography variant="body2">Inactive providers are hidden from new care choices. Deactivation keeps existing recurring care and history; existing assignments remain valid.</Typography>
     </section>
     <section className="settings-card">
       <div className="section-toolbar">
@@ -248,7 +253,7 @@ export function ChildcareSettings({ householdId, members, request }: {
           setError(""); setPreview(null);
           setDraft({ providerId: data.providers.find((item) => item.active)!.id, childIds: [], weekdays: [],
             allDay: true, startTime: null, endTime: null, startDate: today(), endDate: null });
-        }}>+ Arrangement</button>
+        }}><AddCircleOutlineIcon fontSize="small" /> Arrangement</button>
       </div>
       {!loading && !data.arrangements.length && <Typography>No weekly arrangements yet.</Typography>}
       {!!data.arrangements.length && <div className="table-scroll"><table className="settings-table" aria-label="Childcare arrangements">
@@ -272,7 +277,9 @@ export function ChildcareSettings({ householdId, members, request }: {
       </table></div>}
     </section>
     <section className="settings-card" ref={scheduleSection}>
-      <div className="section-toolbar"><h2>Resolved care</h2></div>
+      <div className="section-toolbar"><span className="section-title-info"><h2>Resolved care</h2>
+        <SettingsInfo label="Resolved care information" text="One-off changes are available for today and upcoming care dates only. Past care is read-only." />
+      </span></div>
       <Typography variant="h6" component="h3">Provider schedule</Typography>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }}>
         <FormField select label="Schedule provider" value={scheduleProviderId} disabled={disabled}
@@ -292,15 +299,14 @@ export function ChildcareSettings({ householdId, members, request }: {
         event.preventDefault();
         if (!disabled && validRange(range.startDate, range.endDate)) { setError(""); void load(range); }
       }}>
-        <FormField label="Range start" type="date" value={range.startDate} disabled={disabled}
-          slotProps={{ inputLabel: { shrink: true } }} onChange={(event) => { setRange({ ...range, startDate: event.target.value }); setPreview(null); }} />
-        <FormField label="Range end" type="date" value={range.endDate} disabled={disabled}
-          slotProps={{ inputLabel: { shrink: true } }} onChange={(event) => { setRange({ ...range, endDate: event.target.value }); setPreview(null); }} />
+        <DateField label="Range start" value={range.startDate} disabled={disabled}
+          onChange={(startDate) => { setRange({ ...range, startDate }); setPreview(null); }} />
+        <DateField label="Range end" value={range.endDate} disabled={disabled}
+          onChange={(endDate) => { setRange({ ...range, endDate }); setPreview(null); }} />
         <button type="submit" className="primary-pill no-wrap-button" disabled={disabled || !validRange(range.startDate, range.endDate)}>Show care</button>
       </Stack>
       {!validRange(range.startDate, range.endDate) && <Alert severity="warning">Choose an ordered range of at most 366 days.</Alert>}
       <Typography variant="body2">Showing {loadedRange.startDate} – {loadedRange.endDate}</Typography>
-      <Typography variant="body2">One-off changes are available for today and upcoming care dates only. Past care is read-only.</Typography>
       {loading && <Typography role="status">Loading provider schedule…</Typography>}
       {!loading && loadFailed && <Alert severity="error">Provider schedule could not be loaded. Use Retry above to reload.</Alert>}
       {!loading && !loadFailed && (scheduleView === "list" ? occurrenceList(providerOccurrences, true) :
@@ -331,7 +337,7 @@ export function ChildcareSettings({ householdId, members, request }: {
             {providerTypes.map(([value, label]) => <MenuItem key={value} value={value}>{label}</MenuItem>)}
           </FormField>
         </Box></DialogContentPanel>
-        <DialogActionsBar><Button disabled={busy} onClick={() => setProvider(null)}>Cancel</Button>
+        <DialogActionsBar><SecondaryButton variant="outlined" disabled={busy} onClick={() => setProvider(null)}>Cancel</SecondaryButton>
           <GradientButton type="submit" disabled={busy || !provider.name.trim()}>Save provider</GradientButton></DialogActionsBar>
       </Box>}
     </GlassDialog>
@@ -366,17 +372,17 @@ export function ChildcareSettings({ householdId, members, request }: {
           </Box>
           <TimingFields value={draft} onChange={changeDraft} disabled={busy} />
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <FormField label="Effective start" type="date" required value={draft.startDate} slotProps={{ inputLabel: { shrink: true } }}
-              onChange={(event) => changeDraft({ startDate: event.target.value })} />
-            <FormField label="Effective end (optional)" type="date" value={draft.endDate ?? ""} slotProps={{ inputLabel: { shrink: true } }}
-              onChange={(event) => changeDraft({ endDate: event.target.value || null })} />
+            <DateField label="Effective start" required value={draft.startDate}
+              onChange={(startDate) => changeDraft({ startDate })} />
+            <DateField label="Effective end (optional)" value={draft.endDate ?? ""}
+              onChange={(endDate) => changeDraft({ endDate: endDate || null })} />
           </Stack>
           {!draftValid && <Typography color="error">Select a provider, at least one participant and weekday, and valid dates and times.</Typography>}
           <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
-            <FormField label="Preview start" type="date" value={range.startDate} slotProps={{ inputLabel: { shrink: true } }}
-              onChange={(event) => { setRange({ ...range, startDate: event.target.value }); setPreview(null); }} />
-            <FormField label="Preview end" type="date" value={range.endDate} slotProps={{ inputLabel: { shrink: true } }}
-              onChange={(event) => { setRange({ ...range, endDate: event.target.value }); setPreview(null); }} />
+            <DateField label="Preview start" value={range.startDate}
+              onChange={(startDate) => { setRange({ ...range, startDate }); setPreview(null); }} />
+            <DateField label="Preview end" value={range.endDate}
+              onChange={(endDate) => { setRange({ ...range, endDate }); setPreview(null); }} />
           </Stack>
           {!validRange(range.startDate, range.endDate) && <Alert severity="warning">Choose an ordered preview range of at most 366 days.</Alert>}
           <Typography>Preview {range.startDate} – {range.endDate} with persisted one-off changes before saving.</Typography>
@@ -389,7 +395,7 @@ export function ChildcareSettings({ householdId, members, request }: {
           })}>Preview care</Button>
           {preview !== null && <Box><Typography variant="h6" component="h3">Preview results</Typography>{occurrenceList(preview)}</Box>}
         </Box></DialogContentPanel>
-        <DialogActionsBar><Button disabled={busy} onClick={() => setDraft(null)}>Cancel</Button>
+        <DialogActionsBar><SecondaryButton variant="outlined" disabled={busy} onClick={() => setDraft(null)}>Cancel</SecondaryButton>
           <GradientButton type="submit" disabled={busy || !draftValid || preview === null}>Save arrangement</GradientButton></DialogActionsBar>
       </Box>}
     </GlassDialog>
@@ -415,8 +421,8 @@ export function ChildcareSettings({ householdId, members, request }: {
             <MenuItem value="cancel">Cancel care</MenuItem>
             {override.action !== "add" && <><MenuItem value="replace">Replace provider / time</MenuItem><MenuItem value="move">Move care date</MenuItem></>}
           </FormField>
-          {override.action === "move" && <FormField label="Moved date" type="date" required value={override.movedDate ?? ""}
-            slotProps={{ inputLabel: { shrink: true } }} onChange={(event) => setOverride({ ...override, movedDate: event.target.value })} />}
+          {override.action === "move" && <DateField label="Moved date" required value={override.movedDate ?? ""}
+            onChange={(movedDate) => setOverride({ ...override, movedDate })} />}
           {override.action !== "cancel" && <>
             <FormField select disabled={busy} label="Occurrence provider" value={override.providerId ?? ""} onChange={(event) => setOverride({ ...override, providerId: event.target.value })}>
               {data.providers.filter((item) => item.active || item.id === override.providerId).map((item) =>
@@ -425,7 +431,7 @@ export function ChildcareSettings({ householdId, members, request }: {
             <TimingFields value={override} onChange={(timing) => setOverride({ ...override, ...timing })} disabled={busy} />
           </>}
         </Box></DialogContentPanel>
-        <DialogActionsBar><Button disabled={busy} onClick={() => setOverride(null)}>Close</Button>
+        <DialogActionsBar><SecondaryButton variant="outlined" disabled={busy} onClick={() => setOverride(null)}>Close</SecondaryButton>
           <GradientButton type="submit" disabled={busy || (override.action !== "cancel" && (!validTiming(override) ||
             (override.action === "move" && (!validDate(override.movedDate ?? "") || override.movedDate === override.originalDate))))}>
             {override.action === "add" ? "Save added care day" : "Save one-off change"}
@@ -445,12 +451,11 @@ export function ChildcareSettings({ householdId, members, request }: {
         <DialogContentPanel><Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
           {error && <Alert severity="error">{error}</Alert>}
           <Typography>Using {providerName(addDayArrangement.providerId)} for {participantNames(addDayArrangement.childIds)} · {timingText(addDayArrangement)}. The weekly arrangement stays unchanged.</Typography>
-          <FormField autoFocus label="Added care date" type="date" required value={addDay.date}
-            slotProps={{ inputLabel: { shrink: true } }}
-            onChange={(event) => setAddDay({ ...addDay, date: event.target.value })} />
+          <DateField autoFocus label="Added care date" required value={addDay.date}
+            onChange={(date) => setAddDay({ ...addDay, date })} />
           {addDayError && <Typography role="alert" color="error">{addDayError}</Typography>}
         </Box></DialogContentPanel>
-        <DialogActionsBar><Button disabled={busy} onClick={() => setAddDay(null)}>Cancel</Button>
+        <DialogActionsBar><SecondaryButton variant="outlined" disabled={busy} onClick={() => setAddDay(null)}>Cancel</SecondaryButton>
           <GradientButton type="submit" disabled={busy || Boolean(addDayError)}>Add childcare day</GradientButton>
         </DialogActionsBar>
       </Box>}
