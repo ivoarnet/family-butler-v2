@@ -869,12 +869,6 @@ body,
   padding: 0.45rem;
 }
 
-.calendar-export-tools {
-  display: flex;
-  justify-content: flex-end;
-  padding: 0 1rem 0.75rem;
-}
-
 .calendar-pdf-download {
   display: inline-flex;
   align-items: center;
@@ -1497,7 +1491,39 @@ body,
   }
 
   .dashboard-page .header-branding {
-    padding-right: 5rem;
+    padding-right: 8rem;
+  }
+
+  .reports-header {
+    grid-template-columns: 1fr auto;
+    gap: 0.5rem;
+    padding: 0.8rem;
+  }
+
+  .reports-header .header-branding {
+    min-width: 0;
+  }
+
+  .reports-header .header-branding h1 {
+    font-size: 1.25rem;
+  }
+
+  .reports-main {
+    padding: 0.75rem;
+  }
+
+  .report-intro {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .report-date-controls label {
+    flex: 1 1 10rem;
+    min-width: 0;
+  }
+
+  .report-date-controls > span {
+    flex-basis: 100%;
   }
 
   .calendar-member-filters .calendar-period-navigation {

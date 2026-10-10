@@ -332,7 +332,7 @@ export const DayGroupedEvents: Story = {
   play: DayAndEvents.play,
 };
 
-export const MonthlyCalendarPdf: Story = {
+export const MonthlyCalendar: Story = {
   args: { width: 1440 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
@@ -343,12 +343,12 @@ export const MonthlyCalendarPdf: Story = {
     await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeGreaterThanOrEqual(28);
     await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeLessThanOrEqual(42);
 
-    const downloadLink = await canvas.findByRole("link", { name: /Download .* calendar as PDF/ });
-    await waitFor(() => expect(downloadLink.getAttribute("href")).toMatch(/^blob:/));
-    await expect(downloadLink.getAttribute("download")).toMatch(/^family-calendar-\d{4}-\d{2}\.pdf$/);
-    const pdf = await fetch(downloadLink.getAttribute("href")!).then((response) => response.text());
-    await expect(pdf).toContain("%PDF-");
-    await expect(pdf).toContain("/MediaBox [0 0 1190.55 841.89]");
+    await expect(canvas.queryByRole("link", { name: /Download .* calendar as PDF/ })).toBeNull();
+    const periodLabel = canvas.getByRole("banner").querySelector("p")?.textContent;
+    await userEvent.click(canvas.getByTitle("Next month"));
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).not.toBe(periodLabel);
+    await userEvent.click(canvas.getByTitle("Previous month"));
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toBe(periodLabel);
     await userEvent.click(canvas.getByRole("button", { name: "2 Weeks" }));
     await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
     await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr")).toHaveLength(14);

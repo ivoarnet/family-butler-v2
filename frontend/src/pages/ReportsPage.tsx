@@ -114,6 +114,7 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
     if (!isValidRange || !householdData.householdId || !accessToken) {
       setChildcareOccurrences([]);
       setParentingIntervals([]);
+      setIsLoading(false);
       return;
     }
     const controller = new AbortController();
@@ -126,31 +127,37 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
     setLoadError("");
     setChildcareOccurrences([]);
     setParentingIntervals([]);
-    Promise.all([
-      fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?${query}`, {
-        headers: getRequestHeaders(accessToken), signal: controller.signal,
-      }),
-      fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/parenting-time/resolve?${parentingQuery}`, {
-        headers: getRequestHeaders(accessToken), signal: controller.signal,
-      }),
+    const readJson = async <T,>(url: string, signal: AbortSignal, errorMessage: string): Promise<T> => {
+      const response = await fetch(url, { headers: getRequestHeaders(accessToken), signal });
+      if (!response.ok) throw new Error(errorMessage);
+      return response.json() as Promise<T>;
+    };
+    Promise.allSettled([
+      readJson<{ occurrences?: ResolvedChildcareOccurrence[] }>(
+        `${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?${query}`,
+        controller.signal,
+        "Childcare could not be loaded for this report."
+      ),
+      readJson<{ intervals?: ResolvedParentingInterval[] }>(
+        `${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/parenting-time/resolve?${parentingQuery}`,
+        controller.signal,
+        "Parenting time could not be loaded for this report."
+      ),
     ])
-      .then(async ([childcareResponse, parentingResponse]) => {
-        if (!childcareResponse.ok) throw new Error("Childcare could not be loaded for this report.");
-        if (!parentingResponse.ok) throw new Error("Parenting time could not be loaded for this report.");
-        const [childcare, parenting] = await Promise.all([
-          childcareResponse.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>,
-          parentingResponse.json() as Promise<{ intervals?: ResolvedParentingInterval[] }>,
-        ]);
+      .then(([childcare, parenting]) => {
         if (controller.signal.aborted) return;
-        setChildcareOccurrences(Array.isArray(childcare.occurrences) ? childcare.occurrences : []);
-        setParentingIntervals(Array.isArray(parenting.intervals) ? parenting.intervals : []);
-      })
-      .catch((error: unknown) => {
-        if (!controller.signal.aborted) {
-          setLoadError(error instanceof Error ? error.message : "Calendar specials could not be loaded.");
-          setChildcareOccurrences([]);
-          setParentingIntervals([]);
+        const errors: string[] = [];
+        if (childcare.status === "fulfilled") {
+          setChildcareOccurrences(Array.isArray(childcare.value.occurrences) ? childcare.value.occurrences : []);
+        } else {
+          errors.push(childcare.reason instanceof Error ? childcare.reason.message : "Childcare could not be loaded.");
         }
+        if (parenting.status === "fulfilled") {
+          setParentingIntervals(Array.isArray(parenting.value.intervals) ? parenting.value.intervals : []);
+        } else {
+          errors.push(parenting.reason instanceof Error ? parenting.reason.message : "Parenting time could not be loaded.");
+        }
+        setLoadError(errors.join(" "));
       })
       .finally(() => {
         if (!controller.signal.aborted) setIsLoading(false);
@@ -162,7 +169,9 @@ export function ReportsPage({ householdData, accessToken, onGoHome }: {
     const isoDate = toIsoDate(day);
     const memberEntries: Record<string, string[]> = {};
     const sharedEntries: string[] = [];
-    householdData.events.filter((event) => occursOnDay(event, day)).forEach((event) => {
+    householdData.events.filter((event) => occursOnDay(event, day))
+      .sort((a, b) => (a.startTime ?? "").localeCompare(b.startTime ?? ""))
+      .forEach((event) => {
       const assignedMembers = members.filter((member) => event.memberIds.includes(member.id));
       const label = eventLabel(event, isoDate, householdData.eventTypes);
       if (assignedMembers.length === 0) sharedEntries.push(label);
