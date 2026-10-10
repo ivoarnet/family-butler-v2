@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Removed parenting status and hatching guidance messages from the calendar. Updated screenshot: `docs/screenshots/calendar-parenting-notices-hidden.png`.
 - Added a dedicated Reports & exports workspace as a home for future report types and export formats. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/reports-exports-page.png`.
 - Added month navigation to the household calendar. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/monthly-calendar-view.png`.
 - Show only confirmed parenting handovers in the calendar's Specials column, with the parenting icon/title and `HH:mm → Party` on the next line. Continuing periods and same-party changes no longer add entries; hatching and responsibility checks are unchanged. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
