@@ -1,5 +1,6 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import BeachAccessIcon from "@mui/icons-material/BeachAccess";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
@@ -193,8 +194,7 @@ const formatBirthdayLabel = (specialEvent: SpecialEvent): string => {
   return `${specialEvent.label} (${age})`;
 };
 
-const buildBirthdayEvents = (contacts: Contact[], periodStart: Date): SpecialEvent[] => {
-  const days = Array.from({ length: 14 }, (_, index) => addDays(periodStart, index));
+const buildBirthdayEvents = (contacts: Contact[], days: Date[]): SpecialEvent[] => {
   const birthdayEvents: SpecialEvent[] = [];
 
   for (const day of days) {
@@ -219,6 +219,17 @@ const buildBirthdayEvents = (contacts: Contact[], periodStart: Date): SpecialEve
 
   return birthdayEvents;
 };
+
+const buildMonthCalendarDays = (month: Date): Date[] => {
+  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
+  const start = startOfWeekMonday(firstDay);
+  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
+  const weekCount = Math.ceil(((firstDay.getDay() + 6) % 7 + daysInMonth) / 7);
+  return Array.from({ length: weekCount * 7 }, (_, index) => addDays(start, index));
+};
+
+const formatMonthLabel = (month: Date, locale: string): string =>
+  new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(month);
 
 const getDayConfigurationMarker = (dayConfiguration: DayConfiguration): string => {
   return DAY_CONFIGURATION_META[dayConfiguration.category].defaultMarker;
@@ -350,6 +361,7 @@ export function DashboardPage({
   householdData,
   setHouseholdData,
   onOpenSettings,
+  onOpenReports,
   currentUserLabel,
   currentUserEmail,
   currentUserInitials,
@@ -361,6 +373,7 @@ export function DashboardPage({
   householdData: HouseholdData;
   setHouseholdData: Dispatch<SetStateAction<HouseholdData>>;
   onOpenSettings: (target: NavigationTarget) => void;
+  onOpenReports: () => void;
   currentUserLabel: string;
   currentUserEmail: string;
   currentUserInitials: string;
@@ -371,6 +384,11 @@ export function DashboardPage({
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
+  const [monthStart, setMonthStart] = useState(() => {
+    const current = new Date();
+    return new Date(current.getFullYear(), current.getMonth(), 1);
+  });
+  const [viewMode, setViewMode] = useState<"two-weeks" | "month">("two-weeks");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
@@ -391,8 +409,11 @@ export function DashboardPage({
   );
   const visibleMembers = useMemo(() => orderedMembers.filter((member) => member.visibleInCalendar), [orderedMembers]);
   const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId);
-  const days = useMemo(() => Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)), [periodStart]);
-  const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, periodStart), [householdData.contacts, periodStart]);
+  const days = useMemo(
+    () => viewMode === "month" ? buildMonthCalendarDays(monthStart) : Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)),
+    [monthStart, periodStart, viewMode]
+  );
+  const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, days), [householdData.contacts, days]);
 
   useEffect(() => {
     if (!householdData.householdId || !accessToken || days.length === 0) {
@@ -726,7 +747,8 @@ export function DashboardPage({
           : null
       : null;
 
-  const periodLabel = useMemo(() => formatPeriodRange(periodStart, DEMO_LOCALE), [periodStart]);
+  const monthLabel = formatMonthLabel(monthStart, DEMO_LOCALE);
+  const periodLabel = viewMode === "month" ? monthLabel : formatPeriodRange(periodStart, DEMO_LOCALE);
   const todayIso = toIsoDate(now);
   return (
     <div className="dashboard-page">
@@ -747,40 +769,60 @@ export function DashboardPage({
               <button
                 type="button"
                 className="icon-button"
-                title="Previous two-week period"
-                onClick={() => setPeriodStart((current) => addDays(current, -14))}
+                title={viewMode === "month" ? "Previous month" : "Previous two-week period"}
+                onClick={() => viewMode === "month"
+                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
+                  : setPeriodStart((current) => addDays(current, -14))}
               >
                 <ChevronLeftIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title="Jump to current period"
-                onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
+                title={viewMode === "month" ? "Jump to current month" : "Jump to current period"}
+                onClick={() => {
+                  const current = new Date();
+                  if (viewMode === "month") setMonthStart(new Date(current.getFullYear(), current.getMonth(), 1));
+                  else setPeriodStart(startOfWeekMonday(current));
+                }}
               >
                 <CalendarMonthIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title="Next two-week period"
-                onClick={() => setPeriodStart((current) => addDays(current, 14))}
+                title={viewMode === "month" ? "Next month" : "Next two-week period"}
+                onClick={() => viewMode === "month"
+                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
+                  : setPeriodStart((current) => addDays(current, 14))}
               >
                 <ChevronRightIcon fontSize="small" />
               </button>
             </div>
 
             <div className="pill-group view-switcher" role="group" aria-label="View switcher">
-              <button type="button" className="active" aria-pressed="true">
+              <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
+                onClick={() => {
+                  if (viewMode === "month") setPeriodStart(startOfWeekMonday(monthStart));
+                  setViewMode("two-weeks");
+                }}>
                 2 Weeks
               </button>
-              <button type="button" disabled title="Month view is coming soon">
+              <button type="button" className={viewMode === "month" ? "active" : ""} aria-pressed={viewMode === "month"}
+                onClick={() => {
+                  const focusDate = addDays(periodStart, 7);
+                  setMonthStart(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
+                  setViewMode("month");
+                }}>
                 Month
               </button>
             </div>
           </div>
 
           <div className="header-meta">
+            <button type="button" className="icon-button" onClick={onOpenReports} title="Open reports" aria-label="Open reports">
+              <AssessmentOutlinedIcon fontSize="small" />
+            </button>
             <button
               type="button"
               className="icon-button"
@@ -830,7 +872,7 @@ export function DashboardPage({
       </header>
 
       <main className="dashboard-main">
-        <section className="calendar-card" aria-label="Two week family calendar">
+        <section className="calendar-card" aria-label={viewMode === "month" ? "Monthly family calendar" : "Two week family calendar"}>
           <div className="calendar-member-filters" role="group" aria-label="Filter events by household member">
             {visibleMembers.map((member) => (
               <Fab
@@ -854,28 +896,49 @@ export function DashboardPage({
                 </span>
               </Fab>
             ))}
+            <div className="pill-group view-switcher compact-calendar-view-switcher" role="group" aria-label="Calendar view">
+              <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
+                onClick={() => {
+                  if (viewMode === "month") setPeriodStart(startOfWeekMonday(monthStart));
+                  setViewMode("two-weeks");
+                }}>2 Weeks</button>
+              <button type="button" className={viewMode === "month" ? "active" : ""} aria-pressed={viewMode === "month"}
+                onClick={() => {
+                  const focusDate = addDays(periodStart, 7);
+                  setMonthStart(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
+                  setViewMode("month");
+                }}>Month</button>
+            </div>
             <div className="pill-group period-navigation calendar-period-navigation" role="group" aria-label="Period navigation">
               <button
                 type="button"
                 className="icon-button"
-                title="Previous two-week period"
-                onClick={() => setPeriodStart((current) => addDays(current, -14))}
+                title={viewMode === "month" ? "Previous month" : "Previous two-week period"}
+                onClick={() => viewMode === "month"
+                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
+                  : setPeriodStart((current) => addDays(current, -14))}
               >
                 <ChevronLeftIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title="Jump to current period"
-                onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
+                title={viewMode === "month" ? "Jump to current month" : "Jump to current period"}
+                onClick={() => {
+                  const current = new Date();
+                  if (viewMode === "month") setMonthStart(new Date(current.getFullYear(), current.getMonth(), 1));
+                  else setPeriodStart(startOfWeekMonday(current));
+                }}
               >
                 <CalendarMonthIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title="Next two-week period"
-                onClick={() => setPeriodStart((current) => addDays(current, 14))}
+                title={viewMode === "month" ? "Next month" : "Next two-week period"}
+                onClick={() => viewMode === "month"
+                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
+                  : setPeriodStart((current) => addDays(current, 14))}
               >
                 <ChevronRightIcon fontSize="small" />
               </button>
@@ -894,7 +957,7 @@ export function DashboardPage({
             Hatched background: opted-in children scheduled outside household members' parenting parties. Boundaries are a proportional daily cue, not event positions.
           </p>}
           <div className="calendar-scroll">
-            <table className="calendar-grid">
+            <table className={`calendar-grid${viewMode === "month" ? " month-calendar" : ""}`}>
               <thead>
                 <tr>
                   <th className="week-column-header" scope="col">WEEK</th>

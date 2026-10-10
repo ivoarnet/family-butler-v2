@@ -4,6 +4,7 @@ import { AuthScreen } from "./features/auth/components/AuthScreen";
 import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, ThemeMode } from "./features/app/types";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
+import { ReportsPage } from "./pages/ReportsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent } from "./types/family";
@@ -605,7 +606,7 @@ export function App() {
     }
   };
 
-  const navigateTo = (nextPathname: "/" | "/profile" | "/settings") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -646,7 +647,6 @@ export function App() {
       navigateTo("/settings");
       return;
     }
-
     setSettingsSection(target);
     navigateTo("/profile");
   };
@@ -897,6 +897,13 @@ export function App() {
         setTheme={setTheme}
       />
     </>
+  ) : pathname === "/reports" ? (
+    <>
+      {dataError ? <div role="alert">{dataError}</div> : null}
+      {isSaving ? <div aria-live="polite">Saving…</div> : null}
+      {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
+      <ReportsPage householdName={householdData.householdName} onGoHome={() => navigateTo("/")} />
+    </>
   ) : (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
@@ -906,6 +913,7 @@ export function App() {
         householdData={householdData}
         setHouseholdData={setHouseholdData}
         onOpenSettings={openSettingsSection}
+        onOpenReports={() => navigateTo("/reports")}
         currentUserLabel={currentUserLabel}
         currentUserEmail={currentUserEmail}
         currentUserInitials={currentUserInitials}

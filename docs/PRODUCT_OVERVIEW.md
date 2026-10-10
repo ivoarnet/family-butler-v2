@@ -17,6 +17,7 @@ The current product supports:
 - Maintaining household contacts, including birthday details.
 - Defining event types and creating household calendar events associated with members. Events support all-day or timed scheduling, recurrence, location, and notes.
 - Displaying events in a shared calendar and marking configured special days.
+- Opening the Reports & exports workspace, reserved for future report types and export formats.
 - Using the agent chat for supported tasks involving contacts, birthdays, events, and day configurations. The agent currently supports text and PDF/image attachments; its available actions do not yet cover every web-app capability.
 
 See [Data Model](DATA_MODEL.md) for current domain and persistence details, and [Agent Chat Tools Guide](agentic/AGENTIC_TOOLS_GUIDE.md) for the actions currently exposed to the agent.

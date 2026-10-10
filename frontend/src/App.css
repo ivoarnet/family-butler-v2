@@ -18,6 +18,25 @@ body,
   container: dashboard / inline-size;
 }
 
+.report-empty-state {
+  min-height: 16rem;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 0.5rem;
+  text-align: center;
+  color: var(--text-secondary);
+}
+
+.report-empty-state h2,
+.report-empty-state p {
+  margin: 0;
+}
+
+.report-empty-state h2 {
+  color: var(--text-primary);
+}
+
 .auth-page {
   min-height: 100vh;
   display: grid;
@@ -698,6 +717,12 @@ body,
   border-right: 1px solid var(--border);
 }
 
+.month-calendar td,
+.month-calendar tbody th {
+  height: 4rem;
+  padding: 0.45rem;
+}
+
 .calendar-grid tbody th {
   text-align: left;
   font-weight: inherit;
@@ -709,6 +734,10 @@ body,
 }
 
 .calendar-period-navigation {
+  display: none;
+}
+
+.compact-calendar-view-switcher {
   display: none;
 }
 
@@ -1298,7 +1327,7 @@ body,
   }
 
   .dashboard-page .header-branding {
-    padding-right: 5rem;
+    padding-right: 8rem;
   }
 
   .calendar-member-filters .calendar-period-navigation {
@@ -1365,6 +1394,10 @@ body,
     display: none;
   }
 
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+    display: inline-flex;
+  }
+
   .day-cell strong {
     font-size: 0.9rem;
   }
@@ -1394,6 +1427,10 @@ body,
   .dashboard-page .header-controls,
   .dashboard-page .view-switcher {
     display: none;
+  }
+
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+    display: inline-flex;
   }
 
   .dashboard-page .calendar-member-filters .calendar-period-navigation {

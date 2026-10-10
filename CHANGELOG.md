@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a dedicated Reports & exports workspace as a home for future report types and export formats. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/reports-exports-page.png`.
+- Added month navigation to the household calendar. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/monthly-calendar-view.png`.
 - Show only confirmed parenting handovers in the calendar's Specials column, with the parenting icon/title and `HH:mm → Party` on the next line. Continuing periods and same-party changes no longer add entries; hatching and responsibility checks are unchanged. Updated screenshot: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-time.png`.
 - Moved child classification to Settings → Members and added optional school building/class details and a per-child parenting hatch switch. Hatching now uses parenting parties' optional household-member links, without separate calendar party/child-column selectors. Apply `docs/sql/household-member-details.sql`; legacy explicit selections are migrated once. Updated screenshots: `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/member-child-school-details.png` and `/home/runner/work/family-butler-v2/family-butler-v2/docs/screenshots/household-calendar-parenting-hatching.png`.
 

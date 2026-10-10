@@ -182,6 +182,7 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
         householdData={householdData}
         setHouseholdData={setHouseholdData}
         onOpenSettings={() => undefined}
+        onOpenReports={() => undefined}
         currentUserLabel="Demo user"
         currentUserEmail="demo@example.com"
         currentUserInitials="DU"
@@ -330,6 +331,30 @@ export const DayGroupedEvents: Story = {
   args: { width: 390 },
   play: DayAndEvents.play,
 };
+
+export const MonthlyCalendar: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const monthButton = canvas.getByRole("button", { name: "Month" });
+    await userEvent.click(monthButton);
+    await expect(monthButton).toHaveAttribute("aria-pressed", "true");
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toMatch(/\d{4}/);
+    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeGreaterThanOrEqual(28);
+    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeLessThanOrEqual(42);
+
+    await expect(canvas.queryByRole("link", { name: /Download .* calendar as PDF/ })).toBeNull();
+    const periodLabel = canvas.getByRole("banner").querySelector("p")?.textContent;
+    await userEvent.click(canvas.getByTitle("Next month"));
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).not.toBe(periodLabel);
+    await userEvent.click(canvas.getByTitle("Previous month"));
+    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toBe(periodLabel);
+    await userEvent.click(canvas.getByRole("button", { name: "2 Weeks" }));
+    await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
+    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr")).toHaveLength(14);
+  },
+};
+
 export const MultiDayEvent: Story = {
   args: { width: 1440 },
   play: async ({ canvasElement }) => {
