@@ -10,7 +10,7 @@ Family Butler helps households coordinate the people and plans involved in famil
 
 ## Core household and calendar capabilities — implemented
 
-**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The left-side module menu opens from page headers and links to the calendar, these sub-features' existing Settings tabs, and the Reports & exports workspace. Existing calendar shortcuts remain available.
+**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The swipeable left-side module menu contains only main modules: **Calendar** and a disabled **Tasks — Coming soon** entry. Childcare and Parenting Time remain in Settings, and Reports & exports keeps its existing header shortcut. Existing calendar workflows remain available.
 
 See [Modular architecture and developer guide](modules/ARCHITECTURE.md) for module boundaries, navigation conventions, step-by-step integration, cross-module reads/events, and external-integration guidance.
 

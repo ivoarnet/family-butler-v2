@@ -1,7 +1,9 @@
-import { Fragment, useId, useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
-import { Box, Drawer, List, ListItemButton, ListItemText, Typography } from "@mui/material";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import TaskAltIcon from "@mui/icons-material/TaskAlt";
+import { Box, SwipeableDrawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
 import { moduleDestinations, type ModuleDestination } from "../modules";
 
 export function ModuleNavigation({ activeId, onNavigate }: {
@@ -19,16 +21,6 @@ export function ModuleNavigation({ activeId, onNavigate }: {
     close();
     onNavigate(destination);
   };
-  const entry = (destination: ModuleDestination, nested = false) => (
-    <ListItemButton
-      selected={activeId === destination.id}
-      aria-current={activeId === destination.id ? "page" : undefined}
-      onClick={() => select(destination)}
-      sx={{ pl: nested ? 4 : 2 }}
-    >
-      <ListItemText primary={destination.label} />
-    </ListItemButton>
-  );
 
   return (
     <>
@@ -37,10 +29,11 @@ export function ModuleNavigation({ activeId, onNavigate }: {
         onClick={() => setOpen(true)}>
         <MenuIcon fontSize="small" />
       </button>
-      <Drawer anchor="left" open={open} onClose={close} ModalProps={{ disableRestoreFocus: true }}
+      <SwipeableDrawer anchor="left" open={open} onOpen={() => setOpen(true)} onClose={close}
+        ModalProps={{ disableRestoreFocus: true }}
         slotProps={{ transition: { onExited: () => trigger.current?.focus() } }}>
         <Box id={id} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}
-          sx={{ width: 320, maxWidth: "85vw", minHeight: "100%", bgcolor: "var(--surface)", color: "var(--text-primary)" }}>
+          sx={{ width: 240, maxWidth: "85vw", minHeight: "100%", bgcolor: "var(--surface)", color: "var(--text-primary)" }}>
           <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", p: 2 }}>
             <Typography id={`${id}-title`} variant="h6">Modules</Typography>
             <button type="button" className="icon-button" aria-label="Close module menu" onClick={close}>
@@ -50,19 +43,25 @@ export function ModuleNavigation({ activeId, onNavigate }: {
           <nav aria-label="Modules">
             <List>
               {moduleDestinations.map((destination) => (
-                <Fragment key={destination.id}>
-                  {entry(destination)}
-                  {destination.children?.length ? (
-                    <List disablePadding aria-label={`${destination.label} sub-features`}>
-                      {destination.children.map((child) => <Fragment key={child.id}>{entry(child, true)}</Fragment>)}
-                    </List>
-                  ) : null}
-                </Fragment>
+                <ListItem key={destination.id} disablePadding>
+                  <ListItemButton
+                    disabled={!destination.path}
+                    selected={activeId === destination.id}
+                    aria-current={activeId === destination.id ? "page" : undefined}
+                    onClick={() => select(destination)}
+                    sx={{ py: 2 }}
+                  >
+                    <ListItemIcon sx={{ minWidth: 44, color: "inherit" }}>
+                      {destination.id === "family-calendar" ? <CalendarMonthIcon /> : <TaskAltIcon />}
+                    </ListItemIcon>
+                    <ListItemText primary={destination.label} secondary={!destination.path ? "Coming soon" : undefined} />
+                  </ListItemButton>
+                </ListItem>
               ))}
             </List>
           </nav>
         </Box>
-      </Drawer>
+      </SwipeableDrawer>
     </>
   );
 }
