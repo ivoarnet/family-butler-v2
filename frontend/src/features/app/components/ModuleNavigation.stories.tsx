@@ -58,6 +58,15 @@ export const NavigationAndDismissal: Story = {
     await expect(menu.getByRole("button", { name: "Calendar" })).toHaveAttribute("aria-current", "page");
     const tasks = menu.getByRole("button", { name: "Tasks Coming soon" });
     await expect(tasks).toHaveAttribute("aria-disabled", "true");
+    await expect(menu.queryByText("Calendar")).toBeNull();
+    await expect(menu.queryByText("Tasks")).toBeNull();
+    const list = menu.getByRole("list").getBoundingClientRect();
+    const drawer = page.getByRole("dialog", { name: "Modules" }).getBoundingClientRect();
+    await expect(drawer.width).toBeLessThanOrEqual(80);
+    await expect(Math.abs((list.top + list.bottom) / 2 - (drawer.top + drawer.bottom) / 2)).toBeLessThanOrEqual(2);
+    await userEvent.hover(menu.getByRole("button", { name: "Calendar" }));
+    await expect(await page.findByRole("tooltip")).toHaveTextContent("Calendar");
+    await userEvent.unhover(menu.getByRole("button", { name: "Calendar" }));
     await expect(menu.getAllByRole("button")).toHaveLength(3);
     await expect(menu.queryByText("Childcare")).toBeNull();
     await expect(menu.queryByText(/Shared Parenting/)).toBeNull();

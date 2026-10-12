@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Made the swipeable module menu a narrow icon-only rail with vertically centered Calendar and Tasks icons, accessible labels, and tooltips. Tasks remains disabled and identified as coming soon. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
 - Added an icon-based, swipeable left-side menu for main modules only: Calendar and Tasks (disabled, coming soon). Childcare and Shared Parenting (Parenting Time) remain in Settings; Reports & exports retains its header shortcut. Documented module boundaries, development conventions, future cross-module reads/events and Bring! integration, with family-level enablement deferred. Updated screenshot: `docs/screenshots/module-navigation.png`.
 
 - Standardized dialog secondary actions, Swiss German date-only pickers, 24-hour/5-minute time pickers, and accessible free-choice color controls. Calendar Specials now share an icon/title/subtitle layout. Updated screenshots: `docs/screenshots/shared-form-controls.png`, `docs/screenshots/shared-form-controls-mobile.png`, and `docs/screenshots/calendar-specials-layout.png`. See `docs/STYLEGUIDE.md` for display and serialization behavior.

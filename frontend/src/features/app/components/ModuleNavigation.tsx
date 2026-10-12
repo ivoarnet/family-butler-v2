@@ -3,7 +3,7 @@ import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import TaskAltIcon from "@mui/icons-material/TaskAlt";
-import { Box, SwipeableDrawer, List, ListItem, ListItemButton, ListItemIcon, ListItemText, Typography } from "@mui/material";
+import { Box, SwipeableDrawer, List, ListItem, ListItemButton, Tooltip } from "@mui/material";
 import { moduleDestinations, type ModuleDestination } from "../modules";
 
 export function ModuleNavigation({ activeId, onNavigate }: {
@@ -32,34 +32,36 @@ export function ModuleNavigation({ activeId, onNavigate }: {
       <SwipeableDrawer anchor="left" open={open} onOpen={() => setOpen(true)} onClose={close}
         ModalProps={{ disableRestoreFocus: true }}
         slotProps={{ transition: { onExited: () => trigger.current?.focus() } }}>
-        <Box id={id} role="dialog" aria-modal="true" aria-labelledby={`${id}-title`}
-          sx={{ width: 240, maxWidth: "85vw", minHeight: "100%", bgcolor: "var(--surface)", color: "var(--text-primary)" }}>
-          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "space-between", p: 2 }}>
-            <Typography id={`${id}-title`} variant="h6">Modules</Typography>
+        <Box id={id} role="dialog" aria-modal="true" aria-label="Modules"
+          sx={{ width: 80, maxWidth: "85vw", height: "100dvh", display: "grid", gridTemplateRows: "64px minmax(0, 1fr) 64px",
+            bgcolor: "var(--surface)", color: "var(--text-primary)" }}>
+          <Box sx={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
             <button type="button" className="icon-button" aria-label="Close module menu" onClick={close}>
               <CloseIcon fontSize="small" />
             </button>
           </Box>
-          <nav aria-label="Modules">
-            <List>
+          <Box component="nav" aria-label="Modules" sx={{ display: "flex", flexDirection: "column", overflowY: "auto" }}>
+            <List sx={{ my: "auto", flexShrink: 0 }}>
               {moduleDestinations.map((destination) => (
                 <ListItem key={destination.id} disablePadding>
-                  <ListItemButton
-                    disabled={!destination.path}
-                    selected={activeId === destination.id}
-                    aria-current={activeId === destination.id ? "page" : undefined}
-                    onClick={() => select(destination)}
-                    sx={{ py: 2 }}
-                  >
-                    <ListItemIcon sx={{ minWidth: 44, color: "inherit" }}>
-                      {destination.id === "family-calendar" ? <CalendarMonthIcon /> : <TaskAltIcon />}
-                    </ListItemIcon>
-                    <ListItemText primary={destination.label} secondary={!destination.path ? "Coming soon" : undefined} />
-                  </ListItemButton>
+                  <Tooltip title={destination.path ? destination.label : `${destination.label} — Coming soon`} placement="right" describeChild>
+                    <Box component="span" sx={{ display: "flex", width: "100%" }}>
+                      <ListItemButton
+                        aria-label={destination.path ? destination.label : `${destination.label} Coming soon`}
+                        disabled={!destination.path}
+                        selected={activeId === destination.id}
+                        aria-current={activeId === destination.id ? "page" : undefined}
+                        onClick={() => select(destination)}
+                        sx={{ minHeight: 56, justifyContent: "center" }}
+                      >
+                        {destination.id === "family-calendar" ? <CalendarMonthIcon /> : <TaskAltIcon />}
+                      </ListItemButton>
+                    </Box>
+                  </Tooltip>
                 </ListItem>
               ))}
             </List>
-          </nav>
+          </Box>
         </Box>
       </SwipeableDrawer>
     </>
