@@ -740,13 +740,18 @@ body,
   display: none;
 }
 
-.childcare-list-card .calendar-member-filters {
+.childcare-list-card .calendar-member-filters,
+.childcare-list-card .childcare-list-filters {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
   gap: 0.75rem;
   padding: 1rem;
   border-bottom: 1px solid var(--border);
+}
+
+.childcare-list-submenu {
+  padding: 1rem 1rem 0;
 }
 
 .childcare-provider-filter {
@@ -764,10 +769,6 @@ body,
   color: inherit;
   padding: 0.45rem 0.65rem;
   font: inherit;
-}
-
-.childcare-list-submenu {
-  display: flex;
 }
 
 .childcare-list-submenu .view-switcher button {
@@ -1455,7 +1456,9 @@ body,
     display: none;
   }
 
-  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-submenu .view-switcher {
     display: inline-flex;
   }
 
@@ -1490,7 +1493,9 @@ body,
     display: none;
   }
 
-  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-submenu .view-switcher {
     display: inline-flex;
   }
 

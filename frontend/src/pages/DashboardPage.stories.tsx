@@ -394,10 +394,14 @@ export const ChildcareList: Story = {
     }
     await expect(table.queryByText("School off")).toBeNull();
     await expect(table.getByTestId("WbSunnyIcon")).toBeVisible();
+    const submenu = canvas.getByRole("navigation", { name: "Lists" });
     const listType = canvas.getByRole("group", { name: "List type" });
     await expect(within(listType).getByRole("button", { name: "Childcare" })).toHaveAttribute("aria-current", "page");
     await expect(within(listType).getByRole("button", { name: "Parenting" })).toBeDisabled();
     await expect(within(listType).getByRole("button", { name: "Events" })).toBeDisabled();
+    const childcareFilters = canvas.getByRole("group", { name: "Filter childcare list" });
+    await expect(childcareFilters.contains(submenu)).toBe(false);
+    await expect(childcareFilters.contains(table.getByRole("table", { name: "Childcare entries" }))).toBe(false);
     await expect(table.getByText("Grandparents")).toBeVisible();
     const providerFilter = canvas.getByRole("combobox", { name: "Filter childcare by provider" });
     await userEvent.selectOptions(providerFilter, "daycare");

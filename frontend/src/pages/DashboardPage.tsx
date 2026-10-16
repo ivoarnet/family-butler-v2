@@ -961,16 +961,16 @@ export function DashboardPage({
       <main className="dashboard-main">
         <section className={`calendar-card${viewMode === "list" ? " childcare-list-card" : ""}`}
           aria-label={viewMode === "list" ? "Childcare list" : "Two week family calendar"}>
-          <div className="calendar-member-filters" role="group"
+          {viewMode === "list" && <nav className="childcare-list-submenu" aria-label="Lists">
+            <div className="pill-group view-switcher" role="group" aria-label="List type">
+              <button type="button" className="active" aria-current="page">Childcare</button>
+              <button type="button" disabled title="Coming soon">Parenting</button>
+              <button type="button" disabled title="Coming soon">Events</button>
+            </div>
+          </nav>}
+          <div className={viewMode === "list" ? "childcare-list-filters" : "calendar-member-filters"} role="group"
             aria-label={viewMode === "list" ? "Filter childcare list" : "Filter events by household member"}>
-            {viewMode === "list" ? <>
-              <nav className="childcare-list-submenu" aria-label="Lists">
-                <div className="pill-group view-switcher" role="group" aria-label="List type">
-                  <button type="button" className="active" aria-current="page">Childcare</button>
-                  <button type="button" disabled title="Coming soon">Parenting</button>
-                  <button type="button" disabled title="Coming soon">Events</button>
-                </div>
-              </nav>
+            {viewMode === "list" ?
               <label className="childcare-provider-filter">
                 Provider
                 <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
@@ -980,7 +980,7 @@ export function DashboardPage({
                   </option>)}
                 </select>
               </label>
-            </> : visibleMembers.map((member) => (
+              : visibleMembers.map((member) => (
               <Fab
                 key={member.id}
                 size="medium"
