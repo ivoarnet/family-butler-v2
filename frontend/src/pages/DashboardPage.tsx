@@ -973,18 +973,18 @@ export function DashboardPage({
       </header>
 
       <main className="dashboard-main">
+        {viewMode === "list" && <div className="settings-tabs">
+          <Tabs value={listType} onChange={(_, value) => setListType(value as "childcare" | "parenting")}
+            aria-label="Lists" centered textColor="inherit" indicatorColor="secondary"
+            sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}>
+            <Tab value="childcare" label="Childcare" />
+            <Tab value="parenting" label="Parenting" />
+            <Tab value="events" label="Events" disabled />
+          </Tabs>
+        </div>}
         <section className={`calendar-card${viewMode === "list" ? " childcare-list-card" : ""}`}
           aria-label={viewMode === "list" ? `${listType === "childcare" ? "Childcare" : "Parenting"} list`
             : "Two week family calendar"}>
-          {viewMode === "list" && <div className="settings-tabs">
-            <Tabs value={listType} onChange={(_, value) => setListType(value as "childcare" | "parenting")}
-              aria-label="Lists" centered textColor="inherit" indicatorColor="secondary"
-              sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}>
-              <Tab value="childcare" label="Childcare" />
-              <Tab value="parenting" label="Parenting" />
-              <Tab value="events" label="Events" disabled />
-            </Tabs>
-          </div>}
           {viewMode === "list" ? <section className="settings-card childcare-list-filter-section" aria-label="Filter options">
             <h2>Filter options</h2>
             <div className="childcare-list-filters" role="group" aria-label={`Filter ${listType} list`}>
