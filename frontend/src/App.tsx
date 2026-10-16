@@ -6,7 +6,6 @@ import { ModuleNavigation } from "./features/app/components/ModuleNavigation";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ReportsPage } from "./pages/ReportsPage";
-import { ParentingPage } from "./pages/ParentingPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent } from "./types/family";
@@ -319,19 +318,6 @@ export function App() {
     return response.status === 204 ? null : response.json();
   }, [authClient]);
 
-  const parentingRequest = useCallback(async (path: string, init: RequestInit = {}): Promise<unknown> => {
-    if (!authClient) throw new Error("Sign in to view the parenting schedule.");
-    const { data: { session }, error } = await authClient.auth.getSession();
-    if (error || !session?.access_token) throw new Error("Your session has expired. Please sign in again.");
-    const headers = new Headers(init.headers);
-    for (const [name, value] of Object.entries(createRequestHeaders(session.access_token, !!init.body))) {
-      headers.set(name, value);
-    }
-    const response = await fetch(`${API_BASE_URL}${path}`, { ...init, headers });
-    if (!response.ok) throw new Error(await parseResponseError(response, "Parenting schedule request failed."));
-    return response.status === 204 ? null : response.json();
-  }, [authClient]);
-
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     window.localStorage.setItem(THEME_STORAGE_KEY, theme);
@@ -622,7 +608,7 @@ export function App() {
     }
   };
 
-  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports" | "/parenting") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -855,8 +841,7 @@ export function App() {
 
   const moduleNavigation = (
     <ModuleNavigation
-      activeId={pathname === "/" || pathname === "/settings" ? "family-calendar"
-        : pathname === "/parenting" ? "parenting" : undefined}
+      activeId={pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
       onNavigate={(destination) => {
         if (destination.path) navigateTo(destination.path);
       }}
@@ -931,14 +916,6 @@ export function App() {
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <ReportsPage householdName={householdData.householdName} onGoHome={() => navigateTo("/")} moduleNavigation={moduleNavigation} />
-    </>
-  ) : pathname === "/parenting" ? (
-    <>
-      {dataError ? <div role="alert">{dataError}</div> : null}
-      {isSaving ? <div aria-live="polite">Saving…</div> : null}
-      {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
-      <ParentingPage householdId={householdData.householdId} householdName={householdData.householdName}
-        request={parentingRequest} onGoHome={() => navigateTo("/")} moduleNavigation={moduleNavigation} />
     </>
   ) : (
     <>

@@ -211,6 +211,10 @@ const getWeekdayAbbreviation = (date: Date, locale: string): string => {
 const getDayLabel = (date: Date, locale: string): string =>
   new Intl.DateTimeFormat(locale, { day: "numeric", month: "short" }).format(date);
 
+const formatParentingInterval = (value: string): string => new Intl.DateTimeFormat(DEMO_LOCALE, {
+  weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit",
+}).format(new Date(value));
+
 const formatBirthdayLabel = (specialEvent: SpecialEvent): string => {
   if (!specialEvent.birthYear) {
     return specialEvent.label;
@@ -408,6 +412,7 @@ export function DashboardPage({
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
   const [viewMode, setViewMode] = useState<"two-weeks" | "list">("two-weeks");
+  const [listType, setListType] = useState<"childcare" | "parenting">("childcare");
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [childcareMutationId, setChildcareMutationId] = useState<string | null>(null);
   const [childcareDraft, setChildcareDraft] = useState<ChildcareOccurrenceDraft | null>(null);
@@ -424,6 +429,7 @@ export function DashboardPage({
   const [childcareLoadError, setChildcareLoadError] = useState(false);
   const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
   const [parentingParties, setParentingParties] = useState<ParentingParty[]>([]);
+  const [parentingLoadError, setParentingLoadError] = useState(false);
   const avatarMenuRef = useRef<HTMLDivElement | null>(null);
 
   const orderedMembers = useMemo(
@@ -489,11 +495,14 @@ export function DashboardPage({
   useEffect(() => {
     setParentingIntervals([]);
     setParentingParties([]);
+    setParentingLoadError(false);
     if (!householdData.householdId || !accessToken) return;
     const controller = new AbortController();
+    const rangeStart = viewMode === "list" ? new Date() : days[0];
+    const rangeEnd = viewMode === "list" ? addMonths(rangeStart, 3) : addDays(days[days.length - 1], 1);
     const query = new URLSearchParams({
-      startAt: days[0].toISOString(),
-      endAt: addDays(days[days.length - 1], 1).toISOString(),
+      startAt: rangeStart.toISOString(),
+      endAt: rangeEnd.toISOString(),
     });
     fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/parenting-time/resolve?${query}`, {
       headers: { Authorization: ["Bearer", accessToken].join(" "), "x-supabase-auth-token": accessToken },
@@ -512,10 +521,11 @@ export function DashboardPage({
         if (!controller.signal.aborted) {
           setParentingIntervals([]);
           setParentingParties([]);
+          setParentingLoadError(true);
         }
       });
     return () => controller.abort();
-  }, [accessToken, days, householdData.householdId]);
+  }, [accessToken, days, householdData.householdId, viewMode]);
 
   const activeParentingPartyIds = parentingParties.filter((party) => party.active === true
     && (party.memberId == null || orderedMembers.some((member) => member.id === party.memberId))).map((party) => party.id);
@@ -786,7 +796,7 @@ export function DashboardPage({
 
   const listDays = viewMode === "list" ? days : [];
   const periodLabel = viewMode === "list"
-    ? `Childcare · ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[0])}`
+    ? `${listType === "childcare" ? "Childcare" : "Parenting"} · ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[0])}`
       + ` – ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[listDays.length - 1])}`
     : formatPeriodRange(periodStart, DEMO_LOCALE);
   const todayIso = currentDateIso;
@@ -960,18 +970,24 @@ export function DashboardPage({
 
       <main className="dashboard-main">
         <section className={`calendar-card${viewMode === "list" ? " childcare-list-card" : ""}`}
-          aria-label={viewMode === "list" ? "Childcare list" : "Two week family calendar"}>
+          aria-label={viewMode === "list" ? `${listType === "childcare" ? "Childcare" : "Parenting"} list`
+            : "Two week family calendar"}>
           {viewMode === "list" && <nav className="childcare-list-submenu" aria-label="Lists">
             <div className="pill-group view-switcher" role="group" aria-label="List type">
-              <button type="button" className="active" aria-current="page">Childcare</button>
-              <button type="button" disabled title="Coming soon">Parenting</button>
+              <button type="button" className={listType === "childcare" ? "active" : ""}
+                aria-current={listType === "childcare" ? "page" : undefined}
+                onClick={() => setListType("childcare")}>Childcare</button>
+              <button type="button" className={listType === "parenting" ? "active" : ""}
+                aria-current={listType === "parenting" ? "page" : undefined}
+                onClick={() => setListType("parenting")}>Parenting</button>
               <button type="button" disabled title="Coming soon">Events</button>
             </div>
           </nav>}
           <div className={viewMode === "list" ? "childcare-list-filters" : "calendar-member-filters"} role="group"
-            aria-label={viewMode === "list" ? "Filter childcare list" : "Filter events by household member"}>
-            {viewMode === "list" ?
-              <label className="childcare-provider-filter">
+            aria-label={viewMode === "list" ? listType === "childcare" ? "Filter childcare list" : "Parenting list"
+              : "Filter events by household member"}>
+            {viewMode === "list" ? (
+              listType === "childcare" ? <label className="childcare-provider-filter">
                 Provider
                 <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
                   <option value="">All providers</option>
@@ -979,8 +995,8 @@ export function DashboardPage({
                     {name}{!active ? " (Inactive)" : ""}
                   </option>)}
                 </select>
-              </label>
-              : visibleMembers.map((member) => (
+              </label> : null
+            ) : visibleMembers.map((member) => (
               <Fab
                 key={member.id}
                 size="medium"
@@ -1035,15 +1051,29 @@ export function DashboardPage({
               </button></>}
             </div>
             <span className="calendar-filter-status" role="status">
-              {childcareLoadError
+              {viewMode === "list" && listType === "childcare" && childcareLoadError
                 ? "Childcare could not be loaded."
-                : viewMode === "list" ? "Childcare entries for the next three months"
-                  : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
+                : viewMode === "list" && listType === "parenting" && parentingLoadError
+                  ? "Parenting schedule could not be loaded."
+                  : viewMode === "list" ? `${listType === "childcare" ? "Childcare entries" : "Parenting schedule"} for the next three months`
+                    : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
           {viewMode === "list" ? <div className="calendar-scroll">
-            {childcareActionError && <p role="alert">{childcareActionError}</p>}
-            <div className="table-scroll"><table className="settings-table childcare-list-table" aria-label="Childcare entries">
+            {listType === "childcare" && childcareActionError && <p role="alert">{childcareActionError}</p>}
+            {listType === "parenting" ? <div className="table-scroll">
+              <table className="settings-table" aria-label="Parenting schedule">
+                <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule (Remark)</th></tr></thead>
+                <tbody>{parentingIntervals.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
+                  <td>{formatParentingInterval(interval.startAt)}</td>
+                  <td>{formatParentingInterval(interval.endAt)}</td>
+                  <td>{interval.partyName ?? "Archived party"}</td>
+                  <td>{interval.source.type === "change"
+                    ? `Change · ${interval.source.label ?? ""}` : "Regular plan"}</td>
+                </tr>)}</tbody>
+              </table>
+              {!parentingLoadError && !parentingIntervals.length && <p>No parenting schedule in this range.</p>}
+            </div> : <><div className="table-scroll"><table className="settings-table childcare-list-table" aria-label="Childcare entries">
               <thead><tr><th>Week</th><th>Day</th><th>Time</th><th>Specials</th><th>Provider</th>
                 <th className="actions-column">Actions</th></tr></thead>
               <tbody>{filteredChildcareOccurrences.map((occurrence) => {
@@ -1077,7 +1107,7 @@ export function DashboardPage({
                 </tr>;
               })}</tbody>
             </table></div>
-            {!filteredChildcareOccurrences.length && <p>No childcare entries in this range.</p>}
+            {!filteredChildcareOccurrences.length && <p>No childcare entries in this range.</p>}</>}
           </div> : <div className="calendar-scroll">
             <table className="calendar-grid">
               <thead>

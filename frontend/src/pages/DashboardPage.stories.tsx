@@ -1,6 +1,7 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { useLayoutEffect, useState } from "react";
 import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import dayjs from "dayjs";
 import type { HouseholdData } from "../features/app/types";
 import type { ResolvedParentingInterval } from "../types/family";
 import { DashboardPage } from "./DashboardPage";
@@ -34,6 +35,7 @@ const guardianId = "00000000-0000-0000-0000-000000000003";
 const calendarSettingsCalls = fn();
 const childcareCancelCalls = fn();
 const childcareRangeCalls = fn();
+const parentingRangeCalls = fn();
 const cancelledChildcareOccurrences = new Set<string>();
 const parentingIntervals: ResolvedParentingInterval[] = [
   { startAt: new Date(`${yesterdayDate}T00:00`).toISOString(), endAt: new Date(`${date}T00:00`).toISOString(),
@@ -150,7 +152,12 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
       if (url.includes("/parenting-time/resolve?")) {
         if (parentingUnavailable) return Response.json({ error: "Parenting time unavailable" }, { status: 500 });
         const range = new URL(url, window.location.origin).searchParams;
-        const intervals = multipleHouseholdLinks || additionalOutsideParty ? [
+        parentingRangeCalls(range);
+        const longRange = Date.parse(range.get("endAt")!) - Date.parse(range.get("startAt")!) > 14 * 24 * 60 * 60 * 1000;
+        const intervals = longRange ? [{
+          ...parentingIntervals[2], startAt: range.get("startAt")!, endAt: range.get("endAt")!,
+          partyId: momId, partyName: "Mum",
+        }] : multipleHouseholdLinks || additionalOutsideParty ? [
           ...parentingIntervals.slice(0, 2),
           { ...parentingIntervals[2], endAt: new Date(`${date}T14:00`).toISOString() },
           { ...parentingIntervals[2], partyId: guardianId, partyName: "Guardian",
@@ -398,7 +405,7 @@ export const ChildcareList: Story = {
     const submenu = canvas.getByRole("navigation", { name: "Lists" });
     const listType = canvas.getByRole("group", { name: "List type" });
     await expect(within(listType).getByRole("button", { name: "Childcare" })).toHaveAttribute("aria-current", "page");
-    await expect(within(listType).getByRole("button", { name: "Parenting" })).toBeDisabled();
+    await expect(within(listType).getByRole("button", { name: "Parenting" })).toBeEnabled();
     await expect(within(listType).getByRole("button", { name: "Events" })).toBeDisabled();
     const childcareFilters = canvas.getByRole("group", { name: "Filter childcare list" });
     await expect(childcareFilters.contains(submenu)).toBe(false);
@@ -423,6 +430,32 @@ export const ChildcareList: Story = {
       action: "cancel",
     });
     await expect(table.queryByText("Grandparents")).toBeNull();
+  },
+};
+
+export const ParentingList: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const previousRangeCallCount = parentingRangeCalls.mock.calls.length;
+    const listButton = canvas.getByRole("button", { name: "List" });
+    await userEvent.click(listButton);
+    await userEvent.click(canvas.getByRole("button", { name: "Parenting" }));
+    await expect(canvas.getByRole("button", { name: "Parenting" })).toHaveAttribute("aria-current", "page");
+    await waitFor(() => expect(parentingRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));
+    const range = parentingRangeCalls.mock.calls[parentingRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
+    const startAt = new Date(range.get("startAt")!);
+    await expect(startAt.getTime()).toBeLessThanOrEqual(Date.now());
+    await expect(range.get("endAt")).toBe(dayjs(startAt).add(3, "month").toDate().toISOString());
+
+    const table = within(await canvas.findByRole("table", { name: "Parenting schedule" }));
+    for (const heading of ["From", "Until", "With", "Schedule (Remark)"]) {
+      await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await expect(table.getByText("Mum")).toBeVisible();
+    await expect(table.getByText("Change · Agreed swap")).toBeVisible();
+    await expect(canvas.getByRole("status")).toHaveTextContent("Parenting schedule for the next three months");
+    await expect(canvas.queryByRole("combobox", { name: "Filter childcare by provider" })).toBeNull();
   },
 };
 
