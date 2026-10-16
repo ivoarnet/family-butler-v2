@@ -740,6 +740,36 @@ body,
   display: none;
 }
 
+.childcare-list-card .calendar-member-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.childcare-provider-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.childcare-provider-filter select {
+  min-height: 2.4rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: inherit;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+}
+
+.childcare-list-table {
+  min-width: 760px;
+}
+
 .calendar-period-navigation {
   display: none;
 }
