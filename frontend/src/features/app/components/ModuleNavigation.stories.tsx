@@ -54,32 +54,8 @@ export const NavigationAndDismissal: Story = {
     await expect(trigger.querySelector("svg")).not.toBeNull();
     await expect(trigger.closest(".header-branding")?.querySelectorAll("svg")).toHaveLength(1);
     await expect(trigger.closest(".header-branding")?.querySelector(".icon-badge")).toBeNull();
-    if (window.matchMedia("(min-width:1200px)").matches) {
-      const nav = page.getByRole("navigation", { name: "Modules" });
-      const calendar = within(nav).getByRole("button", { name: "Calendar" });
-      await expect(calendar).toHaveAttribute("aria-current", "page");
-      await expect(within(nav).getByRole("button", { name: "Tasks Coming soon" })).toHaveAttribute("aria-disabled", "true");
-      const label = within(nav).getByText("Calendar");
-      const paper = nav.closest(".MuiDrawer-paper")!;
-      const pageBounds = canvas.getByRole("banner").getBoundingClientRect();
-      await expect(pageBounds.left).toBe(window.innerWidth >= 1600 ? 240 : 80);
-      if (window.innerWidth < 1600) {
-        await expect(label).not.toBeVisible();
-        await userEvent.click(trigger);
-        await expect(calendar).toHaveFocus();
-        await expect(label).toBeVisible();
-        await expect(paper.getBoundingClientRect().width).toBe(240);
-        calendar.blur();
-      } else {
-        await expect(label).toBeVisible();
-      }
-      await userEvent.click(canvas.getByRole("button", { name: "Open reports" }));
-      await expect(await canvas.findByRole("heading", { name: "Reports & exports" })).toBeVisible();
-      await userEvent.click(page.getByRole("button", { name: "Calendar" }));
-      await expect(await canvas.findByRole("heading", { name: "Family Calendar" })).toBeVisible();
-      await expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull();
-      return;
-    }
+    await expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull();
+    await expect(canvas.getByRole("banner").getBoundingClientRect().left).toBe(0);
     const open = async () => {
       await waitFor(() => expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull());
       await userEvent.click(canvas.getByRole("button", { name: "Open module menu" }));
@@ -136,8 +112,7 @@ export const NavigationAndDismissal: Story = {
 export const OpenMenu: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole("button", { name: "Open module menu" }));
-    await expect(await within(canvasElement.ownerDocument.body).findByRole(
-      window.matchMedia("(min-width:1200px)").matches ? "navigation" : "dialog", { name: "Modules" })).toBeVisible();
+    await expect(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Modules" })).toBeVisible();
   },
 };
 
@@ -149,15 +124,32 @@ export const TasksHeaderIcon: Story = {
     await expect(trigger).toHaveAttribute("title", "Tasks — Open module menu");
     await expect(trigger.querySelector("svg")).not.toBeNull();
     await userEvent.click(trigger);
-    const desktop = window.matchMedia("(min-width:1200px)").matches;
-    const menu = within(await within(canvasElement.ownerDocument.body).findByRole(desktop ? "navigation" : "dialog", { name: "Modules" }));
+    const menu = within(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Modules" }));
     await expect(menu.getByRole("button", { name: "Tasks Coming soon" }).querySelector("svg")?.innerHTML)
       .toBe(trigger.querySelector("svg")?.innerHTML);
     await expect(menu.getByRole("button", { name: "Calendar" }).querySelector("svg")?.innerHTML)
       .not.toBe(trigger.querySelector("svg")?.innerHTML);
-    if (!desktop) {
-      await userEvent.keyboard("{Escape}");
-      await waitFor(() => expect(trigger).toHaveFocus());
-    }
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
+  },
+};
+
+export const NotchOpening: Story = {
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const notch = page.getByRole("button", { name: "Open module menu from left edge" });
+    await expect(notch).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(notch);
+    const dialog = await page.findByRole("dialog", { name: "Modules" });
+    const paper = dialog.closest(".MuiDrawer-paper")!;
+    await expect(getComputedStyle(paper).backdropFilter).toContain("blur");
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull());
+    await expect(notch).toHaveFocus();
+    await userEvent.keyboard("{Enter}");
+    await expect(await page.findByRole("dialog", { name: "Modules" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull());
+    await waitFor(() => expect(notch).toHaveFocus());
   },
 };

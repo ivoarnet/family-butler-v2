@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced the permanent desktop rail with an on-demand glass-style overlay at every screen size. A small left-edge notch opens it by click, keyboard, or inward drag; the header icon remains available and focus returns to the opening control. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
 - Added a fixed module rail on wide screens (1200px+), expanding to module names on hover or keyboard focus. Names stay visible on extra-wide screens (1600px+); smaller screens retain swipe navigation. Updated screenshot: `docs/screenshots/module-navigation.png`.
 
 - Replaced the hamburger menu and duplicate calendar badge with one clickable active-module header icon, shared with the navigation pane through the module registry. Updated screenshot: `docs/screenshots/module-navigation.png`.
