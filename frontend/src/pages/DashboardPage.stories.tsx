@@ -452,6 +452,8 @@ export const ParentingList: Story = {
     await userEvent.click(listButton);
     await userEvent.click(canvas.getByRole("tab", { name: "Parenting" }));
     await expect(canvas.getByRole("tab", { name: "Parenting" })).toHaveAttribute("aria-selected", "true");
+    const listSection = canvas.getByRole("region", { name: "Parenting list" });
+    await expect(listSection.contains(canvas.getByRole("tablist", { name: "Lists" }))).toBe(false);
     await waitFor(() => expect(parentingRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));
     const range = parentingRangeCalls.mock.calls[parentingRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
     const expectedStart = new Date(`${date}T00:00:00`);
