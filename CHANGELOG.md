@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced the hamburger menu and duplicate calendar badge with one clickable active-module header icon, shared with the navigation pane through the module registry. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
 - Made the swipeable module menu a narrow icon-only rail with vertically centered Calendar and Tasks icons, accessible labels, and tooltips. Tasks remains disabled and identified as coming soon. Updated screenshot: `docs/screenshots/module-navigation.png`.
 
 - Added an icon-based, swipeable left-side menu for main modules only: Calendar and Tasks (disabled, coming soon). Childcare and Shared Parenting (Parenting Time) remain in Settings; Reports & exports retains its header shortcut. Documented module boundaries, development conventions, future cross-module reads/events and Bring! integration, with family-level enablement deferred. Updated screenshot: `docs/screenshots/module-navigation.png`.

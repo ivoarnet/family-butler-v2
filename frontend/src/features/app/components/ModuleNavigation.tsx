@@ -1,8 +1,5 @@
 import { useId, useRef, useState } from "react";
-import MenuIcon from "@mui/icons-material/Menu";
 import CloseIcon from "@mui/icons-material/Close";
-import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
-import TaskAltIcon from "@mui/icons-material/TaskAlt";
 import { Box, SwipeableDrawer, List, ListItem, ListItemButton, Tooltip } from "@mui/material";
 import { moduleDestinations, type ModuleDestination } from "../modules";
 
@@ -13,6 +10,8 @@ export function ModuleNavigation({ activeId, onNavigate }: {
   const [open, setOpen] = useState(false);
   const trigger = useRef<HTMLButtonElement>(null);
   const id = useId();
+  const activeModule = moduleDestinations.find((destination) => destination.id === activeId) ?? moduleDestinations[0];
+  const ActiveModuleIcon = activeModule.icon;
   const close = () => {
     setOpen(false);
     trigger.current?.focus();
@@ -25,9 +24,9 @@ export function ModuleNavigation({ activeId, onNavigate }: {
   return (
     <>
       <button ref={trigger} type="button" className="icon-button" aria-label="Open module menu"
-        title="Open module menu" aria-expanded={open} aria-controls={open ? id : undefined}
+        title={`${activeModule.label} — Open module menu`} aria-expanded={open} aria-controls={open ? id : undefined}
         onClick={() => setOpen(true)}>
-        <MenuIcon fontSize="small" />
+        <ActiveModuleIcon fontSize="medium" />
       </button>
       <SwipeableDrawer anchor="left" open={open} onOpen={() => setOpen(true)} onClose={close}
         ModalProps={{ disableRestoreFocus: true }}
@@ -54,7 +53,7 @@ export function ModuleNavigation({ activeId, onNavigate }: {
                         onClick={() => select(destination)}
                         sx={{ minHeight: 56, justifyContent: "center" }}
                       >
-                        {destination.id === "family-calendar" ? <CalendarMonthIcon /> : <TaskAltIcon />}
+                        <destination.icon />
                       </ListItemButton>
                     </Box>
                   </Tooltip>

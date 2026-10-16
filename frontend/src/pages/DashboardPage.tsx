@@ -756,10 +756,9 @@ export function DashboardPage({
     <div className="dashboard-page">
       <header className="dashboard-header" role="banner">
         <div className="header-branding">
-          {moduleNavigation}
-          <div className="icon-badge" aria-hidden>
+          {moduleNavigation ?? <div className="icon-badge" aria-hidden>
             <CalendarMonthIcon fontSize="medium" />
-          </div>
+          </div>}
           <div>
             <h1>{householdData.householdName}</h1>
             <p>{periodLabel}</p>

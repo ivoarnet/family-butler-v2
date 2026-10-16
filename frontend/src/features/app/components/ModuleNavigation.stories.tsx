@@ -49,12 +49,19 @@ export const NavigationAndDismissal: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
+    const trigger = canvas.getByRole("button", { name: "Open module menu" });
+    await expect(trigger).toHaveAttribute("title", "Calendar — Open module menu");
+    await expect(trigger.querySelector("svg")).not.toBeNull();
+    await expect(trigger.closest(".header-branding")?.querySelectorAll("svg")).toHaveLength(1);
+    await expect(trigger.closest(".header-branding")?.querySelector(".icon-badge")).toBeNull();
     const open = async () => {
       await waitFor(() => expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull());
       await userEvent.click(canvas.getByRole("button", { name: "Open module menu" }));
       return within(await page.findByRole("dialog", { name: "Modules" }));
     };
     let menu = await open();
+    await expect(menu.getByRole("button", { name: "Calendar" }).querySelector("svg")?.innerHTML)
+      .toBe(trigger.querySelector("svg")?.innerHTML);
     await expect(menu.getByRole("button", { name: "Calendar" })).toHaveAttribute("aria-current", "page");
     const tasks = menu.getByRole("button", { name: "Tasks Coming soon" });
     await expect(tasks).toHaveAttribute("aria-disabled", "true");
@@ -104,5 +111,23 @@ export const OpenMenu: Story = {
   play: async ({ canvasElement }) => {
     await userEvent.click(within(canvasElement).getByRole("button", { name: "Open module menu" }));
     await expect(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Modules" })).toBeVisible();
+  },
+};
+
+export const TasksHeaderIcon: Story = {
+  render: () => <ModuleNavigation activeId="tasks" onNavigate={() => undefined} />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const trigger = canvas.getByRole("button", { name: "Open module menu" });
+    await expect(trigger).toHaveAttribute("title", "Tasks — Open module menu");
+    await expect(trigger.querySelector("svg")).not.toBeNull();
+    await userEvent.click(trigger);
+    const menu = within(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Modules" }));
+    await expect(menu.getByRole("button", { name: "Tasks Coming soon" }).querySelector("svg")?.innerHTML)
+      .toBe(trigger.querySelector("svg")?.innerHTML);
+    await expect(menu.getByRole("button", { name: "Calendar" }).querySelector("svg")?.innerHTML)
+      .not.toBe(trigger.querySelector("svg")?.innerHTML);
+    await userEvent.keyboard("{Escape}");
+    await waitFor(() => expect(trigger).toHaveFocus());
   },
 };
