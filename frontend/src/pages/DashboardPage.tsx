@@ -1062,7 +1062,6 @@ export function DashboardPage({
                         <span className={`childcare-special-icon ${meta.className}`}>
                           <Icon className="childcare-special-icon-glyph" fontSize="small" aria-hidden="true" />
                         </span>
-                        <span>{meta.label}{corner.label ? ` · ${corner.label}` : ""}</span>
                       </span>;
                     }) : "—"}</div></td>
                   <td>{occurrence.providerName ?? "Care provider"}</td>

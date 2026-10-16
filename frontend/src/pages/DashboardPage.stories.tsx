@@ -392,7 +392,7 @@ export const ChildcareList: Story = {
     for (const heading of ["Week", "Day", "Time", "Specials", "Provider", "Actions"]) {
       await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
     }
-    await expect(table.getByText("School off")).toBeVisible();
+    await expect(table.queryByText("School off")).toBeNull();
     await expect(table.getByTestId("WbSunnyIcon")).toBeVisible();
     const listType = canvas.getByRole("group", { name: "List type" });
     await expect(within(listType).getByRole("button", { name: "Childcare" })).toHaveAttribute("aria-current", "page");
