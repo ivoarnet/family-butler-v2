@@ -2,6 +2,16 @@
 
 ## Unreleased
 
+- Replaced the permanent desktop rail with an on-demand glass-style overlay at every screen size. A small left-edge notch opens it by click, keyboard, or inward drag; the header icon remains available and focus returns to the opening control. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
+- Added a fixed module rail on wide screens (1200px+), expanding to module names on hover or keyboard focus. Names stay visible on extra-wide screens (1600px+); smaller screens retain swipe navigation. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
+- Replaced the hamburger menu and duplicate calendar badge with one clickable active-module header icon, shared with the navigation pane through the module registry. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
+- Made the swipeable module menu a narrow icon-only rail with vertically centered Calendar and Tasks icons, accessible labels, and tooltips. Tasks remains disabled and identified as coming soon. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
+- Added an icon-based, swipeable left-side menu for main modules only: Calendar and Tasks (disabled, coming soon). Childcare and Shared Parenting (Parenting Time) remain in Settings; Reports & exports retains its header shortcut. Documented module boundaries, development conventions, future cross-module reads/events and Bring! integration, with family-level enablement deferred. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
 - Standardized dialog secondary actions, Swiss German date-only pickers, 24-hour/5-minute time pickers, and accessible free-choice color controls. Calendar Specials now share an icon/title/subtitle layout. Updated screenshots: `docs/screenshots/shared-form-controls.png`, `docs/screenshots/shared-form-controls-mobile.png`, and `docs/screenshots/calendar-specials-layout.png`. See `docs/STYLEGUIDE.md` for display and serialization behavior.
 - Aligned Childcare Provider and Arrangement add buttons with Parenting settings by using the shared add icon. Updated screenshot: `docs/screenshots/childcare-settings-add-button-icons.png`.
 - Moved longer Parenting Time and Childcare guidance behind keyboard- and touch-accessible info buttons beside related headings. Updated screenshot: `docs/screenshots/settings-guidance-info-icons.png`.

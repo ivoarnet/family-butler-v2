@@ -1,10 +1,12 @@
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import HomeIcon from "@mui/icons-material/Home";
+import type { ReactNode } from "react";
 
-export function ReportsPage({ householdName, onGoHome }: {
+export function ReportsPage({ householdName, onGoHome, moduleNavigation }: {
   householdName: string;
   onGoHome: () => void;
+  moduleNavigation?: ReactNode;
 }) {
   const goBack = () => {
     if (window.history.length > 1) {
@@ -21,6 +23,7 @@ export function ReportsPage({ householdName, onGoHome }: {
           <ArrowBackIcon fontSize="small" />
         </button>
         <div className="header-branding">
+          {moduleNavigation}
           <div>
             <h1>Reports &amp; exports</h1>
             <p>{householdName}</p>

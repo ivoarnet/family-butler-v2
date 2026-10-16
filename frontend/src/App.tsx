@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./features/auth/components/AuthScreen";
 import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, ThemeMode } from "./features/app/types";
+import { ModuleNavigation } from "./features/app/components/ModuleNavigation";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ReportsPage } from "./pages/ReportsPage";
@@ -303,6 +304,7 @@ export function App() {
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [isProfileSaving, setIsProfileSaving] = useState(false);
+
   const childcareRequest = useCallback(async (path: string, init: RequestInit = {}): Promise<unknown> => {
     if (!authClient) throw new Error("Sign in to manage childcare.");
     const { data: { session }, error } = await authClient.auth.getSession();
@@ -837,10 +839,20 @@ export function App() {
     );
   }
 
+  const moduleNavigation = (
+    <ModuleNavigation
+      activeId={pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
+      onNavigate={(destination) => {
+        if (destination.path) navigateTo(destination.path);
+      }}
+    />
+  );
+
   return pathname === "/profile" ? (
     <>
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       <ProfilePage
+        moduleNavigation={activeHouseholdId ? moduleNavigation : undefined}
         households={households}
         activeHouseholdId={activeHouseholdId}
         onSwitchHousehold={(householdId) => {
@@ -871,6 +883,7 @@ export function App() {
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <SettingsPage
+        moduleNavigation={moduleNavigation}
         mode="settings"
         childcareRequest={childcareRequest}
         households={households}
@@ -902,7 +915,7 @@ export function App() {
       {dataError ? <div role="alert">{dataError}</div> : null}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
-      <ReportsPage householdName={householdData.householdName} onGoHome={() => navigateTo("/")} />
+      <ReportsPage householdName={householdData.householdName} onGoHome={() => navigateTo("/")} moduleNavigation={moduleNavigation} />
     </>
   ) : (
     <>
@@ -910,6 +923,7 @@ export function App() {
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <DashboardPage
+        moduleNavigation={moduleNavigation}
         householdData={householdData}
         setHouseholdData={setHouseholdData}
         onOpenSettings={openSettingsSection}

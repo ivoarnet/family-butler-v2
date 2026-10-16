@@ -1,4 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type SetStateAction } from "react";
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type ReactNode, type SetStateAction } from "react";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
@@ -129,6 +129,7 @@ export function SettingsPage({
   theme,
   setTheme,
   childcareRequest,
+  moduleNavigation,
 }: {
   mode: "profile" | "settings";
   households: HouseholdSummary[];
@@ -152,6 +153,7 @@ export function SettingsPage({
   theme: ThemeMode;
   setTheme: Dispatch<SetStateAction<ThemeMode>>;
   childcareRequest?: ChildcareRequest;
+  moduleNavigation?: ReactNode;
 }) {
   const [settingsSection, setSettingsSection] = useState<SettingsSection>(initialSection);
   const [newHouseholdName, setNewHouseholdName] = useState("");
@@ -657,6 +659,7 @@ export function SettingsPage({
           <ArrowBackIcon fontSize="small" />
         </button>
         <div className="header-branding">
+          {moduleNavigation}
           <div>
             <h1>{mode === "profile" ? "Profile" : "Settings"}</h1>
             <p>

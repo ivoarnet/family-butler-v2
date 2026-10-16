@@ -10,6 +10,12 @@ Family Butler helps households coordinate the people and plans involved in famil
 
 ## Core household and calendar capabilities — implemented
 
+**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The swipeable left-side module menu contains only main modules: **Calendar** and a disabled **Tasks — Coming soon** entry. Childcare and Parenting Time remain in Settings, and Reports & exports keeps its existing header shortcut. Existing calendar workflows remain available.
+
+See [Modular architecture and developer guide](modules/ARCHITECTURE.md) for module boundaries, navigation conventions, step-by-step integration, cross-module reads/events, and external-integration guidance.
+
+Navigation is closed by default on every screen size. Click or drag the small left-edge notch inward, or use the header module icon, to open the glass-style swipeable overlay. No permanent rail reduces the calendar's available width.
+
 The current product supports:
 
 - Creating and managing households, and organizing household members.
@@ -43,6 +49,12 @@ Settings → Members records child classification, optional school building (for
 The event dialog offers an optional personal-event responsibility check. Until secure user-to-party mapping exists, party selection and warnings are development-only (`npm run dev`); production explains that identity cannot yet be determined. Warnings never block saving, and only the proposed first occurrence of a recurring event is checked. Childcare does not transfer parenting responsibility. Automated reminders, messaging, approvals, and parenting arrangement changes through agents remain out of scope. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
 
 ## Planned modules
+
+- **Tasks:** member-assigned Kanban tasks with due dates; planned Calendar integration shows due tasks by day/member.
+- **Shop & Cook:** shopping lists and items; future synchronization with Bring! through a server-side adapter.
+- **Gamification:** future Family Coins and reactions to committed events from other modules. Rules and mechanics are not defined in this release.
+
+None of these modules, their agent workflows, the event/outbox infrastructure, or Bring! synchronization is implemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
 
 ## Managing module documentation
 
