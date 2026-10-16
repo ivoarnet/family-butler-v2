@@ -1,4 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CakeIcon from "@mui/icons-material/Cake";
@@ -10,7 +11,7 @@ import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import LooksIcon from "@mui/icons-material/Looks";
 import SettingsIcon from "@mui/icons-material/Settings";
 import WbSunnyIcon from "@mui/icons-material/WbSunny";
-import { Fab } from "@mui/material";
+import { Alert, Box, Checkbox, Fab, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
@@ -19,6 +20,8 @@ import { EventDetailDialog } from "../features/dashboard/components/EventDetailD
 import { ParentingResponsibilityWarning } from "../features/dashboard/components/ParentingResponsibilityWarning";
 import { ParentingAwayBackground } from "../features/dashboard/components/ParentingAwayBackground";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
+import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
+import { DateField, TimeField } from "../shared/ui/PickerFields";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
 import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval, ParentingParty } from "../types/family";
 import type { Dispatch, ElementType, ReactNode, SetStateAction } from "react";
@@ -36,6 +39,26 @@ interface SpecialEvent {
 interface DayCellDecorations {
   corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: ElementType<SvgIconProps>; label: string | null }>;
 }
+
+interface ChildcareOccurrenceDraft {
+  occurrence: ResolvedChildcareOccurrence;
+  action: "add" | "cancel" | "replace" | "move";
+  movedDate: string;
+  providerId: string;
+  allDay: boolean;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+const validChildcareTiming = (draft: ChildcareOccurrenceDraft): boolean => draft.allDay || (
+  /^([01]\d|2[0-3]):[0-5]\d$/.test(draft.startTime ?? "")
+  && /^([01]\d|2[0-3]):[0-5]\d$/.test(draft.endTime ?? "")
+  && draft.startTime! < draft.endTime!
+);
+
+const validIsoDate = (date: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(date)
+  && Number.isFinite(Date.parse(`${date}T00:00:00Z`))
+  && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
 
 function ChildcareCalendarEntry({
   occurrence,
@@ -394,7 +417,8 @@ export function DashboardPage({
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
   const [viewMode, setViewMode] = useState<"two-weeks" | "list">("two-weeks");
   const [selectedProviderId, setSelectedProviderId] = useState("");
-  const [cancellingOccurrenceId, setCancellingOccurrenceId] = useState<string | null>(null);
+  const [childcareMutationId, setChildcareMutationId] = useState<string | null>(null);
+  const [childcareDraft, setChildcareDraft] = useState<ChildcareOccurrenceDraft | null>(null);
   const [childcareActionError, setChildcareActionError] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
@@ -404,7 +428,7 @@ export function DashboardPage({
   const [eventFormState, setEventFormState] = useState<EventDialogFormState>(() => buildEventFormState(toIsoDate(new Date())));
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
   const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
-  const [childcareProviders, setChildcareProviders] = useState<Array<[string, string]>>([]);
+  const [childcareProviders, setChildcareProviders] = useState<Array<[string, string, boolean]>>([]);
   const [childcareLoadError, setChildcareLoadError] = useState(false);
   const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
   const [parentingParties, setParentingParties] = useState<ParentingParty[]>([]);
@@ -437,24 +461,27 @@ export function DashboardPage({
     const endDate = toIsoDate(days[days.length - 1]);
     setChildcareOccurrences([]);
     setChildcareLoadError(false);
-    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?startDate=${startDate}&endDate=${endDate}`, {
-      headers: {
-        Authorization: ["Bearer", accessToken].join(" "),
-        "x-supabase-auth-token": accessToken,
-      },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Childcare could not be loaded");
-        }
-        return response.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>;
+    const headers = {
+      Authorization: ["Bearer", accessToken].join(" "),
+      "x-supabase-auth-token": accessToken,
+    };
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?startDate=${startDate}&endDate=${endDate}`, { headers, signal: controller.signal }),
+      fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare`, { headers, signal: controller.signal }),
+    ])
+      .then(async ([response, providersResponse]) => {
+        if (!response.ok || !providersResponse.ok) throw new Error("Childcare could not be loaded");
+        const [resolved, data] = await Promise.all([
+          response.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>,
+          providersResponse.json() as Promise<{ providers?: Array<{ id: string; name: string; active: boolean }> }>,
+        ]);
+        return { resolved, providers: Array.isArray(data.providers) ? data.providers : [] };
       })
-      .then((result) => {
-        const occurrences = Array.isArray(result.occurrences) ? result.occurrences : [];
+      .then(({ resolved, providers }) => {
+        const occurrences = Array.isArray(resolved.occurrences) ? resolved.occurrences : [];
         setChildcareOccurrences(occurrences);
-        setChildcareProviders([...new Map(occurrences.map((occurrence) =>
-          [occurrence.providerId, occurrence.providerName ?? "Care provider"])).entries()]
+        setChildcareProviders(providers.map((provider) =>
+          [provider.id, provider.name, provider.active] as [string, string, boolean])
           .sort((left, right) => left[1].localeCompare(right[1])));
       })
       .catch(() => {
@@ -771,9 +798,26 @@ export function DashboardPage({
       + ` – ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[listDays.length - 1])}`
     : formatPeriodRange(periodStart, DEMO_LOCALE);
   const todayIso = currentDateIso;
-  const cancelChildcareOccurrence = async (occurrence: ResolvedChildcareOccurrence) => {
-    if (cancellingOccurrenceId) return;
-    setCancellingOccurrenceId(occurrence.id);
+  const openChildcareEditor = (occurrence: ResolvedChildcareOccurrence) => {
+    setChildcareActionError("");
+    setChildcareDraft({
+      occurrence,
+      action: occurrence.overrideAction === "add" ? "add" : occurrence.overrideAction === "move" ? "move" : "replace",
+      movedDate: occurrence.date,
+      providerId: occurrence.providerId,
+      allDay: occurrence.allDay,
+      startTime: occurrence.startTime,
+      endTime: occurrence.endTime,
+    });
+  };
+  const saveChildcareOverride = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!childcareDraft || childcareMutationId) return;
+    if (childcareDraft.action !== "cancel" && !validChildcareTiming(childcareDraft)) return;
+    if (childcareDraft.action === "move"
+      && (!validIsoDate(childcareDraft.movedDate)
+        || childcareDraft.movedDate === childcareDraft.occurrence.originalDate)) return;
+    setChildcareMutationId(childcareDraft.occurrence.id);
     setChildcareActionError("");
     try {
       const response = await fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/overrides`, {
@@ -783,14 +827,37 @@ export function DashboardPage({
           "x-supabase-auth-token": accessToken,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ arrangementId: occurrence.arrangementId, originalDate: occurrence.originalDate, action: "cancel" }),
+        body: JSON.stringify({
+          arrangementId: childcareDraft.occurrence.arrangementId,
+          originalDate: childcareDraft.occurrence.originalDate,
+          action: childcareDraft.action,
+          ...(childcareDraft.action !== "cancel" ? {
+            providerId: childcareDraft.providerId,
+            allDay: childcareDraft.allDay,
+            startTime: childcareDraft.startTime,
+            endTime: childcareDraft.endTime,
+          } : {}),
+          ...(childcareDraft.action === "move" ? { movedDate: childcareDraft.movedDate } : {}),
+        }),
       });
-      if (!response.ok) throw new Error("Childcare could not be cancelled.");
-      setChildcareOccurrences((current) => current.filter((item) => item.id !== occurrence.id));
+      if (!response.ok) throw new Error("Childcare occurrence could not be changed.");
+      const listDays = buildChildcareListDays(new Date(`${currentDateIso}T00:00:00`));
+      const query = new URLSearchParams({
+        startDate: toIsoDate(listDays[0]),
+        endDate: toIsoDate(listDays[listDays.length - 1]),
+      });
+      const refreshed = await fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?${query}`, {
+        headers: { Authorization: ["Bearer", accessToken].join(" "), "x-supabase-auth-token": accessToken },
+      });
+      if (!refreshed.ok) throw new Error("Childcare list could not be refreshed.");
+      const result = await refreshed.json() as { occurrences?: ResolvedChildcareOccurrence[] };
+      const occurrences = Array.isArray(result.occurrences) ? result.occurrences : [];
+      setChildcareOccurrences(occurrences);
+      setChildcareDraft(null);
     } catch (error) {
-      setChildcareActionError(error instanceof Error ? error.message : "Childcare could not be cancelled.");
+      setChildcareActionError(error instanceof Error ? error.message : "Childcare occurrence could not be changed.");
     } finally {
-      setCancellingOccurrenceId(null);
+      setChildcareMutationId(null);
     }
   };
   return (
@@ -908,7 +975,9 @@ export function DashboardPage({
               Provider
               <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
                 <option value="">All providers</option>
-                {childcareProviders.map(([id, name]) => <option value={id} key={id}>{name}</option>)}
+                {childcareProviders.map(([id, name, active]) => <option value={id} key={id}>
+                  {name}{!active ? " (Inactive)" : ""}
+                </option>)}
               </select>
             </label> : visibleMembers.map((member) => (
               <Fab
@@ -974,7 +1043,8 @@ export function DashboardPage({
           {viewMode === "list" ? <div className="calendar-scroll">
             {childcareActionError && <p role="alert">{childcareActionError}</p>}
             <div className="table-scroll"><table className="settings-table childcare-list-table" aria-label="Childcare entries">
-              <thead><tr><th>Week number</th><th>Day</th><th>Time</th><th>Day configuration</th><th>Provider</th><th>Actions</th></tr></thead>
+              <thead><tr><th>Week number</th><th>Day</th><th>Time</th><th>Day configuration</th><th>Provider</th>
+                <th className="actions-column">Actions</th></tr></thead>
               <tbody>{filteredChildcareOccurrences.map((occurrence) => {
                 const date = parseDateOnly(occurrence.date);
                 const configurations = (dayDecorationsByDate.get(occurrence.date)?.corners ?? []).map((corner) => {
@@ -988,12 +1058,14 @@ export function DashboardPage({
                   <td>{occurrence.allDay ? "All day" : `${occurrence.startTime ?? ""}–${occurrence.endTime ?? ""}`}</td>
                   <td>{configurations.join(", ") || "—"}</td>
                   <td>{occurrence.providerName ?? "Care provider"}</td>
-                  <td><button type="button" className="primary-pill no-wrap-button"
-                    aria-label={`Cancel childcare for ${occurrence.date} with ${occurrence.providerName ?? "Care provider"}`}
-                    disabled={cancellingOccurrenceId !== null}
-                    onClick={() => void cancelChildcareOccurrence(occurrence)}>
-                    {cancellingOccurrenceId === occurrence.id ? "Cancelling…" : "Cancel"}
-                  </button></td>
+                  <td className="actions-cell"><div className="icon-actions">
+                    <button type="button" className="icon-button compact-icon-button"
+                      aria-label={`Change care on ${occurrence.date} for ${occurrence.providerName ?? "Care provider"}`}
+                      title="Change occurrence" disabled={childcareMutationId !== null}
+                      onClick={() => openChildcareEditor(occurrence)}>
+                      <EditOutlinedIcon fontSize="small" />
+                    </button>
+                  </div></td>
                 </tr>;
               })}</tbody>
             </table></div>
@@ -1170,6 +1242,61 @@ export function DashboardPage({
         }}
         onDelete={deleteViewingEvent}
       />
+      <GlassDialog open={!!childcareDraft} onClose={() => { if (!childcareMutationId) setChildcareDraft(null); }}
+        aria-labelledby="childcare-override-title" maxWidth="sm" fullWidth>
+        {childcareDraft && <Box component="form" onSubmit={(event) => void saveChildcareOverride(event)}>
+          <DialogHeader><Typography id="childcare-override-title" variant="h6">Change one occurrence</Typography></DialogHeader>
+          <DialogContentPanel><Box component="fieldset" disabled={childcareMutationId !== null}
+            sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
+            {childcareActionError && <Alert severity="error">{childcareActionError}</Alert>}
+            <Typography>{childcareDraft.action === "add"
+              ? `Added care date: ${childcareDraft.occurrence.originalDate}. Weekly care remains unchanged.`
+              : `Original scheduled date: ${childcareDraft.occurrence.originalDate}. Weekly care remains unchanged.`}</Typography>
+            {childcareDraft.action === "move" && <Typography>Effective care date: {childcareDraft.movedDate || "Choose a moved date"}.</Typography>}
+            <Typography>Participants: {childcareDraft.occurrence.childIds.map((id) =>
+              orderedMembers.find((member) => member.id === id)?.firstName ?? id).join(", ")}</Typography>
+            <FormField select label="One-off action" value={childcareDraft.action}
+              onChange={(event) => setChildcareDraft({ ...childcareDraft, action: event.target.value as ChildcareOccurrenceDraft["action"] })}>
+              {childcareDraft.action === "add" && <MenuItem value="add">Keep added care day</MenuItem>}
+              <MenuItem value="cancel">Cancel care</MenuItem>
+              {childcareDraft.action !== "add" && <>
+                <MenuItem value="replace">Replace provider / time</MenuItem>
+                <MenuItem value="move">Move care date</MenuItem>
+              </>}
+            </FormField>
+            {childcareDraft.action === "move" && <DateField label="Moved date" required value={childcareDraft.movedDate}
+              onChange={(movedDate) => setChildcareDraft({ ...childcareDraft, movedDate })} />}
+            {childcareDraft.action !== "cancel" && <>
+              <FormField select label="Occurrence provider" value={childcareDraft.providerId}
+                onChange={(event) => setChildcareDraft({ ...childcareDraft, providerId: event.target.value })}>
+                {childcareProviders.filter(([id, , active]) => active || id === childcareDraft.providerId)
+                  .map(([id, name, active]) => <MenuItem key={id} value={id}>
+                    {name}{!active ? " (Inactive)" : ""}
+                  </MenuItem>)}
+              </FormField>
+              <FormControlLabel label="All-day care" control={<Checkbox checked={childcareDraft.allDay}
+                onChange={(_, allDay) => setChildcareDraft({ ...childcareDraft, allDay,
+                  startTime: allDay ? null : "09:00", endTime: allDay ? null : "17:00" })} />} />
+              {!childcareDraft.allDay && <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TimeField label="Start time" value={childcareDraft.startTime ?? ""} required
+                  onChange={(startTime) => setChildcareDraft({ ...childcareDraft, startTime: startTime || null })} />
+                <TimeField label="End time" value={childcareDraft.endTime ?? ""} required
+                  onChange={(endTime) => setChildcareDraft({ ...childcareDraft, endTime: endTime || null })} />
+              </Stack>}
+            </>}
+          </Box></DialogContentPanel>
+          <DialogActionsBar>
+            <SecondaryButton variant="outlined" disabled={childcareMutationId !== null}
+              onClick={() => setChildcareDraft(null)}>Close</SecondaryButton>
+            <GradientButton type="submit" disabled={childcareMutationId !== null
+              || (childcareDraft.action !== "cancel" && !validChildcareTiming(childcareDraft))
+              || (childcareDraft.action === "move" && (!childcareDraft.movedDate
+                || childcareDraft.movedDate === childcareDraft.occurrence.originalDate))}>
+              {childcareDraft.action === "add" ? "Save added care day" : "Save one-off change"}
+            </GradientButton>
+          </DialogActionsBar>
+        </Box>}
+      </GlassDialog>
     </div>
   );
 }

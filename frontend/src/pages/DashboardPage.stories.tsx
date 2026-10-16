@@ -34,6 +34,7 @@ const guardianId = "00000000-0000-0000-0000-000000000003";
 const calendarSettingsCalls = fn();
 const childcareCancelCalls = fn();
 const childcareRangeCalls = fn();
+const cancelledChildcareOccurrences = new Set<string>();
 const parentingIntervals: ResolvedParentingInterval[] = [
   { startAt: new Date(`${yesterdayDate}T00:00`).toISOString(), endAt: new Date(`${date}T00:00`).toISOString(),
     partyId: dadId, partyName: "Dad", source: { type: "plan", planId: "plan" } },
@@ -131,10 +132,19 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/childcare/occurrences?")) {
         childcareRangeCalls(new URL(url, window.location.origin).searchParams);
-        return Response.json({ occurrences: childcareOccurrences });
+        return Response.json({ occurrences: childcareOccurrences.filter((item) =>
+          !cancelledChildcareOccurrences.has(`${item.arrangementId}:${item.originalDate}`)) });
+      }
+      if (url.endsWith("/childcare")) {
+        return Response.json({ providers: [
+          { id: "grandparents", name: "Grandparents", active: true },
+          { id: "daycare", name: "Daycare", active: true },
+        ] });
       }
       if (url.endsWith("/childcare/overrides") && init?.method === "PUT") {
-        childcareCancelCalls(JSON.parse(String(init.body)));
+        const override = JSON.parse(String(init.body)) as { arrangementId: string; originalDate: string; action: string };
+        childcareCancelCalls(override);
+        if (override.action === "cancel") cancelledChildcareOccurrences.add(`${override.arrangementId}:${override.originalDate}`);
         return Response.json({ ok: true });
       }
       if (url.includes("/parenting-time/resolve?")) {
@@ -389,7 +399,14 @@ export const ChildcareList: Story = {
     await expect(table.getByText("Daycare")).toBeVisible();
     await expect(table.queryByText("Grandparents")).toBeNull();
     await userEvent.selectOptions(providerFilter, "");
-    await userEvent.click(table.getByRole("button", { name: `Cancel childcare for ${date} with Grandparents` }));
+    const editButton = table.getByRole("button", { name: `Change care on ${date} for Grandparents` });
+    await expect(editButton.closest("td")).toHaveClass("actions-cell");
+    await userEvent.click(editButton);
+    const dialog = within(canvasElement.ownerDocument.body);
+    await expect(dialog.getByRole("heading", { name: "Change one occurrence" })).toBeVisible();
+    await userEvent.click(dialog.getByRole("combobox", { name: "One-off action" }));
+    await userEvent.click(dialog.getByRole("option", { name: "Cancel care" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Save one-off change" }));
     await expect(childcareCancelCalls).toHaveBeenCalledWith({
       arrangementId: "grandparents-arrangement",
       originalDate: yesterdayDate,
