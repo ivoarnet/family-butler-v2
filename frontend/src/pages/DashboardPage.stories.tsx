@@ -106,7 +106,7 @@ const household: HouseholdData = {
     { id: "recurring", title: "Daily check-in", date: "2000-01-01", allDay: true, memberIds: ["alex"], repeatRule: "FREQ=DAILY" },
     { id: "long-title", title: "A-very-long-unbroken-event-title-that-must-not-overflow-the-calendar-at-narrow-widths", date, allDay: true, memberIds: ["alex", "sam"] },
   ],
-  dayConfigurations: [{ id: "holiday", category: "school_off", startDate: date, endDate: date }],
+  dayConfigurations: [{ id: "holiday", category: "school_off", startDate: date, endDate: date, label: "Weihnachtsferien" }],
 };
 
 function DashboardStory({ width, unknownResponsibility = false, hatching = false, archivedHouseholdParty = false,
@@ -393,6 +393,7 @@ export const ChildcareList: Story = {
       await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
     }
     await expect(table.queryByText("School off")).toBeNull();
+    await expect(table.getByText("Weihnachtsferien")).toBeVisible();
     await expect(table.getByTestId("WbSunnyIcon")).toBeVisible();
     const submenu = canvas.getByRole("navigation", { name: "Lists" });
     const listType = canvas.getByRole("group", { name: "List type" });
