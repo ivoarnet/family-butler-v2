@@ -32,6 +32,9 @@ const momId = "00000000-0000-0000-0000-000000000001";
 const dadId = "00000000-0000-0000-0000-000000000002";
 const guardianId = "00000000-0000-0000-0000-000000000003";
 const calendarSettingsCalls = fn();
+const childcareCancelCalls = fn();
+const childcareRangeCalls = fn();
+const cancelledChildcareOccurrences = new Set<string>();
 const parentingIntervals: ResolvedParentingInterval[] = [
   { startAt: new Date(`${yesterdayDate}T00:00`).toISOString(), endAt: new Date(`${date}T00:00`).toISOString(),
     partyId: dadId, partyName: "Dad", source: { type: "plan", planId: "plan" } },
@@ -57,6 +60,7 @@ const boundaryIntervals: ResolvedParentingInterval[] = [
 const childcareOccurrences = [
   {
     id: "grandparents-care",
+    arrangementId: "grandparents-arrangement",
     originalDate: yesterdayDate,
     date,
     providerId: "grandparents",
@@ -69,6 +73,7 @@ const childcareOccurrences = [
   },
   {
     id: "daycare-care",
+    arrangementId: "daycare-arrangement",
     originalDate: tomorrowDate,
     date: tomorrowDate,
     providerId: "daycare",
@@ -101,7 +106,7 @@ const household: HouseholdData = {
     { id: "recurring", title: "Daily check-in", date: "2000-01-01", allDay: true, memberIds: ["alex"], repeatRule: "FREQ=DAILY" },
     { id: "long-title", title: "A-very-long-unbroken-event-title-that-must-not-overflow-the-calendar-at-narrow-widths", date, allDay: true, memberIds: ["alex", "sam"] },
   ],
-  dayConfigurations: [{ id: "holiday", category: "school_off", startDate: date, endDate: date }],
+  dayConfigurations: [{ id: "holiday", category: "school_off", startDate: date, endDate: date, label: "Weihnachtsferien" }],
 };
 
 function DashboardStory({ width, unknownResponsibility = false, hatching = false, archivedHouseholdParty = false,
@@ -126,7 +131,21 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
     window.fetch = async (input, init) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       if (url.includes("/childcare/occurrences?")) {
-        return Response.json({ occurrences: childcareOccurrences });
+        childcareRangeCalls(new URL(url, window.location.origin).searchParams);
+        return Response.json({ occurrences: childcareOccurrences.filter((item) =>
+          !cancelledChildcareOccurrences.has(`${item.arrangementId}:${item.originalDate}`)) });
+      }
+      if (url.endsWith("/childcare")) {
+        return Response.json({ providers: [
+          { id: "grandparents", name: "Grandparents", active: true },
+          { id: "daycare", name: "Daycare", active: true },
+        ] });
+      }
+      if (url.endsWith("/childcare/overrides") && init?.method === "PUT") {
+        const override = JSON.parse(String(init.body)) as { arrangementId: string; originalDate: string; action: string };
+        childcareCancelCalls(override);
+        if (override.action === "cancel") cancelledChildcareOccurrences.add(`${override.arrangementId}:${override.originalDate}`);
+        return Response.json({ ok: true });
       }
       if (url.includes("/parenting-time/resolve?")) {
         if (parentingUnavailable) return Response.json({ error: "Parenting time unavailable" }, { status: 500 });
@@ -349,26 +368,61 @@ export const DayGroupedEvents: Story = {
   play: DayAndEvents.play,
 };
 
-export const MonthlyCalendar: Story = {
+export const ChildcareList: Story = {
   args: { width: 1440 },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    const monthButton = canvas.getByRole("button", { name: "Month" });
-    await userEvent.click(monthButton);
-    await expect(monthButton).toHaveAttribute("aria-pressed", "true");
-    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toMatch(/\d{4}/);
-    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeGreaterThanOrEqual(28);
-    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr").length).toBeLessThanOrEqual(42);
-
-    await expect(canvas.queryByRole("link", { name: /Download .* calendar as PDF/ })).toBeNull();
-    const periodLabel = canvas.getByRole("banner").querySelector("p")?.textContent;
-    await userEvent.click(canvas.getByTitle("Next month"));
-    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).not.toBe(periodLabel);
-    await userEvent.click(canvas.getByTitle("Previous month"));
-    await expect(canvas.getByRole("banner").querySelector("p")?.textContent).toBe(periodLabel);
-    await userEvent.click(canvas.getByRole("button", { name: "2 Weeks" }));
-    await expect(canvas.getByRole("button", { name: "2 Weeks" })).toHaveAttribute("aria-pressed", "true");
-    await expect(canvasElement.querySelectorAll(".calendar-grid tbody tr")).toHaveLength(14);
+    await canvas.findByText("Grandparents");
+    const previousRangeCallCount = childcareRangeCalls.mock.calls.length;
+    const listButton = canvas.getByRole("button", { name: "List" });
+    await userEvent.click(listButton);
+    await expect(listButton).toHaveAttribute("aria-pressed", "true");
+    await waitFor(() => expect(childcareRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));
+    const range = childcareRangeCalls.mock.calls[childcareRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
+    await expect(range.get("startDate")).toBe(date);
+    const rangeEnd = new Date(`${range.get("endDate")}T00:00:00`);
+    const expectedEnd = new Date(`${date}T00:00:00`);
+    const startDay = expectedEnd.getDate();
+    expectedEnd.setDate(1);
+    expectedEnd.setMonth(expectedEnd.getMonth() + 3);
+    expectedEnd.setDate(Math.min(startDay, new Date(expectedEnd.getFullYear(), expectedEnd.getMonth() + 1, 0).getDate()));
+    await expect(rangeEnd.getTime()).toBe(expectedEnd.getTime());
+    const table = within(await canvas.findByRole("table", { name: "Childcare entries" }));
+    await waitFor(() => expect(table.getByText("Grandparents")).toBeVisible());
+    for (const heading of ["Week", "Day", "Time", "Specials", "Provider", "Actions"]) {
+      await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await expect(table.queryByText("School off")).toBeNull();
+    await expect(table.getByText("Weihnachtsferien")).toBeVisible();
+    await expect(table.getByTestId("WbSunnyIcon")).toBeVisible();
+    const submenu = canvas.getByRole("navigation", { name: "Lists" });
+    const listType = canvas.getByRole("group", { name: "List type" });
+    await expect(within(listType).getByRole("button", { name: "Childcare" })).toHaveAttribute("aria-current", "page");
+    await expect(within(listType).getByRole("button", { name: "Parenting" })).toBeDisabled();
+    await expect(within(listType).getByRole("button", { name: "Events" })).toBeDisabled();
+    const childcareFilters = canvas.getByRole("group", { name: "Filter childcare list" });
+    await expect(childcareFilters.contains(submenu)).toBe(false);
+    await expect(childcareFilters.contains(table.getByRole("table", { name: "Childcare entries" }))).toBe(false);
+    await expect(table.getByText("Grandparents")).toBeVisible();
+    const providerFilter = canvas.getByRole("combobox", { name: "Filter childcare by provider" });
+    await userEvent.selectOptions(providerFilter, "daycare");
+    await expect(table.getByText("Daycare")).toBeVisible();
+    await expect(table.queryByText("Grandparents")).toBeNull();
+    await userEvent.selectOptions(providerFilter, "");
+    const editButton = table.getByRole("button", { name: `Change care on ${date} for Grandparents` });
+    await expect(editButton.closest("td")).toHaveClass("actions-cell");
+    await userEvent.click(editButton);
+    const dialog = within(canvasElement.ownerDocument.body);
+    await expect(dialog.getByRole("heading", { name: "Change one occurrence" })).toBeVisible();
+    await userEvent.click(dialog.getByRole("combobox", { name: "One-off action" }));
+    await userEvent.click(dialog.getByRole("option", { name: "Cancel care" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Save one-off change" }));
+    await expect(childcareCancelCalls).toHaveBeenCalledWith({
+      arrangementId: "grandparents-arrangement",
+      originalDate: yesterdayDate,
+      action: "cancel",
+    });
+    await expect(table.queryByText("Grandparents")).toBeNull();
   },
 };
 

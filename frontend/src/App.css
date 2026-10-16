@@ -740,6 +740,72 @@ body,
   display: none;
 }
 
+.childcare-list-card .calendar-member-filters,
+.childcare-list-card .childcare-list-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  padding: 1rem;
+  border-bottom: 1px solid var(--border);
+}
+
+.childcare-list-submenu {
+  padding: 1rem 1rem 0;
+}
+
+.childcare-provider-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-weight: 700;
+}
+
+.childcare-provider-filter select {
+  min-height: 2.4rem;
+  border-radius: 0.8rem;
+  border: 1px solid var(--border);
+  background: var(--surface-strong);
+  color: inherit;
+  padding: 0.45rem 0.65rem;
+  font: inherit;
+}
+
+.childcare-list-submenu .view-switcher button {
+  padding: 0.45rem 0.75rem;
+}
+
+.childcare-specials-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.childcare-special-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.childcare-special-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 auto;
+  border-radius: 0.35rem;
+  color: #fff;
+}
+
+.childcare-special-icon-glyph {
+  font-size: 1rem !important;
+}
+
+.childcare-list-table {
+  min-width: 760px;
+}
+
 .calendar-period-navigation {
   display: none;
 }
@@ -1390,7 +1456,9 @@ body,
     display: none;
   }
 
-  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-submenu .view-switcher {
     display: inline-flex;
   }
 
@@ -1425,7 +1493,9 @@ body,
     display: none;
   }
 
-  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher {
+  .dashboard-page .calendar-member-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-filters .compact-calendar-view-switcher,
+  .dashboard-page .childcare-list-submenu .view-switcher {
     display: inline-flex;
   }
 

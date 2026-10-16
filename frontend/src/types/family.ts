@@ -52,6 +52,7 @@ export interface HouseholdEvent {
 
 export interface ResolvedChildcareOccurrence {
   id: string;
+  arrangementId: string;
   originalDate: string;
   date: string;
   providerId: string;

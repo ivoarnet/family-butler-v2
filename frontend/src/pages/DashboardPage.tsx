@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
@@ -7,10 +7,8 @@ import FamilyRestroomIcon from "@mui/icons-material/FamilyRestroom";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import LooksIcon from "@mui/icons-material/Looks";
 import SettingsIcon from "@mui/icons-material/Settings";
-import WbSunnyIcon from "@mui/icons-material/WbSunny";
-import { Fab } from "@mui/material";
+import { Alert, Box, Checkbox, Fab, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
@@ -19,6 +17,9 @@ import { EventDetailDialog } from "../features/dashboard/components/EventDetailD
 import { ParentingResponsibilityWarning } from "../features/dashboard/components/ParentingResponsibilityWarning";
 import { ParentingAwayBackground } from "../features/dashboard/components/ParentingAwayBackground";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
+import { DAY_CONFIGURATION_META } from "../shared/calendar/dayConfigurations";
+import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
+import { DateField, TimeField } from "../shared/ui/PickerFields";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
 import { Contact, DayConfiguration, DayConfigurationCategory, FamilyMember, HouseholdEvent, ResolvedChildcareOccurrence, ResolvedParentingInterval, ParentingParty } from "../types/family";
 import type { Dispatch, ElementType, ReactNode, SetStateAction } from "react";
@@ -36,6 +37,26 @@ interface SpecialEvent {
 interface DayCellDecorations {
   corners: Array<{ id: string; category: DayConfigurationCategory; marker: string; icon: ElementType<SvgIconProps>; label: string | null }>;
 }
+
+interface ChildcareOccurrenceDraft {
+  occurrence: ResolvedChildcareOccurrence;
+  action: "add" | "cancel" | "replace" | "move";
+  movedDate: string;
+  providerId: string;
+  allDay: boolean;
+  startTime: string | null;
+  endTime: string | null;
+}
+
+const validChildcareTiming = (draft: ChildcareOccurrenceDraft): boolean => draft.allDay || (
+  /^([01]\d|2[0-3]):[0-5]\d$/.test(draft.startTime ?? "")
+  && /^([01]\d|2[0-3]):[0-5]\d$/.test(draft.endTime ?? "")
+  && draft.startTime! < draft.endTime!
+);
+
+const validIsoDate = (date: string): boolean => /^\d{4}-\d{2}-\d{2}$/.test(date)
+  && Number.isFinite(Date.parse(`${date}T00:00:00Z`))
+  && new Date(`${date}T00:00:00Z`).toISOString().slice(0, 10) === date;
 
 function ChildcareCalendarEntry({
   occurrence,
@@ -119,12 +140,6 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
 }
 
 const DEMO_LOCALE = "de-CH";
-const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: ElementType<SvgIconProps>; className: string }> = {
-  school_off: { defaultMarker: "SH", icon: WbSunnyIcon, className: "school-off" },
-  bank_holiday: { defaultMarker: "BH", icon: AccountBalanceIcon, className: "bank-holiday" },
-  bridge_day: { defaultMarker: "BD", icon: LooksIcon, className: "bridge-day" },
-};
-
 const addDays = (date: Date, days: number): Date => {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
@@ -170,6 +185,22 @@ const toIsoDate = (date: Date): string => {
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
   return `${year}-${month}-${day}`;
+};
+
+const addMonths = (date: Date, months: number): Date => {
+  const result = new Date(date);
+  const day = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + months);
+  result.setDate(Math.min(day, new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()));
+  return result;
+};
+
+const buildChildcareListDays = (date: Date): Date[] => {
+  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
+  const end = addMonths(start, 3);
+  return Array.from({ length: Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1 },
+    (_, index) => addDays(start, index));
 };
 
 const getWeekdayAbbreviation = (date: Date, locale: string): string => {
@@ -220,17 +251,6 @@ const buildBirthdayEvents = (contacts: Contact[], days: Date[]): SpecialEvent[] 
 
   return birthdayEvents;
 };
-
-const buildMonthCalendarDays = (month: Date): Date[] => {
-  const firstDay = new Date(month.getFullYear(), month.getMonth(), 1);
-  const start = startOfWeekMonday(firstDay);
-  const daysInMonth = new Date(month.getFullYear(), month.getMonth() + 1, 0).getDate();
-  const weekCount = Math.ceil(((firstDay.getDay() + 6) % 7 + daysInMonth) / 7);
-  return Array.from({ length: weekCount * 7 }, (_, index) => addDays(start, index));
-};
-
-const formatMonthLabel = (month: Date, locale: string): string =>
-  new Intl.DateTimeFormat(locale, { month: "long", year: "numeric" }).format(month);
 
 const getDayConfigurationMarker = (dayConfiguration: DayConfiguration): string => {
   return DAY_CONFIGURATION_META[dayConfiguration.category].defaultMarker;
@@ -387,11 +407,11 @@ export function DashboardPage({
 }) {
   const [now, setNow] = useState(() => new Date());
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
-  const [monthStart, setMonthStart] = useState(() => {
-    const current = new Date();
-    return new Date(current.getFullYear(), current.getMonth(), 1);
-  });
-  const [viewMode, setViewMode] = useState<"two-weeks" | "month">("two-weeks");
+  const [viewMode, setViewMode] = useState<"two-weeks" | "list">("two-weeks");
+  const [selectedProviderId, setSelectedProviderId] = useState("");
+  const [childcareMutationId, setChildcareMutationId] = useState<string | null>(null);
+  const [childcareDraft, setChildcareDraft] = useState<ChildcareOccurrenceDraft | null>(null);
+  const [childcareActionError, setChildcareActionError] = useState("");
   const [selectedMemberId, setSelectedMemberId] = useState<string | null>(null);
   const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
   const [isEventDialogOpen, setIsEventDialogOpen] = useState(false);
@@ -400,6 +420,7 @@ export function DashboardPage({
   const [eventFormState, setEventFormState] = useState<EventDialogFormState>(() => buildEventFormState(toIsoDate(new Date())));
   const [eventFormSubmitted, setEventFormSubmitted] = useState(false);
   const [childcareOccurrences, setChildcareOccurrences] = useState<ResolvedChildcareOccurrence[]>([]);
+  const [childcareProviders, setChildcareProviders] = useState<Array<[string, string, boolean]>>([]);
   const [childcareLoadError, setChildcareLoadError] = useState(false);
   const [parentingIntervals, setParentingIntervals] = useState<ResolvedParentingInterval[]>([]);
   const [parentingParties, setParentingParties] = useState<ParentingParty[]>([]);
@@ -411,15 +432,18 @@ export function DashboardPage({
   );
   const visibleMembers = useMemo(() => orderedMembers.filter((member) => member.visibleInCalendar), [orderedMembers]);
   const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId);
+  const currentDateIso = toIsoDate(now);
   const days = useMemo(
-    () => viewMode === "month" ? buildMonthCalendarDays(monthStart) : Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)),
-    [monthStart, periodStart, viewMode]
+    () => viewMode === "list" ? buildChildcareListDays(new Date(`${currentDateIso}T00:00:00`))
+      : Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)),
+    [currentDateIso, periodStart, viewMode]
   );
   const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, days), [householdData.contacts, days]);
 
   useEffect(() => {
     if (!householdData.householdId || !accessToken || days.length === 0) {
       setChildcareOccurrences([]);
+      setChildcareProviders([]);
       setChildcareLoadError(false);
       return;
     }
@@ -429,20 +453,29 @@ export function DashboardPage({
     const endDate = toIsoDate(days[days.length - 1]);
     setChildcareOccurrences([]);
     setChildcareLoadError(false);
-    fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?startDate=${startDate}&endDate=${endDate}`, {
-      headers: {
-        Authorization: ["Bearer", accessToken].join(" "),
-        "x-supabase-auth-token": accessToken,
-      },
-      signal: controller.signal,
-    })
-      .then(async (response) => {
-        if (!response.ok) {
-          throw new Error("Childcare could not be loaded");
-        }
-        return response.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>;
+    const headers = {
+      Authorization: ["Bearer", accessToken].join(" "),
+      "x-supabase-auth-token": accessToken,
+    };
+    Promise.all([
+      fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?startDate=${startDate}&endDate=${endDate}`, { headers, signal: controller.signal }),
+      fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare`, { headers, signal: controller.signal }),
+    ])
+      .then(async ([response, providersResponse]) => {
+        if (!response.ok || !providersResponse.ok) throw new Error("Childcare could not be loaded");
+        const [resolved, data] = await Promise.all([
+          response.json() as Promise<{ occurrences?: ResolvedChildcareOccurrence[] }>,
+          providersResponse.json() as Promise<{ providers?: Array<{ id: string; name: string; active: boolean }> }>,
+        ]);
+        return { resolved, providers: Array.isArray(data.providers) ? data.providers : [] };
       })
-      .then((result) => setChildcareOccurrences(Array.isArray(result.occurrences) ? result.occurrences : []))
+      .then(({ resolved, providers }) => {
+        const occurrences = Array.isArray(resolved.occurrences) ? resolved.occurrences : [];
+        setChildcareOccurrences(occurrences);
+        setChildcareProviders(providers.map((provider) =>
+          [provider.id, provider.name, provider.active] as [string, string, boolean])
+          .sort((left, right) => left[1].localeCompare(right[1])));
+      })
       .catch(() => {
         if (!controller.signal.aborted) {
           setChildcareOccurrences([]);
@@ -602,6 +635,8 @@ export function DashboardPage({
     });
     return grouped;
   }, [childcareOccurrences]);
+  const filteredChildcareOccurrences = childcareOccurrences.filter((occurrence) =>
+    !selectedProviderId || occurrence.providerId === selectedProviderId);
 
   const viewingEvent = useMemo(() => householdData.events.find((event) => event.id === viewingEventId) ?? null, [householdData.events, viewingEventId]);
 
@@ -749,9 +784,74 @@ export function DashboardPage({
           : null
       : null;
 
-  const monthLabel = formatMonthLabel(monthStart, DEMO_LOCALE);
-  const periodLabel = viewMode === "month" ? monthLabel : formatPeriodRange(periodStart, DEMO_LOCALE);
-  const todayIso = toIsoDate(now);
+  const listDays = viewMode === "list" ? days : [];
+  const periodLabel = viewMode === "list"
+    ? `Childcare · ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[0])}`
+      + ` – ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[listDays.length - 1])}`
+    : formatPeriodRange(periodStart, DEMO_LOCALE);
+  const todayIso = currentDateIso;
+  const openChildcareEditor = (occurrence: ResolvedChildcareOccurrence) => {
+    setChildcareActionError("");
+    setChildcareDraft({
+      occurrence,
+      action: occurrence.overrideAction === "add" ? "add" : occurrence.overrideAction === "move" ? "move" : "replace",
+      movedDate: occurrence.date,
+      providerId: occurrence.providerId,
+      allDay: occurrence.allDay,
+      startTime: occurrence.startTime,
+      endTime: occurrence.endTime,
+    });
+  };
+  const saveChildcareOverride = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    if (!childcareDraft || childcareMutationId) return;
+    if (childcareDraft.action !== "cancel" && !validChildcareTiming(childcareDraft)) return;
+    if (childcareDraft.action === "move"
+      && (!validIsoDate(childcareDraft.movedDate)
+        || childcareDraft.movedDate === childcareDraft.occurrence.originalDate)) return;
+    setChildcareMutationId(childcareDraft.occurrence.id);
+    setChildcareActionError("");
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/overrides`, {
+        method: "PUT",
+        headers: {
+          Authorization: ["Bearer", accessToken].join(" "),
+          "x-supabase-auth-token": accessToken,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          arrangementId: childcareDraft.occurrence.arrangementId,
+          originalDate: childcareDraft.occurrence.originalDate,
+          action: childcareDraft.action,
+          ...(childcareDraft.action !== "cancel" ? {
+            providerId: childcareDraft.providerId,
+            allDay: childcareDraft.allDay,
+            startTime: childcareDraft.startTime,
+            endTime: childcareDraft.endTime,
+          } : {}),
+          ...(childcareDraft.action === "move" ? { movedDate: childcareDraft.movedDate } : {}),
+        }),
+      });
+      if (!response.ok) throw new Error("Childcare occurrence could not be changed.");
+      const listDays = buildChildcareListDays(new Date(`${currentDateIso}T00:00:00`));
+      const query = new URLSearchParams({
+        startDate: toIsoDate(listDays[0]),
+        endDate: toIsoDate(listDays[listDays.length - 1]),
+      });
+      const refreshed = await fetch(`${API_BASE_URL}/api/households/${encodeURIComponent(householdData.householdId)}/childcare/occurrences?${query}`, {
+        headers: { Authorization: ["Bearer", accessToken].join(" "), "x-supabase-auth-token": accessToken },
+      });
+      if (!refreshed.ok) throw new Error("Childcare list could not be refreshed.");
+      const result = await refreshed.json() as { occurrences?: ResolvedChildcareOccurrence[] };
+      const occurrences = Array.isArray(result.occurrences) ? result.occurrences : [];
+      setChildcareOccurrences(occurrences);
+      setChildcareDraft(null);
+    } catch (error) {
+      setChildcareActionError(error instanceof Error ? error.message : "Childcare occurrence could not be changed.");
+    } finally {
+      setChildcareMutationId(null);
+    }
+  };
   return (
     <div className="dashboard-page">
       <header className="dashboard-header" role="banner">
@@ -768,55 +868,40 @@ export function DashboardPage({
         <div className="header-actions">
           <div className="header-controls">
             <div className="pill-group period-navigation" role="group" aria-label="Period navigation">
-              <button
+              {viewMode !== "list" && <><button
                 type="button"
                 className="icon-button"
-                title={viewMode === "month" ? "Previous month" : "Previous two-week period"}
-                onClick={() => viewMode === "month"
-                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
-                  : setPeriodStart((current) => addDays(current, -14))}
+                title="Previous two-week period"
+                onClick={() => setPeriodStart((current) => addDays(current, -14))}
               >
                 <ChevronLeftIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title={viewMode === "month" ? "Jump to current month" : "Jump to current period"}
-                onClick={() => {
-                  const current = new Date();
-                  if (viewMode === "month") setMonthStart(new Date(current.getFullYear(), current.getMonth(), 1));
-                  else setPeriodStart(startOfWeekMonday(current));
-                }}
+                title="Jump to current period"
+                onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
               >
                 <CalendarMonthIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title={viewMode === "month" ? "Next month" : "Next two-week period"}
-                onClick={() => viewMode === "month"
-                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
-                  : setPeriodStart((current) => addDays(current, 14))}
+                title="Next two-week period"
+                onClick={() => setPeriodStart((current) => addDays(current, 14))}
               >
                 <ChevronRightIcon fontSize="small" />
-              </button>
+              </button></>}
             </div>
 
             <div className="pill-group view-switcher" role="group" aria-label="View switcher">
               <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
-                onClick={() => {
-                  if (viewMode === "month") setPeriodStart(startOfWeekMonday(monthStart));
-                  setViewMode("two-weeks");
-                }}>
+                onClick={() => setViewMode("two-weeks")}>
                 2 Weeks
               </button>
-              <button type="button" className={viewMode === "month" ? "active" : ""} aria-pressed={viewMode === "month"}
-                onClick={() => {
-                  const focusDate = addDays(periodStart, 7);
-                  setMonthStart(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
-                  setViewMode("month");
-                }}>
-                Month
+              <button type="button" className={viewMode === "list" ? "active" : ""} aria-pressed={viewMode === "list"}
+                onClick={() => setViewMode("list")}>
+                List
               </button>
             </div>
           </div>
@@ -874,9 +959,28 @@ export function DashboardPage({
       </header>
 
       <main className="dashboard-main">
-        <section className="calendar-card" aria-label={viewMode === "month" ? "Monthly family calendar" : "Two week family calendar"}>
-          <div className="calendar-member-filters" role="group" aria-label="Filter events by household member">
-            {visibleMembers.map((member) => (
+        <section className={`calendar-card${viewMode === "list" ? " childcare-list-card" : ""}`}
+          aria-label={viewMode === "list" ? "Childcare list" : "Two week family calendar"}>
+          {viewMode === "list" && <nav className="childcare-list-submenu" aria-label="Lists">
+            <div className="pill-group view-switcher" role="group" aria-label="List type">
+              <button type="button" className="active" aria-current="page">Childcare</button>
+              <button type="button" disabled title="Coming soon">Parenting</button>
+              <button type="button" disabled title="Coming soon">Events</button>
+            </div>
+          </nav>}
+          <div className={viewMode === "list" ? "childcare-list-filters" : "calendar-member-filters"} role="group"
+            aria-label={viewMode === "list" ? "Filter childcare list" : "Filter events by household member"}>
+            {viewMode === "list" ?
+              <label className="childcare-provider-filter">
+                Provider
+                <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
+                  <option value="">All providers</option>
+                  {childcareProviders.map(([id, name, active]) => <option value={id} key={id}>
+                    {name}{!active ? " (Inactive)" : ""}
+                  </option>)}
+                </select>
+              </label>
+              : visibleMembers.map((member) => (
               <Fab
                 key={member.id}
                 size="medium"
@@ -900,59 +1004,82 @@ export function DashboardPage({
             ))}
             <div className="pill-group view-switcher compact-calendar-view-switcher" role="group" aria-label="Calendar view">
               <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
-                onClick={() => {
-                  if (viewMode === "month") setPeriodStart(startOfWeekMonday(monthStart));
-                  setViewMode("two-weeks");
-                }}>2 Weeks</button>
-              <button type="button" className={viewMode === "month" ? "active" : ""} aria-pressed={viewMode === "month"}
-                onClick={() => {
-                  const focusDate = addDays(periodStart, 7);
-                  setMonthStart(new Date(focusDate.getFullYear(), focusDate.getMonth(), 1));
-                  setViewMode("month");
-                }}>Month</button>
+                onClick={() => setViewMode("two-weeks")}>2 Weeks</button>
+              <button type="button" className={viewMode === "list" ? "active" : ""} aria-pressed={viewMode === "list"}
+                onClick={() => setViewMode("list")}>List</button>
             </div>
             <div className="pill-group period-navigation calendar-period-navigation" role="group" aria-label="Period navigation">
-              <button
+              {viewMode !== "list" && <><button
                 type="button"
                 className="icon-button"
-                title={viewMode === "month" ? "Previous month" : "Previous two-week period"}
-                onClick={() => viewMode === "month"
-                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() - 1, 1))
-                  : setPeriodStart((current) => addDays(current, -14))}
+                title="Previous two-week period"
+                onClick={() => setPeriodStart((current) => addDays(current, -14))}
               >
                 <ChevronLeftIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title={viewMode === "month" ? "Jump to current month" : "Jump to current period"}
-                onClick={() => {
-                  const current = new Date();
-                  if (viewMode === "month") setMonthStart(new Date(current.getFullYear(), current.getMonth(), 1));
-                  else setPeriodStart(startOfWeekMonday(current));
-                }}
+                title="Jump to current period"
+                onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
               >
                 <CalendarMonthIcon fontSize="small" />
               </button>
               <button
                 type="button"
                 className="icon-button"
-                title={viewMode === "month" ? "Next month" : "Next two-week period"}
-                onClick={() => viewMode === "month"
-                  ? setMonthStart((current) => new Date(current.getFullYear(), current.getMonth() + 1, 1))
-                  : setPeriodStart((current) => addDays(current, 14))}
+                title="Next two-week period"
+                onClick={() => setPeriodStart((current) => addDays(current, 14))}
               >
                 <ChevronRightIcon fontSize="small" />
-              </button>
+              </button></>}
             </div>
             <span className="calendar-filter-status" role="status">
               {childcareLoadError
                 ? "Childcare could not be loaded."
-                : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
+                : viewMode === "list" ? "Childcare entries for the next three months"
+                  : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
             </span>
           </div>
-          <div className="calendar-scroll">
-            <table className={`calendar-grid${viewMode === "month" ? " month-calendar" : ""}`}>
+          {viewMode === "list" ? <div className="calendar-scroll">
+            {childcareActionError && <p role="alert">{childcareActionError}</p>}
+            <div className="table-scroll"><table className="settings-table childcare-list-table" aria-label="Childcare entries">
+              <thead><tr><th>Week</th><th>Day</th><th>Time</th><th>Specials</th><th>Provider</th>
+                <th className="actions-column">Actions</th></tr></thead>
+              <tbody>{filteredChildcareOccurrences.map((occurrence) => {
+                const date = parseDateOnly(occurrence.date);
+                const configurations = dayDecorationsByDate.get(occurrence.date)?.corners ?? [];
+                return <tr key={occurrence.id}>
+                  <td>{date ? getIsoWeekNumber(date) : "—"}</td>
+                  <td>{date ? new Intl.DateTimeFormat(DEMO_LOCALE, { weekday: "short", day: "numeric", month: "short" }).format(date) : occurrence.date}</td>
+                  <td>{occurrence.allDay ? "All day" : `${occurrence.startTime ?? ""}–${occurrence.endTime ?? ""}`}</td>
+                  <td><div className="childcare-specials-list">{configurations.length
+                    ? configurations.map((corner) => {
+                      const meta = DAY_CONFIGURATION_META[corner.category];
+                      const Icon = meta.icon;
+                      return <span className="childcare-special-item" key={corner.id}
+                        title={corner.label ?? meta.label} aria-label={corner.label ? `${meta.label}: ${corner.label}` : meta.label}>
+                        <span className={`childcare-special-icon ${meta.className}`}>
+                          <Icon className="childcare-special-icon-glyph" fontSize="small" aria-hidden="true" />
+                        </span>
+                        {corner.label && <span>{corner.label}</span>}
+                      </span>;
+                    }) : "—"}</div></td>
+                  <td>{occurrence.providerName ?? "Care provider"}</td>
+                  <td className="actions-cell"><div className="icon-actions">
+                    <button type="button" className="icon-button compact-icon-button"
+                      aria-label={`Change care on ${occurrence.date} for ${occurrence.providerName ?? "Care provider"}`}
+                      title="Change occurrence" disabled={childcareMutationId !== null}
+                      onClick={() => openChildcareEditor(occurrence)}>
+                      <EditOutlinedIcon fontSize="small" />
+                    </button>
+                  </div></td>
+                </tr>;
+              })}</tbody>
+            </table></div>
+            {!filteredChildcareOccurrences.length && <p>No childcare entries in this range.</p>}
+          </div> : <div className="calendar-scroll">
+            <table className="calendar-grid">
               <thead>
                 <tr>
                   <th className="week-column-header" scope="col">WEEK</th>
@@ -1081,7 +1208,7 @@ export function DashboardPage({
                 })}
               </tbody>
             </table>
-          </div>
+          </div>}
         </section>
       </main>
 
@@ -1123,6 +1250,61 @@ export function DashboardPage({
         }}
         onDelete={deleteViewingEvent}
       />
+      <GlassDialog open={!!childcareDraft} onClose={() => { if (!childcareMutationId) setChildcareDraft(null); }}
+        aria-labelledby="childcare-override-title" maxWidth="sm" fullWidth>
+        {childcareDraft && <Box component="form" onSubmit={(event) => void saveChildcareOverride(event)}>
+          <DialogHeader><Typography id="childcare-override-title" variant="h6">Change one occurrence</Typography></DialogHeader>
+          <DialogContentPanel><Box component="fieldset" disabled={childcareMutationId !== null}
+            sx={{ border: 0, p: 0, m: 0, display: "grid", gap: 2 }}>
+            {childcareActionError && <Alert severity="error">{childcareActionError}</Alert>}
+            <Typography>{childcareDraft.action === "add"
+              ? `Added care date: ${childcareDraft.occurrence.originalDate}. Weekly care remains unchanged.`
+              : `Original scheduled date: ${childcareDraft.occurrence.originalDate}. Weekly care remains unchanged.`}</Typography>
+            {childcareDraft.action === "move" && <Typography>Effective care date: {childcareDraft.movedDate || "Choose a moved date"}.</Typography>}
+            <Typography>Participants: {childcareDraft.occurrence.childIds.map((id) =>
+              orderedMembers.find((member) => member.id === id)?.firstName ?? id).join(", ")}</Typography>
+            <FormField select label="One-off action" value={childcareDraft.action}
+              onChange={(event) => setChildcareDraft({ ...childcareDraft, action: event.target.value as ChildcareOccurrenceDraft["action"] })}>
+              {childcareDraft.action === "add" && <MenuItem value="add">Keep added care day</MenuItem>}
+              <MenuItem value="cancel">Cancel care</MenuItem>
+              {childcareDraft.action !== "add" && <>
+                <MenuItem value="replace">Replace provider / time</MenuItem>
+                <MenuItem value="move">Move care date</MenuItem>
+              </>}
+            </FormField>
+            {childcareDraft.action === "move" && <DateField label="Moved date" required value={childcareDraft.movedDate}
+              onChange={(movedDate) => setChildcareDraft({ ...childcareDraft, movedDate })} />}
+            {childcareDraft.action !== "cancel" && <>
+              <FormField select label="Occurrence provider" value={childcareDraft.providerId}
+                onChange={(event) => setChildcareDraft({ ...childcareDraft, providerId: event.target.value })}>
+                {childcareProviders.filter(([id, , active]) => active || id === childcareDraft.providerId)
+                  .map(([id, name, active]) => <MenuItem key={id} value={id}>
+                    {name}{!active ? " (Inactive)" : ""}
+                  </MenuItem>)}
+              </FormField>
+              <FormControlLabel label="All-day care" control={<Checkbox checked={childcareDraft.allDay}
+                onChange={(_, allDay) => setChildcareDraft({ ...childcareDraft, allDay,
+                  startTime: allDay ? null : "09:00", endTime: allDay ? null : "17:00" })} />} />
+              {!childcareDraft.allDay && <Stack direction={{ xs: "column", sm: "row" }} spacing={2}>
+                <TimeField label="Start time" value={childcareDraft.startTime ?? ""} required
+                  onChange={(startTime) => setChildcareDraft({ ...childcareDraft, startTime: startTime || null })} />
+                <TimeField label="End time" value={childcareDraft.endTime ?? ""} required
+                  onChange={(endTime) => setChildcareDraft({ ...childcareDraft, endTime: endTime || null })} />
+              </Stack>}
+            </>}
+          </Box></DialogContentPanel>
+          <DialogActionsBar>
+            <SecondaryButton variant="outlined" disabled={childcareMutationId !== null}
+              onClick={() => setChildcareDraft(null)}>Close</SecondaryButton>
+            <GradientButton type="submit" disabled={childcareMutationId !== null
+              || (childcareDraft.action !== "cancel" && !validChildcareTiming(childcareDraft))
+              || (childcareDraft.action === "move" && (!childcareDraft.movedDate
+                || childcareDraft.movedDate === childcareDraft.occurrence.originalDate))}>
+              {childcareDraft.action === "add" ? "Save added care day" : "Save one-off change"}
+            </GradientButton>
+          </DialogActionsBar>
+        </Box>}
+      </GlassDialog>
     </div>
   );
 }

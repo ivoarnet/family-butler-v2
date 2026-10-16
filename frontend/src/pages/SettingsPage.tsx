@@ -1,5 +1,4 @@
-import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ElementType, type ReactNode, type SetStateAction } from "react";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
+import { FormEvent, useEffect, useMemo, useState, type Dispatch, type ReactNode, type SetStateAction } from "react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import ArrowDownwardIcon from "@mui/icons-material/ArrowDownward";
 import ArrowUpwardIcon from "@mui/icons-material/ArrowUpward";
@@ -8,9 +7,6 @@ import DeleteOutlinedIcon from "@mui/icons-material/DeleteOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import HomeIcon from "@mui/icons-material/Home";
 import LightModeIcon from "@mui/icons-material/LightMode";
-import LooksIcon from "@mui/icons-material/Looks";
-import WbSunnyIcon from "@mui/icons-material/WbSunny";
-import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { Tab, Tabs } from "@mui/material";
 import { ContactDialog } from "../features/settings/components/ContactDialog";
 import { DayConfigurationDialog, DayConfigurationDialogFormState } from "../features/settings/components/DayConfigurationDialog";
@@ -20,22 +16,13 @@ import { MemberDialog } from "../features/settings/components/MemberDialog";
 import { ChildcareSettings, type ChildcareRequest } from "../features/settings/components/ChildcareSettings";
 import { ParentingTimeSettings } from "../features/settings/components/ParentingTimeSettings";
 import { DEFAULT_MEMBER_COLOR, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
+import { DAY_CONFIGURATION_OPTIONS } from "../shared/calendar/dayConfigurations";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
 type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare" | "parenting-time";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
-const DAY_CONFIGURATION_OPTIONS: Array<{
-  value: DayConfigurationCategory;
-  label: string;
-  defaultMarker: string;
-  defaultIcon: ElementType<SvgIconProps>;
-}> = [
-  { value: "school_off", label: "School off", defaultMarker: "SH", defaultIcon: WbSunnyIcon },
-  { value: "bank_holiday", label: "Bank holiday", defaultMarker: "BH", defaultIcon: AccountBalanceIcon },
-  { value: "bridge_day", label: "Bridge day", defaultMarker: "BD", defaultIcon: LooksIcon },
-];
 const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
   DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
 
