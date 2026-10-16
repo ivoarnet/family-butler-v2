@@ -392,6 +392,7 @@ export const ChildcareList: Story = {
     await userEvent.click(listButton);
     await expect(listButton).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(childcareRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));
+    await expect(canvas.queryByRole("group", { name: "Period navigation" })).toBeNull();
     const range = childcareRangeCalls.mock.calls[childcareRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
     await expect(range.get("startDate")).toBe(date);
     const rangeEnd = new Date(`${range.get("endDate")}T00:00:00`);
@@ -452,6 +453,7 @@ export const ParentingList: Story = {
     await userEvent.click(listButton);
     await userEvent.click(canvas.getByRole("tab", { name: "Parenting" }));
     await expect(canvas.getByRole("tab", { name: "Parenting" })).toHaveAttribute("aria-selected", "true");
+    await expect(canvas.queryByRole("group", { name: "Period navigation" })).toBeNull();
     const listSection = canvas.getByRole("region", { name: "Parenting list" });
     await expect(listSection.contains(canvas.getByRole("tablist", { name: "Lists" }))).toBe(false);
     await waitFor(() => expect(parentingRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));

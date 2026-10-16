@@ -881,8 +881,8 @@ export function DashboardPage({
 
         <div className="header-actions">
           <div className="header-controls">
-            <div className="pill-group period-navigation" role="group" aria-label="Period navigation">
-              {viewMode !== "list" && <><button
+            {viewMode !== "list" && <div className="pill-group period-navigation" role="group" aria-label="Period navigation">
+              <button
                 type="button"
                 className="icon-button"
                 title="Previous two-week period"
@@ -905,8 +905,8 @@ export function DashboardPage({
                 onClick={() => setPeriodStart((current) => addDays(current, 14))}
               >
                 <ChevronRightIcon fontSize="small" />
-              </button></>}
-            </div>
+              </button>
+            </div>}
 
             <div className="pill-group view-switcher" role="group" aria-label="View switcher">
               <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
