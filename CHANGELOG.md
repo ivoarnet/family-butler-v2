@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added Parenting as a List view on the calendar dashboard, showing resolved schedule intervals from now through three calendar months with the responsible party and schedule remark. Updated screenshot: `docs/screenshots/dashboard-parenting-list.png`.
+- Added Parenting as a List view on the calendar dashboard, with centered tabs, separate From/To filters and results sections, and a default three-month range. Updated screenshot: `docs/screenshots/dashboard-parenting-list.png`.
 - Replaced the dashboard Month view with a three-month Childcare List, including provider filtering, Week/Day/Time/Specials/Provider/Actions columns, centralized day-configuration icons with record titles but no category text, an occurrence-edit action, and separate list navigation, filters, and grid. Updated screenshot: `docs/screenshots/dashboard-childcare-list.png`.
 
 - Replaced the permanent desktop rail with an on-demand glass-style overlay at every screen size. A small left-edge notch opens it by click, keyboard, or inward drag; the header icon remains available and focus returns to the opening control. Updated screenshot: `docs/screenshots/module-navigation.png`.

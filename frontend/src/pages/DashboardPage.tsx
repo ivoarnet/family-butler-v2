@@ -8,7 +8,7 @@ import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import SettingsIcon from "@mui/icons-material/Settings";
-import { Alert, Box, Checkbox, Fab, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
+import { Alert, Box, Checkbox, Fab, FormControlLabel, MenuItem, Stack, Tab, Tabs, Typography } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
 import { CalendarEventCard } from "../features/dashboard/components/CalendarEventCard";
@@ -196,9 +196,10 @@ const addMonths = (date: Date, months: number): Date => {
   return result;
 };
 
-const buildChildcareListDays = (date: Date): Date[] => {
-  const start = new Date(date.getFullYear(), date.getMonth(), date.getDate());
-  const end = addMonths(start, 3);
+const buildListDays = (startDate: string, endDate: string): Date[] => {
+  const start = parseDateOnly(startDate);
+  const end = parseDateOnly(endDate);
+  if (!start || !end || end < start || end.getTime() - start.getTime() > 365 * 24 * 60 * 60 * 1000) return [];
   return Array.from({ length: Math.round((end.getTime() - start.getTime()) / (24 * 60 * 60 * 1000)) + 1 },
     (_, index) => addDays(start, index));
 };
@@ -413,6 +414,8 @@ export function DashboardPage({
   const [periodStart, setPeriodStart] = useState(() => startOfWeekMonday(new Date()));
   const [viewMode, setViewMode] = useState<"two-weeks" | "list">("two-weeks");
   const [listType, setListType] = useState<"childcare" | "parenting">("childcare");
+  const [listStartDate, setListStartDate] = useState(() => toIsoDate(new Date()));
+  const [listEndDate, setListEndDate] = useState(() => toIsoDate(addMonths(new Date(), 3)));
   const [selectedProviderId, setSelectedProviderId] = useState("");
   const [childcareMutationId, setChildcareMutationId] = useState<string | null>(null);
   const [childcareDraft, setChildcareDraft] = useState<ChildcareOccurrenceDraft | null>(null);
@@ -440,9 +443,9 @@ export function DashboardPage({
   const selectedMember = visibleMembers.find((member) => member.id === selectedMemberId);
   const currentDateIso = toIsoDate(now);
   const days = useMemo(
-    () => viewMode === "list" ? buildChildcareListDays(new Date(`${currentDateIso}T00:00:00`))
+    () => viewMode === "list" ? buildListDays(listStartDate, listEndDate)
       : Array.from({ length: 14 }, (_, index) => addDays(periodStart, index)),
-    [currentDateIso, periodStart, viewMode]
+    [listEndDate, listStartDate, periodStart, viewMode]
   );
   const specialEvents = useMemo(() => buildBirthdayEvents(householdData.contacts, days), [householdData.contacts, days]);
 
@@ -496,10 +499,10 @@ export function DashboardPage({
     setParentingIntervals([]);
     setParentingParties([]);
     setParentingLoadError(false);
-    if (!householdData.householdId || !accessToken) return;
+    if (!householdData.householdId || !accessToken || days.length === 0) return;
     const controller = new AbortController();
-    const rangeStart = viewMode === "list" ? new Date() : days[0];
-    const rangeEnd = viewMode === "list" ? addMonths(rangeStart, 3) : addDays(days[days.length - 1], 1);
+    const rangeStart = days[0];
+    const rangeEnd = addDays(days[days.length - 1], 1);
     const query = new URLSearchParams({
       startAt: rangeStart.toISOString(),
       endAt: rangeEnd.toISOString(),
@@ -794,10 +797,11 @@ export function DashboardPage({
           : null
       : null;
 
-  const listDays = viewMode === "list" ? days : [];
+  const listDays = viewMode === "list" && days.length ? days : [];
   const periodLabel = viewMode === "list"
-    ? `${listType === "childcare" ? "Childcare" : "Parenting"} · ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[0])}`
+    ? listDays.length ? `${listType === "childcare" ? "Childcare" : "Parenting"} · ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[0])}`
       + ` – ${new Intl.DateTimeFormat(DEMO_LOCALE, { day: "numeric", month: "short", year: "numeric" }).format(listDays[listDays.length - 1])}`
+      : "Choose a valid date range"
     : formatPeriodRange(periodStart, DEMO_LOCALE);
   const todayIso = currentDateIso;
   const openChildcareEditor = (occurrence: ResolvedChildcareOccurrence) => {
@@ -843,7 +847,7 @@ export function DashboardPage({
         }),
       });
       if (!response.ok) throw new Error("Childcare occurrence could not be changed.");
-      const listDays = buildChildcareListDays(new Date(`${currentDateIso}T00:00:00`));
+      const listDays = buildListDays(listStartDate, listEndDate);
       const query = new URLSearchParams({
         startDate: toIsoDate(listDays[0]),
         endDate: toIsoDate(listDays[listDays.length - 1]),
@@ -972,22 +976,29 @@ export function DashboardPage({
         <section className={`calendar-card${viewMode === "list" ? " childcare-list-card" : ""}`}
           aria-label={viewMode === "list" ? `${listType === "childcare" ? "Childcare" : "Parenting"} list`
             : "Two week family calendar"}>
-          {viewMode === "list" && <nav className="childcare-list-submenu" aria-label="Lists">
-            <div className="pill-group view-switcher" role="group" aria-label="List type">
-              <button type="button" className={listType === "childcare" ? "active" : ""}
-                aria-current={listType === "childcare" ? "page" : undefined}
-                onClick={() => setListType("childcare")}>Childcare</button>
-              <button type="button" className={listType === "parenting" ? "active" : ""}
-                aria-current={listType === "parenting" ? "page" : undefined}
-                onClick={() => setListType("parenting")}>Parenting</button>
-              <button type="button" disabled title="Coming soon">Events</button>
-            </div>
-          </nav>}
-          <div className={viewMode === "list" ? "childcare-list-filters" : "calendar-member-filters"} role="group"
-            aria-label={viewMode === "list" ? listType === "childcare" ? "Filter childcare list" : "Parenting list"
-              : "Filter events by household member"}>
-            {viewMode === "list" ? (
-              listType === "childcare" ? <label className="childcare-provider-filter">
+          {viewMode === "list" && <div className="settings-tabs">
+            <Tabs value={listType} onChange={(_, value) => setListType(value as "childcare" | "parenting")}
+              aria-label="Lists" centered textColor="inherit" indicatorColor="secondary"
+              sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}>
+              <Tab value="childcare" label="Childcare" />
+              <Tab value="parenting" label="Parenting" />
+              <Tab value="events" label="Events" disabled />
+            </Tabs>
+          </div>}
+          {viewMode === "list" ? <section className="settings-card childcare-list-filter-section" aria-label="Filter options">
+            <h2>Filter options</h2>
+            <div className="childcare-list-filters" role="group" aria-label={`Filter ${listType} list`}>
+              <label className="childcare-date-filter">
+                From
+                <input type="date" aria-label="From date" value={listStartDate}
+                  onChange={(event) => setListStartDate(event.target.value)} />
+              </label>
+              <label className="childcare-date-filter">
+                To
+                <input type="date" aria-label="To date" value={listEndDate}
+                  onChange={(event) => setListEndDate(event.target.value)} />
+              </label>
+              {listType === "childcare" && <label className="childcare-provider-filter">
                 Provider
                 <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
                   <option value="">All providers</option>
@@ -995,8 +1006,13 @@ export function DashboardPage({
                     {name}{!active ? " (Inactive)" : ""}
                   </option>)}
                 </select>
-              </label> : null
-            ) : visibleMembers.map((member) => (
+              </label>}
+              {!days.length && <Alert severity="error">Choose an end date after the start date and within one year.</Alert>}
+              {listType === "childcare" && childcareLoadError && <Alert severity="error">Childcare could not be loaded.</Alert>}
+              {listType === "parenting" && parentingLoadError && <Alert severity="error">Parenting schedule could not be loaded.</Alert>}
+            </div>
+          </section> : <div className="calendar-member-filters" role="group" aria-label="Filter events by household member">
+            {visibleMembers.map((member) => (
               <Fab
                 key={member.id}
                 size="medium"
@@ -1018,48 +1034,9 @@ export function DashboardPage({
                 </span>
               </Fab>
             ))}
-            <div className="pill-group view-switcher compact-calendar-view-switcher" role="group" aria-label="Calendar view">
-              <button type="button" className={viewMode === "two-weeks" ? "active" : ""} aria-pressed={viewMode === "two-weeks"}
-                onClick={() => setViewMode("two-weeks")}>2 Weeks</button>
-              <button type="button" className={viewMode === "list" ? "active" : ""} aria-pressed={viewMode === "list"}
-                onClick={() => setViewMode("list")}>List</button>
-            </div>
-            <div className="pill-group period-navigation calendar-period-navigation" role="group" aria-label="Period navigation">
-              {viewMode !== "list" && <><button
-                type="button"
-                className="icon-button"
-                title="Previous two-week period"
-                onClick={() => setPeriodStart((current) => addDays(current, -14))}
-              >
-                <ChevronLeftIcon fontSize="small" />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                title="Jump to current period"
-                onClick={() => setPeriodStart(startOfWeekMonday(new Date()))}
-              >
-                <CalendarMonthIcon fontSize="small" />
-              </button>
-              <button
-                type="button"
-                className="icon-button"
-                title="Next two-week period"
-                onClick={() => setPeriodStart((current) => addDays(current, 14))}
-              >
-                <ChevronRightIcon fontSize="small" />
-              </button></>}
-            </div>
-            <span className="calendar-filter-status" role="status">
-              {viewMode === "list" && listType === "childcare" && childcareLoadError
-                ? "Childcare could not be loaded."
-                : viewMode === "list" && listType === "parenting" && parentingLoadError
-                  ? "Parenting schedule could not be loaded."
-                  : viewMode === "list" ? `${listType === "childcare" ? "Childcare entries" : "Parenting schedule"} for the next three months`
-                    : selectedMember ? `Events for ${selectedMember.firstName}` : "All events"}
-            </span>
-          </div>
-          {viewMode === "list" ? <div className="calendar-scroll">
+          </div>}
+          {viewMode === "list" ? <section className="settings-card childcare-list-results-section" aria-label="Schedule results">
+            <div className="calendar-scroll">
             {listType === "childcare" && childcareActionError && <p role="alert">{childcareActionError}</p>}
             {listType === "parenting" ? <div className="table-scroll">
               <table className="settings-table" aria-label="Parenting schedule">
@@ -1108,7 +1085,8 @@ export function DashboardPage({
               })}</tbody>
             </table></div>
             {!filteredChildcareOccurrences.length && <p>No childcare entries in this range.</p>}</>}
-          </div> : <div className="calendar-scroll">
+            </div>
+          </section> : <div className="calendar-scroll">
             <table className="calendar-grid">
               <thead>
                 <tr>
