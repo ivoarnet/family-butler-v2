@@ -766,6 +766,41 @@ body,
   font: inherit;
 }
 
+.childcare-list-submenu {
+  display: flex;
+}
+
+.childcare-list-submenu .view-switcher button {
+  padding: 0.45rem 0.75rem;
+}
+
+.childcare-specials-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.childcare-special-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.childcare-special-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.5rem;
+  height: 1.5rem;
+  flex: 0 0 auto;
+  border-radius: 0.35rem;
+  color: #fff;
+}
+
+.childcare-special-icon-glyph {
+  font-size: 1rem !important;
+}
+
 .childcare-list-table {
   min-width: 760px;
 }

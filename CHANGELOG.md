@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Replaced the dashboard Month view with a three-month Childcare List, including provider filtering, ISO week/date/time and day-configuration columns, and one-occurrence cancellation. Updated screenshot: `docs/screenshots/dashboard-childcare-list.png`.
+- Replaced the dashboard Month view with a three-month Childcare List, including provider filtering, Week/Day/Time/Specials/Provider/Actions columns, centralized day-configuration icons, an occurrence-edit action, and a submenu for future Parenting and Events lists. Updated screenshot: `docs/screenshots/dashboard-childcare-list.png`.
 
 - Replaced the permanent desktop rail with an on-demand glass-style overlay at every screen size. A small left-edge notch opens it by click, keyboard, or inward drag; the header icon remains available and focus returns to the opening control. Updated screenshot: `docs/screenshots/module-navigation.png`.
 

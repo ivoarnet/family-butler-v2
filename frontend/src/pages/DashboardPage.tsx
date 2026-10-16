@@ -1,6 +1,5 @@
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
-import AccountBalanceIcon from "@mui/icons-material/AccountBalance";
 import AssessmentOutlinedIcon from "@mui/icons-material/AssessmentOutlined";
 import CakeIcon from "@mui/icons-material/Cake";
 import ChildCareIcon from "@mui/icons-material/ChildCare";
@@ -8,9 +7,7 @@ import FamilyRestroomIcon from "@mui/icons-material/FamilyRestroom";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
 import ChevronRightIcon from "@mui/icons-material/ChevronRight";
-import LooksIcon from "@mui/icons-material/Looks";
 import SettingsIcon from "@mui/icons-material/Settings";
-import WbSunnyIcon from "@mui/icons-material/WbSunny";
 import { Alert, Box, Checkbox, Fab, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import type { SvgIconProps } from "@mui/material/SvgIcon";
 import { AgentChat } from "../features/agentic/components/AgentChat";
@@ -20,6 +17,7 @@ import { EventDetailDialog } from "../features/dashboard/components/EventDetailD
 import { ParentingResponsibilityWarning } from "../features/dashboard/components/ParentingResponsibilityWarning";
 import { ParentingAwayBackground } from "../features/dashboard/components/ParentingAwayBackground";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
+import { DAY_CONFIGURATION_META } from "../shared/calendar/dayConfigurations";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../shared/ui/PickerFields";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
@@ -142,12 +140,6 @@ function ParentingCalendarEntry({ interval, day, intervals }: {
 }
 
 const DEMO_LOCALE = "de-CH";
-const DAY_CONFIGURATION_META: Record<DayConfigurationCategory, { defaultMarker: string; icon: ElementType<SvgIconProps>; className: string }> = {
-  school_off: { defaultMarker: "SH", icon: WbSunnyIcon, className: "school-off" },
-  bank_holiday: { defaultMarker: "BH", icon: AccountBalanceIcon, className: "bank-holiday" },
-  bridge_day: { defaultMarker: "BD", icon: LooksIcon, className: "bridge-day" },
-};
-
 const addDays = (date: Date, days: number): Date => {
   const copy = new Date(date);
   copy.setDate(copy.getDate() + days);
@@ -971,15 +963,24 @@ export function DashboardPage({
           aria-label={viewMode === "list" ? "Childcare list" : "Two week family calendar"}>
           <div className="calendar-member-filters" role="group"
             aria-label={viewMode === "list" ? "Filter childcare list" : "Filter events by household member"}>
-            {viewMode === "list" ? <label className="childcare-provider-filter">
-              Provider
-              <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
-                <option value="">All providers</option>
-                {childcareProviders.map(([id, name, active]) => <option value={id} key={id}>
-                  {name}{!active ? " (Inactive)" : ""}
-                </option>)}
-              </select>
-            </label> : visibleMembers.map((member) => (
+            {viewMode === "list" ? <>
+              <nav className="childcare-list-submenu" aria-label="Lists">
+                <div className="pill-group view-switcher" role="group" aria-label="List type">
+                  <button type="button" className="active" aria-current="page">Childcare</button>
+                  <button type="button" disabled title="Coming soon">Parenting</button>
+                  <button type="button" disabled title="Coming soon">Events</button>
+                </div>
+              </nav>
+              <label className="childcare-provider-filter">
+                Provider
+                <select aria-label="Filter childcare by provider" value={selectedProviderId} onChange={(event) => setSelectedProviderId(event.target.value)}>
+                  <option value="">All providers</option>
+                  {childcareProviders.map(([id, name, active]) => <option value={id} key={id}>
+                    {name}{!active ? " (Inactive)" : ""}
+                  </option>)}
+                </select>
+              </label>
+            </> : visibleMembers.map((member) => (
               <Fab
                 key={member.id}
                 size="medium"
@@ -1043,20 +1044,27 @@ export function DashboardPage({
           {viewMode === "list" ? <div className="calendar-scroll">
             {childcareActionError && <p role="alert">{childcareActionError}</p>}
             <div className="table-scroll"><table className="settings-table childcare-list-table" aria-label="Childcare entries">
-              <thead><tr><th>Week number</th><th>Day</th><th>Time</th><th>Day configuration</th><th>Provider</th>
+              <thead><tr><th>Week</th><th>Day</th><th>Time</th><th>Specials</th><th>Provider</th>
                 <th className="actions-column">Actions</th></tr></thead>
               <tbody>{filteredChildcareOccurrences.map((occurrence) => {
                 const date = parseDateOnly(occurrence.date);
-                const configurations = (dayDecorationsByDate.get(occurrence.date)?.corners ?? []).map((corner) => {
-                  const category = corner.category === "school_off" ? "School Off"
-                    : corner.category === "bank_holiday" ? "Bank Holiday" : "Bridge Day";
-                  return corner.label ? `${category} · ${corner.label}` : category;
-                });
+                const configurations = dayDecorationsByDate.get(occurrence.date)?.corners ?? [];
                 return <tr key={occurrence.id}>
                   <td>{date ? getIsoWeekNumber(date) : "—"}</td>
                   <td>{date ? new Intl.DateTimeFormat(DEMO_LOCALE, { weekday: "short", day: "numeric", month: "short" }).format(date) : occurrence.date}</td>
                   <td>{occurrence.allDay ? "All day" : `${occurrence.startTime ?? ""}–${occurrence.endTime ?? ""}`}</td>
-                  <td>{configurations.join(", ") || "—"}</td>
+                  <td><div className="childcare-specials-list">{configurations.length
+                    ? configurations.map((corner) => {
+                      const meta = DAY_CONFIGURATION_META[corner.category];
+                      const Icon = meta.icon;
+                      return <span className="childcare-special-item" key={corner.id}
+                        title={corner.label ?? meta.label} aria-label={corner.label ? `${meta.label}: ${corner.label}` : meta.label}>
+                        <span className={`childcare-special-icon ${meta.className}`}>
+                          <Icon className="childcare-special-icon-glyph" fontSize="small" aria-hidden="true" />
+                        </span>
+                        <span>{meta.label}{corner.label ? ` · ${corner.label}` : ""}</span>
+                      </span>;
+                    }) : "—"}</div></td>
                   <td>{occurrence.providerName ?? "Care provider"}</td>
                   <td className="actions-cell"><div className="icon-actions">
                     <button type="button" className="icon-button compact-icon-button"

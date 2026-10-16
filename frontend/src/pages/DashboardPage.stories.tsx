@@ -389,10 +389,15 @@ export const ChildcareList: Story = {
     await expect(rangeEnd.getTime()).toBe(expectedEnd.getTime());
     const table = within(await canvas.findByRole("table", { name: "Childcare entries" }));
     await waitFor(() => expect(table.getByText("Grandparents")).toBeVisible());
-    for (const heading of ["Week number", "Day", "Time", "Day configuration", "Provider", "Actions"]) {
+    for (const heading of ["Week", "Day", "Time", "Specials", "Provider", "Actions"]) {
       await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
     }
-    await expect(table.getByText("School Off")).toBeVisible();
+    await expect(table.getByText("School off")).toBeVisible();
+    await expect(table.getByTestId("WbSunnyIcon")).toBeVisible();
+    const listType = canvas.getByRole("group", { name: "List type" });
+    await expect(within(listType).getByRole("button", { name: "Childcare" })).toHaveAttribute("aria-current", "page");
+    await expect(within(listType).getByRole("button", { name: "Parenting" })).toBeDisabled();
+    await expect(within(listType).getByRole("button", { name: "Events" })).toBeDisabled();
     await expect(table.getByText("Grandparents")).toBeVisible();
     const providerFilter = canvas.getByRole("combobox", { name: "Filter childcare by provider" });
     await userEvent.selectOptions(providerFilter, "daycare");
