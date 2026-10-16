@@ -14,6 +14,8 @@ Family Butler helps households coordinate the people and plans involved in famil
 
 See [Modular architecture and developer guide](modules/ARCHITECTURE.md) for module boundaries, navigation conventions, step-by-step integration, cross-module reads/events, and external-integration guidance.
 
+Navigation stays fixed on wide screens (1200px+); module names appear on hover or keyboard focus and remain visible on extra-wide screens (1600px+). Smaller screens use the swipeable overlay.
+
 The current product supports:
 
 - Creating and managing households, and organizing household members.

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a fixed module rail on wide screens (1200px+), expanding to module names on hover or keyboard focus. Names stay visible on extra-wide screens (1600px+); smaller screens retain swipe navigation. Updated screenshot: `docs/screenshots/module-navigation.png`.
+
 - Replaced the hamburger menu and duplicate calendar badge with one clickable active-module header icon, shared with the navigation pane through the module registry. Updated screenshot: `docs/screenshots/module-navigation.png`.
 
 - Made the swipeable module menu a narrow icon-only rail with vertically centered Calendar and Tasks icons, accessible labels, and tooltips. Tasks remains disabled and identified as coming soon. Updated screenshot: `docs/screenshots/module-navigation.png`.

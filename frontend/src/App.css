@@ -18,6 +18,18 @@ body,
   container: dashboard / inline-size;
 }
 
+@media (min-width: 1200px) {
+  .dashboard-page:has(.module-navigation-desktop) {
+    margin-left: 80px;
+  }
+}
+
+@media (min-width: 1600px) {
+  .dashboard-page:has(.module-navigation-desktop) {
+    margin-left: 240px;
+  }
+}
+
 .report-empty-state {
   min-height: 16rem;
   display: grid;
