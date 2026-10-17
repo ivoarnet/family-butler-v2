@@ -12,6 +12,14 @@ tomorrow.setDate(tomorrow.getDate() + 1);
 const tomorrowDate = `${tomorrow.getFullYear()}-${String(tomorrow.getMonth() + 1).padStart(2, "0")}-${String(tomorrow.getDate()).padStart(2, "0")}`;
 const followingMidnight = new Date(`${tomorrowDate}T00:00`);
 followingMidnight.setDate(followingMidnight.getDate() + 1);
+const dateAfterThreeMonths = (value: string) => {
+  const result = new Date(`${value}T00:00:00`);
+  const day = result.getDate();
+  result.setDate(1);
+  result.setMonth(result.getMonth() + 3);
+  result.setDate(Math.min(day, new Date(result.getFullYear(), result.getMonth() + 1, 0).getDate()));
+  return `${result.getFullYear()}-${String(result.getMonth() + 1).padStart(2, "0")}-${String(result.getDate()).padStart(2, "0")}`;
+};
 const setPickerDate = async (root: HTMLElement, label: string, value: string) => {
   const [year, month, day] = value.split("-");
   for (const [section, part] of [["Day", day], ["Month", month], ["Year", year]]) {
@@ -34,6 +42,7 @@ const guardianId = "00000000-0000-0000-0000-000000000003";
 const calendarSettingsCalls = fn();
 const childcareCancelCalls = fn();
 const childcareRangeCalls = fn();
+const parentingRangeCalls = fn();
 const cancelledChildcareOccurrences = new Set<string>();
 const parentingIntervals: ResolvedParentingInterval[] = [
   { startAt: new Date(`${yesterdayDate}T00:00`).toISOString(), endAt: new Date(`${date}T00:00`).toISOString(),
@@ -150,7 +159,12 @@ function DashboardStory({ width, unknownResponsibility = false, hatching = false
       if (url.includes("/parenting-time/resolve?")) {
         if (parentingUnavailable) return Response.json({ error: "Parenting time unavailable" }, { status: 500 });
         const range = new URL(url, window.location.origin).searchParams;
-        const intervals = multipleHouseholdLinks || additionalOutsideParty ? [
+        parentingRangeCalls(range);
+        const longRange = Date.parse(range.get("endAt")!) - Date.parse(range.get("startAt")!) > 14 * 24 * 60 * 60 * 1000;
+        const intervals = longRange ? [{
+          ...parentingIntervals[2], startAt: range.get("startAt")!, endAt: range.get("endAt")!,
+          partyId: momId, partyName: "Mum",
+        }] : multipleHouseholdLinks || additionalOutsideParty ? [
           ...parentingIntervals.slice(0, 2),
           { ...parentingIntervals[2], endAt: new Date(`${date}T14:00`).toISOString() },
           { ...parentingIntervals[2], partyId: guardianId, partyName: "Guardian",
@@ -378,6 +392,7 @@ export const ChildcareList: Story = {
     await userEvent.click(listButton);
     await expect(listButton).toHaveAttribute("aria-pressed", "true");
     await waitFor(() => expect(childcareRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));
+    await expect(canvas.queryByRole("group", { name: "Period navigation" })).toBeNull();
     const range = childcareRangeCalls.mock.calls[childcareRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
     await expect(range.get("startDate")).toBe(date);
     const rangeEnd = new Date(`${range.get("endDate")}T00:00:00`);
@@ -387,7 +402,8 @@ export const ChildcareList: Story = {
     expectedEnd.setMonth(expectedEnd.getMonth() + 3);
     expectedEnd.setDate(Math.min(startDay, new Date(expectedEnd.getFullYear(), expectedEnd.getMonth() + 1, 0).getDate()));
     await expect(rangeEnd.getTime()).toBe(expectedEnd.getTime());
-    const table = within(await canvas.findByRole("table", { name: "Childcare entries" }));
+    const tableElement = canvasElement.querySelector<HTMLTableElement>('table[aria-label="Childcare entries"]')!;
+    const table = within(tableElement);
     await waitFor(() => expect(table.getByText("Grandparents")).toBeVisible());
     for (const heading of ["Week", "Day", "Time", "Specials", "Provider", "Actions"]) {
       await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
@@ -395,14 +411,16 @@ export const ChildcareList: Story = {
     await expect(table.queryByText("School off")).toBeNull();
     await expect(table.getByText("Weihnachtsferien")).toBeVisible();
     await expect(table.getByTestId("WbSunnyIcon")).toBeVisible();
-    const submenu = canvas.getByRole("navigation", { name: "Lists" });
-    const listType = canvas.getByRole("group", { name: "List type" });
-    await expect(within(listType).getByRole("button", { name: "Childcare" })).toHaveAttribute("aria-current", "page");
-    await expect(within(listType).getByRole("button", { name: "Parenting" })).toBeDisabled();
-    await expect(within(listType).getByRole("button", { name: "Events" })).toBeDisabled();
+    const listType = canvas.getByRole("tablist", { name: "Lists" });
+    await expect(within(listType).getByRole("tab", { name: "Childcare" })).toHaveAttribute("aria-selected", "true");
+    await expect(within(listType).getByRole("tab", { name: "Parenting" })).toBeEnabled();
+    await expect(within(listType).getByRole("tab", { name: "Events" })).toBeDisabled();
     const childcareFilters = canvas.getByRole("group", { name: "Filter childcare list" });
-    await expect(childcareFilters.contains(submenu)).toBe(false);
-    await expect(childcareFilters.contains(table.getByRole("table", { name: "Childcare entries" }))).toBe(false);
+    await expect(canvas.getByRole("region", { name: "Filter options" }).contains(childcareFilters)).toBe(true);
+    await expect(canvas.getByRole("region", { name: "Schedule results" }).contains(childcareFilters)).toBe(false);
+    await expect(childcareFilters.contains(tableElement)).toBe(false);
+    await expect(canvas.getByLabelText("From date")).toHaveValue(date);
+    await expect(canvas.getByLabelText("To date")).toHaveValue(dateAfterThreeMonths(date));
     await expect(table.getByText("Grandparents")).toBeVisible();
     const providerFilter = canvas.getByRole("combobox", { name: "Filter childcare by provider" });
     await userEvent.selectOptions(providerFilter, "daycare");
@@ -413,7 +431,7 @@ export const ChildcareList: Story = {
     await expect(editButton.closest("td")).toHaveClass("actions-cell");
     await userEvent.click(editButton);
     const dialog = within(canvasElement.ownerDocument.body);
-    await expect(dialog.getByRole("heading", { name: "Change one occurrence" })).toBeVisible();
+    await waitFor(() => expect(dialog.getByRole("heading", { name: "Change one occurrence" })).toBeVisible());
     await userEvent.click(dialog.getByRole("combobox", { name: "One-off action" }));
     await userEvent.click(dialog.getByRole("option", { name: "Cancel care" }));
     await userEvent.click(dialog.getByRole("button", { name: "Save one-off change" }));
@@ -423,6 +441,50 @@ export const ChildcareList: Story = {
       action: "cancel",
     });
     await expect(table.queryByText("Grandparents")).toBeNull();
+  },
+};
+
+export const ParentingList: Story = {
+  args: { width: 1440 },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const previousRangeCallCount = parentingRangeCalls.mock.calls.length;
+    const listButton = canvas.getByRole("button", { name: "List" });
+    await userEvent.click(listButton);
+    await userEvent.click(canvas.getByRole("tab", { name: "Parenting" }));
+    await expect(canvas.getByRole("tab", { name: "Parenting" })).toHaveAttribute("aria-selected", "true");
+    await expect(canvas.queryByRole("group", { name: "Period navigation" })).toBeNull();
+    const listSection = canvas.getByRole("region", { name: "Parenting list" });
+    await expect(listSection.contains(canvas.getByRole("tablist", { name: "Lists" }))).toBe(false);
+    await waitFor(() => expect(parentingRangeCalls.mock.calls.length).toBeGreaterThan(previousRangeCallCount));
+    const range = parentingRangeCalls.mock.calls[parentingRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
+    const expectedStart = new Date(`${date}T00:00:00`);
+    await expect(range.get("startAt")).toBe(expectedStart.toISOString());
+    const expectedEnd = new Date(`${dateAfterThreeMonths(date)}T00:00:00`);
+    expectedEnd.setDate(expectedEnd.getDate() + 1);
+    await expect(range.get("endAt")).toBe(expectedEnd.toISOString());
+
+    const tableElement = canvasElement.querySelector<HTMLTableElement>('table[aria-label="Parenting schedule"]')!;
+    const table = within(tableElement);
+    for (const heading of ["From", "Until", "With", "Schedule (Remark)"]) {
+      await expect(table.getByRole("columnheader", { name: heading })).toBeVisible();
+    }
+    await expect(table.getByText("Mum")).toBeVisible();
+    await expect(table.getByText("Change · Agreed swap")).toBeVisible();
+    const filters = canvas.getByRole("region", { name: "Filter options" });
+    const results = canvas.getByRole("region", { name: "Schedule results" });
+    await expect(within(filters).getByLabelText("From date")).toHaveValue(date);
+    const endDateFilter = within(filters).getByLabelText("To date");
+    await expect(endDateFilter).toHaveValue(dateAfterThreeMonths(date));
+    await expect(filters.contains(tableElement)).toBe(false);
+    await expect(results.contains(filters)).toBe(false);
+    await expect(canvas.queryByRole("combobox", { name: "Filter childcare by provider" })).toBeNull();
+
+    const previousCalls = parentingRangeCalls.mock.calls.length;
+    fireEvent.change(endDateFilter, { target: { value: tomorrowDate } });
+    await waitFor(() => expect(parentingRangeCalls.mock.calls.length).toBeGreaterThan(previousCalls));
+    const updatedRange = parentingRangeCalls.mock.calls[parentingRangeCalls.mock.calls.length - 1]?.[0] as URLSearchParams;
+    await expect(updatedRange.get("endAt")).toBe(followingMidnight.toISOString());
   },
 };
 
