@@ -635,7 +635,7 @@ export const LocalListAndItems: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Open settings" }));
     await canvas.findByRole("heading", { name: "Grocery lists" });
     await userEvent.click(canvas.getByRole("button", { name: "Create list" }));
-    let dialog = within(await page.findByRole("dialog", { name: "New grocery list" }));
+    let dialog = within(await page.findByRole("dialog", { name: "Create grocery list" }));
     await fireEvent.change(dialog.getByRole("textbox", { name: "List name" }), { target: { value: "School snacks" } });
     await userEvent.click(dialog.getByRole("button", { name: "Save list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
@@ -878,7 +878,8 @@ export const ImportRetryKeepsCreatedList: Story = {
     await userEvent.click(await dialog.findByRole("combobox", { name: "Bring list" }));
     await userEvent.click(await page.findByRole("option", { name: "Dinner party" }));
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
-    await waitFor(() => expect(dialog.getByText("Bring link failed. Please retry.")).toBeVisible());
+    await waitFor(() => expect(dialog.getByText("Could not import the Bring list. Your local list is kept. Please retry.")).toBeVisible());
+    await waitFor(() => expect(dialog.getByRole("button", { name: "Import list" })).toBeEnabled());
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
     await expect(await canvas.findByText("Dinner party")).toBeVisible();
@@ -923,6 +924,7 @@ export const ImportUnavailableKeepsLocalLink: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await expect(await dialog.findByText("Could not import the Bring list. Your local list is kept. Please retry.")).toBeVisible();
     await expect(canvas.getByText("Dinner party").closest("tr")).toHaveTextContent("Bring unavailable");
+    await waitFor(() => expect(dialog.getByRole("button", { name: "Import list" })).toBeEnabled());
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
     await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Go to groceries" }));
