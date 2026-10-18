@@ -1,0 +1,13 @@
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["get", "post", "put", "delete"],
+      "route": "households/{householdId}/groceries/{resource?}"
+    },
+    { "type": "http", "direction": "out", "name": "res" }
+  ]
+}

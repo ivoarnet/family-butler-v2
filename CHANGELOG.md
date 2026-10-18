@@ -2,6 +2,28 @@
 
 ## Unreleased
 
+- Matched grocery settings to the shared settings-table layout with compact rename actions, and moved secondary guidance into title info icons like Parenting settings. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
+
+- Added grocery-list creation and renaming to Shop & Cook settings, with an overview showing each list's Bring! link/sync status. Existing shopping-workspace controls remain available. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
+
+- Replaced hardcoded grocery icon mappings with Bring catalog/item-detail metadata persisted during synchronization, with validated image references and local fallback. Rerun `docs/sql/groceries.sql` and `docs/sql/bring-connections.sql`, deploy updated API/worker code, then sync linked lists. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
+- Replaced grocery checkboxes with card-click toggles, with keyboard support and separate edit/remove actions. No visible check flag is shown. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
+- Refreshed grocery lists with inline item entry and Bring-inspired item tiles: unchecked items appear first under “To buy,” and checked items move to “Last used” for reuse. Known products use Bring-hosted icons with a local fallback when unavailable. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
+- Added confirmed local grocery-list deletion (linked Bring! lists remain untouched) and theme-aware grocery action icons for dark mode. Rerun `docs/sql/groceries.sql` before deploying. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
+- Matched Shop & Cook settings navigation to Calendar settings, with back and home icons in the header and no duplicate back button in the content. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
+
+- Matched the Shop & Cook grocery header to Calendar: module navigation icon, grocery-settings icon, and the same account avatar menu for profile, households, and logout, without a back button. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
+- Fixed SWA API packaging so workspace dependency hoisting cannot omit the Bring! SDK. Deferred optional client loading to keep connection settings and local grocery handlers available if the SDK cannot load.
+
+- Added Shop & Cook connection settings for write-only Bring! credential entry, connection testing, and household disconnect. Credentials are encrypted server-side; account replacement/disconnect preserves local items and clears remote mappings. Rerun `docs/sql/groceries.sql`, apply `docs/sql/bring-connections.sql`, and configure `BRING_CREDENTIALS_KEY` on updated API/worker hosts. Updated settings screenshot: `docs/screenshots/bring-connection-settings.png`.
+
+- Added Shop & Cook household grocery lists with item editing/check-off, optional server-side Bring! linking/import and bidirectional synchronization, durable pending changes/retries, and mocked client tests. Apply `docs/sql/groceries.sql`; configure optional `BRING_ACCOUNTS_JSON` only server-side. Bring! list creation remains in Bring!; unattended polling needs a timer-capable Functions host rather than SWA managed APIs. Updated UI screenshot: `docs/screenshots/grocery-lists.png`.
+
 - Added Parenting as a List view on the calendar dashboard, with centered tabs above the filter and results sections, separate From/To filters, and a default three-month range. Updated screenshot: `docs/screenshots/dashboard-parenting-list.png`.
 - Replaced the dashboard Month view with a three-month Childcare List, including provider filtering, Week/Day/Time/Specials/Provider/Actions columns, centralized day-configuration icons with record titles but no category text, an occurrence-edit action, and separate list navigation, filters, and grid. Updated screenshot: `docs/screenshots/dashboard-childcare-list.png`.
 

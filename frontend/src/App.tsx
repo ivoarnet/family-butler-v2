@@ -6,6 +6,8 @@ import { ModuleNavigation } from "./features/app/components/ModuleNavigation";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { GroceriesPage } from "./pages/GroceriesPage";
+import { GrocerySettingsPage } from "./pages/GrocerySettingsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent } from "./types/family";
@@ -608,7 +610,7 @@ export function App() {
     }
   };
 
-  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports" | "/groceries" | "/groceries/settings") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -841,7 +843,7 @@ export function App() {
 
   const moduleNavigation = (
     <ModuleNavigation
-      activeId={pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
+      activeId={pathname.startsWith("/groceries") ? "shop-cook" : pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
       onNavigate={(destination) => {
         if (destination.path) navigateTo(destination.path);
       }}
@@ -910,6 +912,15 @@ export function App() {
         setTheme={setTheme}
       />
     </>
+  ) : pathname === "/groceries/settings" ? (
+    <GrocerySettingsPage householdId={activeHouseholdId!} householdName={householdData.householdName}
+      accessToken={authSession.access_token} onBack={() => navigateTo("/groceries")} moduleNavigation={moduleNavigation} />
+  ) : pathname === "/groceries" ? (
+    <GroceriesPage householdId={activeHouseholdId!} householdName={householdData.householdName}
+      accessToken={authSession.access_token} onOpenSettings={() => navigateTo("/groceries/settings")} moduleNavigation={moduleNavigation}
+      currentUserLabel={currentUserLabel} currentUserEmail={currentUserEmail}
+      currentUserInitials={currentUserInitials} currentUserAvatarUrl={currentUserAvatarUrl}
+      onOpenAccountSection={openSettingsSection} onSignOut={signOut} />
   ) : pathname === "/reports" ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}

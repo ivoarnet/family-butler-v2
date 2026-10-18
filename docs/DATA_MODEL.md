@@ -1,5 +1,21 @@
 # Data Model Plan
 
+## Groceries
+
+Shop & Cook owns household-scoped grocery lists and items, separate from calendar events and shared household data. Apply `docs/sql/groceries.sql` before deploying this feature.
+
+- A list has a stable local UUID, household ID, display name, optional Bring! list mapping, and synchronization state.
+- An item has a stable local UUID and list ID, a name (the Bring! item identity), optional specification such as quantity, and a checked state.
+- Optional provider-derived icon identifiers and validated image references are cached on items during synchronization. They are not browser-writable mutation fields. Renaming an item or unlinking/replacing its Bring account clears stale references; metadata outages preserve cached references.
+- Pending changes, previous remote names for renames, and deletion markers survive process restarts. Deleted items are excluded from normal UI reads rather than immediately losing their synchronization history. Confirmed history expires after a ten-minute grace period and is cleaned at the next sync; unconfirmed changes do not expire.
+- Module-owned synchronization state protects against overlapping work and concurrent edits. Repeated pulls merge by remote identity, not a fresh UUID for every poll.
+
+The initial bounded implementation supports up to 50 lists per household, 200 active items per list, and 2,000 retained rows per list including synchronization history. Names are limited to 160 characters; specifications to 500. Names are unique within a list ignoring surrounding whitespace and case. A synchronization lease temporarily rejects overlapping mutations with a retryable conflict rather than overwriting concurrent state.
+
+The authenticated Azure Functions API checks the existing household owner before accessing the provider; secrets remain server-side. Grocery data is not added to `HouseholdData`, calendar replacement writes, or agent chat actions. See [integration boundaries and conflict policy](modules/ARCHITECTURE.md#shop--cook-implementation).
+
+Apply `docs/sql/bring-connections.sql` after the grocery schema for household Bring! connection settings. It stores encrypted credentials or an explicit disconnected override, with no browser read/write access. Encryption uses a server-managed key and household-bound authenticated data; APIs expose status only. Account replacement/disconnect atomically unlinks existing remote list mappings while preserving local content, so old mappings are never silently applied to a replacement account. An explicit disconnected row suppresses the legacy environment-account fallback. No credentials are stored in list/item rows or returned through household data reads.
+
 ## Recorded decisions
 
 - Database: Supabase PostgreSQL

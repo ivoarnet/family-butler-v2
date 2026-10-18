@@ -11,7 +11,8 @@
     "dev:api": "npm run dev --workspace api",
     "dev:frontend": "npm run dev --workspace frontend",
     "test:api": "npm test --workspace api",
-    "build": "npm run build --workspace api && npm run build --workspace frontend"
+    "build": "npm run build --workspace api && npm run build --workspace frontend",
+    "build:grocery-worker": "npm run build --prefix workers"
   },
   "devDependencies": {
     "concurrently": "^9.2.1"
