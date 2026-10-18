@@ -45,11 +45,16 @@ const createBringClient = (householdId, { env = process.env, Client = Bring, tim
 
   const client = new Client({ mail: account.mail, password: account.password });
   let login;
-  const call = (operation) => bounded(async () => {
-    if (!login) login = client.login().catch(() => { login = null; throw unavailable(); });
-    await login;
-    return operation();
-  }, timeoutMs);
+  const call = (operation) => {
+    const deadline = Date.now() + timeoutMs;
+    const ensureActive = () => { if (Date.now() >= deadline) throw unavailable(); };
+    return bounded(async () => {
+      if (!login) login = client.login().catch(() => { login = null; throw unavailable(); });
+      await login;
+      ensureActive();
+      return operation(ensureActive);
+    }, timeoutMs);
+  };
 
   return {
     async listLists() {
@@ -78,10 +83,11 @@ const createBringClient = (householdId, { env = process.env, Client = Bring, tim
       });
     },
     async saveItem(listId, item) {
-      return call(async () => {
+      return call(async (ensureActive) => {
         // The SDK interpolates form fields instead of encoding them.
         const name = encodeURIComponent(item.name);
         await client.saveItem(listId, name, encodeURIComponent(item.specification));
+        ensureActive();
         if (item.checked) await client.moveToRecentList(listId, name);
       });
     },

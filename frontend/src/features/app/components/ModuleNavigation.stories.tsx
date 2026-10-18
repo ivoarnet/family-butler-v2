@@ -76,7 +76,8 @@ export const NavigationAndDismissal: Story = {
     await userEvent.hover(menu.getByRole("button", { name: "Calendar" }));
     await expect(await page.findByRole("tooltip")).toHaveTextContent("Calendar");
     await userEvent.unhover(menu.getByRole("button", { name: "Calendar" }));
-    await expect(menu.getAllByRole("button")).toHaveLength(3);
+    await expect(menu.getAllByRole("button")).toHaveLength(4);
+    await expect(menu.getByRole("button", { name: "Shop & Cook" })).not.toHaveAttribute("aria-disabled");
     await expect(menu.queryByText("Childcare")).toBeNull();
     await expect(menu.queryByText(/Shared Parenting/)).toBeNull();
     await expect(menu.queryByText("Reports & exports")).toBeNull();

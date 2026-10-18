@@ -1,5 +1,18 @@
 # Data Model Plan
 
+## Groceries
+
+Shop & Cook owns household-scoped grocery lists and items, separate from calendar events and shared household data. Apply `docs/sql/groceries.sql` before deploying this feature.
+
+- A list has a stable local UUID, household ID, display name, optional Bring! list mapping, and synchronization state.
+- An item has a stable local UUID and list ID, a name (the Bring! item identity), optional specification such as quantity, and a checked state.
+- Pending changes, previous remote names for renames, and deletion markers survive process restarts. Deleted items are excluded from normal UI reads rather than immediately losing their synchronization history.
+- Module-owned synchronization state protects against overlapping work and concurrent edits. Repeated pulls merge by remote identity, not a fresh UUID for every poll.
+
+The initial bounded implementation supports up to 50 lists per household, 200 active items per list, and 2,000 retained rows per list including synchronization history. Names are limited to 160 characters; specifications to 500. Names are unique within a list ignoring surrounding whitespace and case. A synchronization lease temporarily rejects overlapping mutations with a retryable conflict rather than overwriting concurrent state.
+
+The authenticated Azure Functions API checks the existing household owner before accessing the provider; secrets remain server-side. Grocery data is not added to `HouseholdData`, calendar replacement writes, or agent chat actions. See [integration boundaries and conflict policy](modules/ARCHITECTURE.md#shop--cook-implementation). Plan
+
 ## Recorded decisions
 
 - Database: Supabase PostgreSQL

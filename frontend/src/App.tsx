@@ -6,6 +6,7 @@ import { ModuleNavigation } from "./features/app/components/ModuleNavigation";
 import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ReportsPage } from "./pages/ReportsPage";
+import { GroceriesPage } from "./pages/GroceriesPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
 import { Contact, DayConfiguration, DayConfigurationCategory, EventType, FamilyMember, HouseholdEvent } from "./types/family";
@@ -608,7 +609,7 @@ export function App() {
     }
   };
 
-  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports" | "/groceries") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -841,7 +842,7 @@ export function App() {
 
   const moduleNavigation = (
     <ModuleNavigation
-      activeId={pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
+      activeId={pathname === "/groceries" ? "shop-cook" : pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
       onNavigate={(destination) => {
         if (destination.path) navigateTo(destination.path);
       }}
@@ -910,6 +911,9 @@ export function App() {
         setTheme={setTheme}
       />
     </>
+  ) : pathname === "/groceries" ? (
+    <GroceriesPage householdId={activeHouseholdId!} householdName={householdData.householdName}
+      accessToken={authSession.access_token} onGoHome={() => navigateTo("/")} moduleNavigation={moduleNavigation} />
   ) : pathname === "/reports" ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}

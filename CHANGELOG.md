@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Shop & Cook household grocery lists with item editing/check-off, optional server-side Bring! linking/import and bidirectional synchronization, durable pending changes/retries, and mocked client tests. Apply `docs/sql/groceries.sql`; configure optional `BRING_ACCOUNTS_JSON` only server-side. Bring! list creation remains in Bring!; unattended polling needs a timer-capable Functions host rather than SWA managed APIs. Updated UI screenshot: `docs/screenshots/grocery-lists.png`.
+
 - Added Parenting as a List view on the calendar dashboard, with centered tabs above the filter and results sections, separate From/To filters, and a default three-month range. Updated screenshot: `docs/screenshots/dashboard-parenting-list.png`.
 - Replaced the dashboard Month view with a three-month Childcare List, including provider filtering, Week/Day/Time/Specials/Provider/Actions columns, centralized day-configuration icons with record titles but no category text, an occurrence-edit action, and separate list navigation, filters, and grid. Updated screenshot: `docs/screenshots/dashboard-childcare-list.png`.
 

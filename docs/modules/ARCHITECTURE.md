@@ -91,3 +91,35 @@ Define per-household external list/item mappings, least-privilege consent and di
 - Commands own writes; projections/read tools do not silently mutate data. Confirm consequential agent actions using existing conventions.
 - Optional integrations fail independently; bound requests, handle stale responses, and minimize sensitive logging.
 - Tests cover authorization, validation, failure/retry/idempotency where relevant, and existing behavior. New module rollout must not require migration of unrelated calendar workflows.
+
+## Shop & Cook implementation
+
+Grocery lists are the first Shop & Cook feature, not a generic Lists framework. The feature owns its API, persistence, pending synchronization state, and UI. It reuses Supabase authentication and the existing household-owner authorization; household members do not automatically gain login access. No new agent tools are shipped.
+
+The HTTP base is `/api/households/{householdId}/groceries`:
+
+| Method/resource | Behavior |
+| --- | --- |
+| `GET` base | Lists with active items, sync status, and `bringConfigured`; does not contact Bring!. |
+| `POST lists` | Creates a local list with `name`. |
+| `PUT lists` | Updates a list by `id`; optional `name` and `remoteId` (null disconnects). Linking verifies the configured account can access the remote list. |
+| `POST items` | Adds an item with `listId`, `name`, optional `specification`/`checked`. |
+| `PUT items` | Changes an item by `listId`/`id`; fields omitted from the request remain unchanged. |
+| `DELETE items` | Removes an item by `listId`/`id`; retains pending remote deletion state. |
+| `GET bring-lists` | Lists available remote lists; returns a safe unavailable response on provider failure. |
+| `POST sync` | Synchronizes `listId`; inspect `syncStatus`, since a provider outage is returned as `unavailable` without losing local changes. |
+
+Mutations return `ok`/`id`; refresh the base read afterward. POST accepts an optional client-generated UUID for retry identity, and updates accept an optional `revision` for compare-and-swap. The API returns 401 without authentication, 404 for an inaccessible household, and retryable 409 for stale/busy state.
+
+`api/shared/bring.js` is the replaceable server-side client interface:
+
+- `listLists()` returns remote list IDs/names for linking.
+- `getItems(remoteId)` returns a complete snapshot of names, specifications, and checked states.
+- `saveItem(remoteId, item)` sets an item's desired state.
+- `removeItem(remoteId, name)` removes an item by its remote identity.
+
+The adapter uses the MIT-licensed [`bring-shopping`](https://github.com/foxriver76/node-bring-api) 2.0.1 Node client (Node 18+, no runtime dependencies), not handwritten Bring! HTTP requests. This is a community integration, not an endorsed or guaranteed official API. Operators must ensure their account use complies with Bring!'s current terms. Its published API does not expose list creation: create remote lists in Bring! and link/import them locally. The adapter encodes form values, rejects malformed snapshots, bounds waits, and redacts provider exceptions.
+
+Local changes are durable before synchronization, with pending local edits winning conflicts on the same item. Outbound operations are retried as desired-state writes, not appended transactions. Renames remove the previous remote name; removal is distinct from check-off. Inbound snapshots use Bring!'s item name as the identity and never create a second item for a known name. Bring! recent items map to checked items; its check-off API can clear specifications, so recently purchased items may not retain quantity text remotely.
+
+Sync validates writes by reading the provider back before acknowledging them: the client does not reliably expose HTTP write status. Provider failures leave local lists usable and pending changes intact. Background polling requires a timer-capable Functions host (see [setup](../SUPABASE.md#groceries-and-bring)); the UI also exposes manual synchronization. Remote list names are not automatically renamed from local list labels. Disconnecting stops synchronization without deleting local or remote lists. Revoking credentials additionally requires removing the household's server-side account configuration.

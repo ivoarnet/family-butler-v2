@@ -18,6 +18,12 @@ const getProvider = () => {
 };
 
 module.exports = {
+  getGroceries: (...args) => getProvider().getGroceries(...args),
+  mutateGroceries: (...args) => getProvider().mutateGroceries(...args),
+  acquireGrocerySync: (...args) => getProvider().acquireGrocerySync(...args),
+  renewGrocerySync: (...args) => getProvider().renewGrocerySync(...args),
+  finishGrocerySync: (...args) => getProvider().finishGrocerySync(...args),
+  releaseGrocerySync: (...args) => getProvider().releaseGrocerySync(...args),
   getChildcareHousehold: (...args) => getProvider().getChildcareHousehold(...args),
   getChildcare: (...args) => getProvider().getChildcare(...args),
   createChildcareProvider: (...args) => getProvider().createChildcareProvider(...args),

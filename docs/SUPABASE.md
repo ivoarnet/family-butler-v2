@@ -2,6 +2,16 @@
 
 This guide replaces the previous Azure SQL + Prisma setup.
 
+## Groceries and Bring!
+
+1. Run `docs/sql/groceries.sql` in the Supabase SQL Editor before enabling Shop & Cook. It adds module-owned persistence and synchronization functions without changing calendar tables. Keep the service-role/secret key server-side.
+2. Local grocery lists work without any Bring! configuration. To connect Bring!, set **server-side** `BRING_ACCOUNTS_JSON` to a JSON object keyed by household UUID. Each value contains `mail` and `password` for that household's Bring! account. Use Azure application settings or an approved secret store; do not commit actual values or use a frontend `VITE_` variable. The `.env.example` contains an empty configuration only.
+3. Open Shop & Cook, create a local list, and select an existing Bring! list to link/import. Create new remote lists in Bring! itself. Use a dedicated account/list when possible; changes affect everyone sharing that remote list. Do not connect the same remote list to unrelated households.
+4. Use **Sync** to pull remote changes and retry pending changes. Edits save locally even while Bring! is unavailable. Disconnect preserves both local and remote data. Remove account configuration to revoke future account access.
+5. For unattended synchronization, run `npm run build:grocery-worker` from the repository root, then `npm install --omit=dev --prefix workers/grocery-sync-package`. Deploy the contents of that generated directory to a separate timer-capable Azure Functions host with the same Supabase and Bring! settings and the host's required `AzureWebJobsStorage`. The worker polls every five minutes. Its source lives outside `/api` under `workers/`, keeping the SWA artifact HTTP-only. Azure Static Web Apps **managed APIs support HTTP triggers only**, so they retain manual sync but do not run the timer. Configure the timer host separately; no Azure resources or infrastructure-as-code are provisioned by this repository.
+
+The community Bring! SDK requires Node 18+. Its API/terms can change; deployment operators must verify their permitted use. No live Bring! calls are made in unit tests. Verify `GET /api/health?checks=1` and authenticated grocery endpoints against your configured Supabase instance after applying the migration.
+
 ## 1) Create a Supabase project
 
 1. Create a new Supabase project.

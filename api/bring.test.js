@@ -64,3 +64,32 @@ test("unreachable Bring calls have a bounded wait", async () => {
   const client = createBringClient(householdId, { env, Client: MockBring, timeoutMs: 5 });
   await assert.rejects(client.listLists(), /Bring is unavailable/);
 });
+
+test("a late login cannot start a write after the caller timed out", async () => {
+  let finishLogin;
+  let writes = 0;
+  class MockBring {
+    async login() { return new Promise((resolve) => { finishLogin = resolve; }); }
+    async saveItem() { writes++; }
+  }
+  const client = createBringClient(householdId, { env, Client: MockBring, timeoutMs: 5 });
+  await assert.rejects(client.saveItem("remote", { name: "Milk", specification: "", checked: false }));
+  finishLogin();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(writes, 0);
+});
+
+test("a late save cannot start a checkoff after the caller timed out", async () => {
+  let finishSave;
+  let checkoffs = 0;
+  class MockBring {
+    async login() {}
+    async saveItem() { return new Promise((resolve) => { finishSave = resolve; }); }
+    async moveToRecentList() { checkoffs++; }
+  }
+  const client = createBringClient(householdId, { env, Client: MockBring, timeoutMs: 5 });
+  await assert.rejects(client.saveItem("remote", { name: "Milk", specification: "", checked: true }));
+  finishSave();
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(checkoffs, 0);
+});
