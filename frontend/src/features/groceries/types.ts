@@ -3,6 +3,8 @@ export interface GroceryItem {
   name: string;
   specification: string;
   checked: boolean;
+  iconId?: string | null;
+  imageUrl?: string | null;
 }
 
 export interface GroceryList {

@@ -1,5 +1,5 @@
 -- Run after the core household tables. Optional encrypted credentials use bring-connections.sql.
--- Rerun this file to enable local list deletion; linked Bring lists and their contents are preserved.
+-- Rerun to add provider icon metadata; existing lists and pending item edits are preserved.
 begin;
 
 create table if not exists public.grocery_lists (
@@ -34,6 +34,10 @@ create table if not exists public.grocery_items (
 create unique index if not exists grocery_lists_name
   on public.grocery_lists (household_id, lower(btrim(name)));
 alter table public.grocery_items add column if not exists retire_at timestamptz;
+alter table public.grocery_items add column if not exists icon_id text
+  check (icon_id ~ '^[a-z0-9][a-z0-9_-]{0,159}$');
+alter table public.grocery_items add column if not exists image_url text
+  check (image_url ~ '^https://web[.]getbring[.]com/assets/images/items/[a-z0-9][a-z0-9_-]{0,159}[.]png$');
 create unique index if not exists grocery_items_live_name
   on public.grocery_items (list_id, lower(btrim(name))) where not deleted;
 create index if not exists grocery_items_list on public.grocery_items (list_id);
@@ -52,7 +56,7 @@ create policy grocery_items_owner_read on public.grocery_items for select to aut
 revoke all on public.grocery_lists, public.grocery_items from public, anon, authenticated, service_role;
 grant select (id, household_id, name, remote_id, revision, sync_status, last_synced_at)
   on public.grocery_lists to authenticated;
-grant select (id, household_id, list_id, name, specification, checked, deleted, revision)
+grant select (id, household_id, list_id, name, specification, checked, deleted, revision, icon_id, image_url)
   on public.grocery_items to authenticated;
 
 create or replace function public.grocery_command(p_household uuid, p_action text, p_data jsonb default '{}')
@@ -82,7 +86,8 @@ begin
         'lastSyncedAt', gl.last_synced_at,
         'items', coalesce((select jsonb_agg(jsonb_build_object(
           'id', gi.id, 'name', gi.name, 'specification', gi.specification,
-          'checked', gi.checked, 'revision', gi.revision) order by lower(gi.name), gi.id)
+          'checked', gi.checked, 'revision', gi.revision,
+          'iconId', gi.icon_id, 'imageUrl', gi.image_url) order by lower(gi.name), gi.id)
           from public.grocery_items gi where gi.list_id = gl.id and not gi.deleted), '[]'::jsonb)
       ) order by lower(gl.name), gl.id)
       from public.grocery_lists gl where gl.household_id = p_household
@@ -161,7 +166,12 @@ begin
       jsonb_typeof(x) <> 'object' or jsonb_typeof(x->'name') is distinct from 'string'
       or length(btrim(x->>'name')) not between 1 and 160
       or jsonb_typeof(x->'specification') is distinct from 'string' or length(x->>'specification') > 500
-      or jsonb_typeof(x->'checked') is distinct from 'boolean') then
+      or jsonb_typeof(x->'checked') is distinct from 'boolean'
+      or (x ? 'iconId' and x->'iconId' <> 'null'::jsonb and
+        (jsonb_typeof(x->'iconId') <> 'string' or x->>'iconId' !~ '^[a-z0-9][a-z0-9_-]{0,159}$'))
+      or (x ? 'imageUrl' and x->'imageUrl' <> 'null'::jsonb and
+        (jsonb_typeof(x->'imageUrl') <> 'string' or x->>'imageUrl' !~
+          '^https://web[.]getbring[.]com/assets/images/items/[a-z0-9][a-z0-9_-]{0,159}[.]png$'))) then
       return jsonb_build_object('error', 'invalid snapshot', 'status', 400);
     end if;
     -- Local pending rows win. A successful HTTP write alone is not an acknowledgement:
@@ -193,8 +203,19 @@ begin
       and not exists (select 1 from jsonb_array_elements(v_snapshot) x
         where lower(btrim(x->>'name')) = lower(gi.name));
     for r in select distinct on (lower(btrim(x->>'name')))
-      btrim(x->>'name') as name, x->>'specification' as specification, (x->>'checked')::boolean as checked
+      btrim(x->>'name') as name, x->>'specification' as specification, (x->>'checked')::boolean as checked,
+      x ? 'iconId' as has_icon, x->>'iconId' as icon_id,
+      x ? 'imageUrl' as has_image, x->>'imageUrl' as image_url
       from jsonb_array_elements(v_snapshot) x order by lower(btrim(x->>'name')), x->>'name' loop
+      -- Metadata is provider-owned even while local core fields are pending.
+      -- Omitted keys retain the last successful metadata; explicit null clears it.
+      update public.grocery_items set
+        icon_id = case when r.has_icon then r.icon_id else icon_id end,
+        image_url = case when r.has_image then r.image_url else image_url end,
+        revision = revision + case when
+          (r.has_icon and icon_id is distinct from r.icon_id)
+          or (r.has_image and image_url is distinct from r.image_url) then 1 else 0 end
+        where list_id = l.id and not deleted and lower(name) = lower(r.name);
       -- Retained tombstones and rename identities must not reappear after late writes.
       if exists (select 1 from public.grocery_items gi where gi.list_id = l.id
         and gi.pending and not gi.deleted and lower(gi.name) = lower(r.name))
@@ -221,8 +242,8 @@ begin
           or (select count(*) from public.grocery_items where list_id = l.id) >= 2000 then
           raise exception 'grocery item limit reached';
         end if;
-        insert into public.grocery_items(household_id, list_id, name, specification, checked, pending)
-          values (p_household, l.id, r.name, r.specification, r.checked, false);
+        insert into public.grocery_items(household_id, list_id, name, specification, checked, pending, icon_id, image_url)
+          values (p_household, l.id, r.name, r.specification, r.checked, false, r.icon_id, r.image_url);
       end if;
     end loop;
     v_pending := exists (select 1 from public.grocery_items where list_id = l.id and pending);
@@ -278,7 +299,8 @@ begin
     if v_remote is distinct from l.remote_id then
       -- Detach never deletes anything in the old account/list.
       delete from public.grocery_items where list_id = l.id and deleted;
-      update public.grocery_items set pending = true, remove_names = '{}', retire_at = null where list_id = l.id;
+      update public.grocery_items set pending = true, remove_names = '{}', retire_at = null,
+        icon_id = null, image_url = null, revision = revision + 1 where list_id = l.id;
     end if;
     update public.grocery_lists set name = v_name, remote_id = v_remote, revision = revision + 1,
       last_synced_at = case when v_remote is distinct from l.remote_id then null else last_synced_at end,
@@ -340,6 +362,8 @@ begin
   else
     v_id := i.id;
     update public.grocery_items set name = v_name, specification = coalesce(p_data->>'specification', specification),
+      icon_id = case when v_name <> i.name then null else icon_id end,
+      image_url = case when v_name <> i.name then null else image_url end,
       checked = coalesce((p_data->>'checked')::boolean, checked), deleted = p_action = 'items_delete',
       pending = true, remove_names = v_names, retire_at = null, revision = revision + 1 where id = i.id;
     -- Purely local deletions need no remote tombstone.

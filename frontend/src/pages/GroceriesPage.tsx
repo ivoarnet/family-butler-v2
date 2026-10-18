@@ -347,7 +347,7 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
                     aria-label={`Check ${item.name}`} aria-pressed={item.checked}
                     title={checked ? "Put back on shopping list" : "Mark as bought"}
                     onClick={() => void mutate((api) => api.updateItem(selected.id, item.id, { checked: !item.checked }))}>
-                    <GroceryProductIcon name={item.name} />
+                    <GroceryProductIcon iconId={item.iconId} imageUrl={item.imageUrl} />
                     <Typography component="span" sx={{ fontWeight: 700, overflowWrap: "anywhere", mt: 1 }}>{item.name}</Typography>
                     <Typography component="span" variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere", flex: 1 }}>{item.specification}</Typography>
                   </button>

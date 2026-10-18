@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced hardcoded grocery icon mappings with Bring catalog/item-detail metadata persisted during synchronization, with validated image references and local fallback. Rerun `docs/sql/groceries.sql` and `docs/sql/bring-connections.sql`, deploy updated API/worker code, then sync linked lists. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
 - Replaced grocery checkboxes with card-click toggles, with keyboard support and separate edit/remove actions. No visible check flag is shown. Updated screenshot: `docs/screenshots/grocery-lists.png`.
 
 - Refreshed grocery lists with inline item entry and Bring-inspired item tiles: unchecked items appear first under “To buy,” and checked items move to “Last used” for reuse. Known products use Bring-hosted icons with a local fallback when unavailable. Updated screenshot: `docs/screenshots/grocery-lists.png`.

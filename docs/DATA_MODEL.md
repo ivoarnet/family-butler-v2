@@ -6,6 +6,7 @@ Shop & Cook owns household-scoped grocery lists and items, separate from calenda
 
 - A list has a stable local UUID, household ID, display name, optional Bring! list mapping, and synchronization state.
 - An item has a stable local UUID and list ID, a name (the Bring! item identity), optional specification such as quantity, and a checked state.
+- Optional provider-derived icon identifiers and validated image references are cached on items during synchronization. They are not browser-writable mutation fields. Renaming an item or unlinking/replacing its Bring account clears stale references; metadata outages preserve cached references.
 - Pending changes, previous remote names for renames, and deletion markers survive process restarts. Deleted items are excluded from normal UI reads rather than immediately losing their synchronization history. Confirmed history expires after a ten-minute grace period and is cleaned at the next sync; unconfirmed changes do not expire.
 - Module-owned synchronization state protects against overlapping work and concurrent edits. Repeated pulls merge by remote identity, not a fresh UUID for every poll.
 

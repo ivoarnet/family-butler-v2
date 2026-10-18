@@ -1,4 +1,5 @@
 const { assert, validateId } = require("./validation");
+const { validIconId, validImageUrl } = require("./bring-metadata");
 
 const MAX_ITEMS = 200;
 const MAX_SYNC_ITEMS = 2000;
@@ -46,6 +47,8 @@ const validateRemoteItems = (items, maxItems = MAX_ITEMS) => {
       name,
       specification: item.specification,
       checked: item.checked,
+      ...(item.iconId === null || validIconId(item.iconId) ? { iconId: item.iconId } : {}),
+      ...(item.imageUrl === null || validImageUrl(item.imageUrl) ? { imageUrl: item.imageUrl } : {}),
     };
   });
 };

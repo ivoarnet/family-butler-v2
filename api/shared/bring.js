@@ -1,4 +1,5 @@
 const unavailable = () => new Error("Bring is unavailable; synchronization will retry later");
+const { createMetadataLoader } = require("./bring-metadata");
 
 const bounded = async (operation, timeoutMs) => {
   let timer;
@@ -47,6 +48,7 @@ const createClientFromCredentials = (account, { Client, timeoutMs = 15000 } = {}
 
   const BringClient = Client ?? require("bring-shopping");
   const client = new BringClient({ mail: account.mail, password: account.password });
+  const enrichItems = createMetadataLoader(client);
   let login;
   const call = (operation) => {
     const deadline = Date.now() + timeoutMs;
@@ -55,7 +57,7 @@ const createClientFromCredentials = (account, { Client, timeoutMs = 15000 } = {}
       if (!login) login = client.login().catch(() => { login = null; throw unavailable(); });
       await login;
       ensureActive();
-      return operation(ensureActive);
+      return operation(ensureActive, deadline);
     }, timeoutMs);
   };
 
@@ -71,7 +73,7 @@ const createClientFromCredentials = (account, { Client, timeoutMs = 15000 } = {}
       });
     },
     async getItems(listId) {
-      return call(async () => {
+      return call(async (ensureActive, deadline) => {
         const result = await client.getItems(listId);
         if (!Array.isArray(result?.purchase) || !Array.isArray(result?.recently)) throw unavailable();
         const items = new Map();
@@ -82,7 +84,8 @@ const createClientFromCredentials = (account, { Client, timeoutMs = 15000 } = {}
             items.set(item.name, { name: item.name, specification: item.specification, checked });
           }
         }
-        return [...items.values()];
+        ensureActive();
+        return enrichItems(listId, [...items.values()], deadline);
       });
     },
     async saveItem(listId, item) {

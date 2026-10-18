@@ -261,7 +261,7 @@ test("PostgreSQL encrypted connection RPC atomically detaches mappings, fences c
       create function auth.uid() returns uuid language sql as $$ select null::uuid $$;
       create table public.households(id uuid primary key, created_by_user_id uuid);
       insert into public.households values ('${householdId}', '${householdId}');`);
-    for (const file of ["groceries.sql", "bring-connections.sql", "bring-connections.sql"]) {
+    for (const file of ["groceries.sql", "groceries.sql", "bring-connections.sql", "bring-connections.sql"]) {
       execFileSync("psql", [...args, "-d", database], {
         input: readFileSync(path.join(__dirname, "../docs/sql", file), "utf8"), stdio: ["pipe", "pipe", "pipe"],
       });
@@ -282,11 +282,17 @@ test("PostgreSQL encrypted connection RPC atomically detaches mappings, fences c
     const lease = command("acquire", { id: listId, connectionRevision: 0 }).lease;
     assert.equal(connection(true, 0).status, 409);
     assert.equal(connection(false, 0).status, 409);
-    command("release", lease);
+    command("finish", { ...lease, items: [
+      { name: "Keep", specification: "", checked: false, iconId: "milch",
+        imageUrl: "https://web.getbring.com/assets/images/items/milch.png" },
+    ] });
+    assert.equal(command("read", {}).lists[0].items[0].iconId, "milch");
     assert.deepEqual(connection(true, 0), { ok: true });
     const state = command("read", {}).lists[0];
     assert.equal(state.remoteId, null);
     assert.deepEqual(state.items.map((item) => item.name), ["Keep"]);
+    assert.equal(state.items[0].iconId, null);
+    assert.equal(state.items[0].imageUrl, null);
     assert.equal(sql(`select count(*) from public.grocery_items where deleted or cardinality(remove_names) > 0 or retire_at is not null`), "0");
     assert.equal(command("lists_put", { id: listId, remoteId: "stale", connectionRevision: 0 }).status, 409);
     assert.equal(command("acquire", { id: listId, connectionRevision: 0 }).status, 409);
@@ -304,14 +310,26 @@ test("PostgreSQL encrypted connection RPC atomically detaches mappings, fences c
     }, { env, createCredentialClient: () => oldClient });
     const resolved = await connections.resolve(householdId);
     assert.equal(resolved.revision, 1);
+    command("lists_put", { id: listId, remoteId: "old-account", connectionRevision: 1 });
+    const oldLease = command("acquire", { id: listId, connectionRevision: 1 }).lease;
+    command("finish", { ...oldLease, items: [
+      { name: "Keep", specification: "", checked: false, iconId: "milch", imageUrl: null },
+    ] });
     assert.deepEqual(connection(true, 1), { ok: true });
+    assert.equal(command("read", {}).lists[0].items[0].iconId, null);
     assert.deepEqual(command("lists_put", { id: listId, remoteId: "new-account", connectionRevision: 2 }), { ok: true, id: listId });
     const syncStore = createProvider(async (_url, options) => command(options.body.p_action, options.body.p_data));
     await assert.rejects(syncList(syncStore, householdId, listId, resolved.client, resolved.revision), { status: 409 });
     assert.equal(oldAccountCalls, 0);
     assert.equal(command("lists_put", { id: listId, remoteId: "stale-account", connectionRevision: resolved.revision }).status, 409);
+    const newLease = command("acquire", { id: listId, connectionRevision: 2 }).lease;
+    command("finish", { ...newLease, items: [
+      { name: "Keep", specification: "", checked: false, iconId: "getraenke", imageUrl: null },
+    ] });
     assert.deepEqual(connection(false, 2), { ok: true });
     assert.equal(command("read", {}).lists[0].remoteId, null);
+    assert.equal(command("read", {}).lists[0].items[0].iconId, null);
+    assert.equal(command("read", {}).lists[0].items[0].imageUrl, null);
     assert.equal(command("acquire", { id: listId }).status, 409);
     assert.equal(command("lists_put", { id: listId, remoteId: "disabled-override" }).status, 409);
     assert.equal(sql("select enabled::text || ':' || revision::text || ':' || (ciphertext is null)::text from public.bring_connections"), "false:3:true");

@@ -3,7 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { ModuleNavigation } from "../features/app/components/ModuleNavigation";
 import type { GroceryData, GroceryItem } from "../features/groceries/types";
-import { BRING_ICON_ORIGIN, groceryIconUrl } from "../features/groceries/GroceryProductIcon";
+import { BRING_ICON_ORIGIN, GroceryProductIcon, groceryIconUrl } from "../features/groceries/GroceryProductIcon";
 import { GroceriesPage } from "./GroceriesPage";
 import { GrocerySettingsPage } from "./GrocerySettingsPage";
 
@@ -67,8 +67,9 @@ function installMock(options: MockOptions = {}) {
   const data = structuredClone(initialData);
   if (options.canonicalIcons) {
     data.lists[0].items.forEach((item, index) => {
-      item.name = ["Milk", "Eggs", "Bread"][index];
-      item.specification = ["2 cartons", "6 free-range", "1 loaf"][index];
+      item.name = ["Milk", "Getränke", "Bread"][index];
+      item.specification = ["2 cartons", "2 bottles", "1 loaf"][index];
+      item.iconId = ["milch", "getraenke", "brot"][index];
     });
   }
   data.bringConfigured = options.configured ?? true;
@@ -340,7 +341,7 @@ export const BringIconsAndFallback: Story = {
     await canvas.findByRole("heading", { name: "Weekly shop" });
     const images = [...canvasElement.querySelectorAll<HTMLImageElement>(".grocery-product-icon")];
     await expect(images).toHaveLength(3);
-    const expected = ["milch", "eier", "brot"].map((id) => `${BRING_ICON_ORIGIN}/assets/images/items/${id}.png`);
+    const expected = ["milch", "getraenke", "brot"].map((id) => `${BRING_ICON_ORIGIN}/assets/images/items/${id}.png`);
     await expect(images.map((image) => image.dataset.bringSrc)).toEqual(expected);
     for (const image of images) {
       await expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
@@ -348,10 +349,10 @@ export const BringIconsAndFallback: Story = {
       await expect(image).toHaveAttribute("alt", "");
       await waitFor(() => expect(image.complete && image.naturalWidth > 0).toBe(true));
     }
-    await expect(groceryIconUrl(" MILCH ")).toBe(expected[0]);
-    await expect(groceryIconUrl("Eier")).toBe(expected[1]);
-    await expect(groceryIconUrl("Brot")).toBe(expected[2]);
-    await expect(groceryIconUrl("Family secret / custom?")).toBeUndefined();
+    await expect(groceryIconUrl({ iconId: "milch" })).toBe(expected[0]);
+    await expect(groceryIconUrl({ iconId: "getraenke" })).toBe(expected[1]);
+    await expect(groceryIconUrl({ iconId: "brot" })).toBe(expected[2]);
+    await expect(groceryIconUrl({})).toBeUndefined();
     const previousRequests = iconRequest.mock.calls.length;
     await fireEvent.change(canvas.getByRole("textbox", { name: "Item name" }), { target: { value: "Family secret / custom?" } });
     await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
@@ -376,6 +377,70 @@ export const UnavailableIconAssets: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Check Bread" }));
     await waitFor(() => expect(within(canvas.getByRole("region", { name: "To buy" })).getByText("Bread")).toBeVisible());
     await expect(canvas.getByRole("button", { name: "Check Bread" })).toHaveAttribute("aria-pressed", "false");
+  },
+};
+
+const rejectedImages = [
+  "http://web.getbring.com/assets/images/items/milch.png",
+  "https://evil.example/assets/images/items/milch.png",
+  "https://web.getbring.com.evil.example/assets/images/items/milch.png",
+  "https://user@web.getbring.com/assets/images/items/milch.png",
+  "https://web.getbring.com:443/assets/images/items/milch.png",
+  "https://web.getbring.com/assets/images/items/milch.png?tracking=1",
+  "https://web.getbring.com/assets/images/items/milch.png#fragment",
+  "https://web.getbring.com/assets/images/items/%6dilch.png",
+  "https://web.getbring.com/assets/images/items/../milch.png",
+  "https://web.getbring.com/assets/images/items/a/../milch.png",
+  "https://web.getbring.com/assets/images/items/milch.png\n",
+  "//web.getbring.com/assets/images/items/milch.png",
+  "javascript:alert(1)",
+  "data:image/svg+xml,<svg/>",
+];
+
+function MetadataIcons() {
+  const [metadata, setMetadata] = useState({ imageUrl: `${BRING_ICON_ORIGIN}/assets/images/items/provider-custom.png`, iconId: "getraenke" });
+  return <div>
+    {["Milk", "Unrecognized provider product"].map((name) => <div key={name} data-testid={name}>
+      {name}<GroceryProductIcon iconId="getraenke" />
+    </div>)}
+    <div data-testid="no-metadata">Milk<GroceryProductIcon /></div>
+    <div data-testid="changing"><GroceryProductIcon {...metadata} /></div>
+    <button onClick={() => setMetadata({ imageUrl: `${BRING_ICON_ORIGIN}/assets/images/items/provider-next.png`, iconId: "getraenke" })}>Refresh metadata</button>
+    <button onClick={() => setMetadata({ imageUrl: `${BRING_ICON_ORIGIN}/assets/images/items/provider-custom.png`, iconId: "getraenke" })}>Restore metadata</button>
+    <div data-testid="rejected">
+      {rejectedImages.map((imageUrl) => <GroceryProductIcon key={imageUrl} imageUrl={imageUrl} />)}
+      {["../milch", "Getränke", "MILCH", "two words", "a/b", "a%2fb", "a".repeat(161), "milch\n", ""]
+        .map((iconId) => <GroceryProductIcon key={iconId} iconId={iconId} />)}
+    </div>
+  </div>;
+}
+
+export const ProviderMetadataValidation: Story = {
+  render: () => <MetadataIcons />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const canonical = `${BRING_ICON_ORIGIN}/assets/images/items/getraenke.png`;
+    for (const name of ["Milk", "Unrecognized provider product"]) {
+      await expect(canvas.getByTestId(name).querySelector("img")).toHaveAttribute("data-bring-src", canonical);
+    }
+    await expect(canvas.getByTestId("no-metadata").querySelector("img")).toBeNull();
+    await expect(canvas.getByTestId("rejected").querySelector("img")).toBeNull();
+    for (const imageUrl of rejectedImages) {
+      await expect(groceryIconUrl({ imageUrl })).toBeUndefined();
+      await expect(groceryIconUrl({ imageUrl, iconId: "getraenke" })).toBe(canonical);
+    }
+    await expect(iconRequest).toHaveBeenCalledTimes(3);
+    const changing = canvas.getByTestId("changing");
+    const image = () => changing.querySelector("img")!;
+    await expect(image()).toHaveAttribute("data-bring-src", `${BRING_ICON_ORIGIN}/assets/images/items/provider-custom.png`);
+    await fireEvent.error(image());
+    await waitFor(() => expect(image()).toHaveAttribute("data-bring-src", canonical));
+    await fireEvent.error(image());
+    await waitFor(() => expect(changing.querySelector("img")).toBeNull());
+    await userEvent.click(canvas.getByRole("button", { name: "Refresh metadata" }));
+    await expect(image()).toHaveAttribute("data-bring-src", `${BRING_ICON_ORIGIN}/assets/images/items/provider-next.png`);
+    await userEvent.click(canvas.getByRole("button", { name: "Restore metadata" }));
+    await expect(image()).toHaveAttribute("data-bring-src", `${BRING_ICON_ORIGIN}/assets/images/items/provider-custom.png`);
   },
 };
 

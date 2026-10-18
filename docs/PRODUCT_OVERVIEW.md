@@ -56,6 +56,8 @@ Its main-workspace header follows Calendar: the module icon opens side navigatio
 
 Lists can be deleted after confirmation, removing their local items and synchronization state without deleting a linked Bring! list or its contents.
 
+Linked lists obtain item icons from Bring's catalog/details during sync, without hardcoded product mappings. Safe references are cached for later reads; items without metadata or with unavailable images use a local fallback.
+
 Shop & Cook → Settings lets the household owner save and test a Bring! connection or disconnect it. Credentials are encrypted server-side, never returned to the browser, and require a server-managed encryption key. Saving a replacement account or disconnecting unlinks existing Bring! list mappings while preserving local shopping content; link lists again after an account change. Server-configured accounts remain supported as a fallback.
 
 Create remote lists in Bring! first, then link them in Shop & Cook: the maintained Node client does not expose remote list creation. Local lists do not require a remote counterpart. Pending local edits win conflicts on the same item; Bring!'s purchase/recent lists correspond to unchecked/checked items. Item names identify items within a Bring! list, so duplicate names are not separate purchases; use the specification for quantities. Disconnect preserves local data and stops synchronization. Grocery actions are not yet available through agent chat; cooking and recipes remain planned.

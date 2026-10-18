@@ -57,6 +57,7 @@ begin
       ciphertext = excluded.ciphertext, iv = excluded.iv, tag = excluded.tag;
   delete from public.grocery_items where household_id = p_household and deleted;
   update public.grocery_items set pending = true, remove_names = '{}', retire_at = null,
+    icon_id = null, image_url = null,
     revision = revision + 1 where household_id = p_household;
   update public.grocery_lists set remote_id = null, sync_status = 'local',
     last_synced_at = null, lease_token = null, lease_until = null,

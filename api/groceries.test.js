@@ -126,6 +126,32 @@ test("remote snapshots reject malformed, incomplete-shaped, and over-limit data"
   assert.deepEqual(validateRemoteItems([]), []);
 });
 
+test("only trusted sync metadata propagates; mutations cannot write it and invalid optional fields do not discard core items", () => {
+  const item = { name: "Milk", specification: "", checked: false };
+  const imageUrl = "https://web.getbring.com/assets/images/items/milch.png";
+  assert.deepEqual(validateRemoteItems([{ ...item, iconId: "milch", imageUrl }]), [{ ...item, iconId: "milch", imageUrl }]);
+  assert.deepEqual(validateRemoteItems([{ ...item, iconId: null, imageUrl: null }]), [{ ...item, iconId: null, imageUrl: null }]);
+  assert.deepEqual(validateRemoteItems([{ ...item, iconId: "../bad", imageUrl: "https://attacker.invalid/x.png" }]), [item]);
+  assert.deepEqual(validateMutation("items", "POST", { listId, ...item, iconId: "milch", imageUrl }),
+    { listId, name: "Milk", specification: "", checked: false });
+});
+
+test("sync forwards optional provider metadata including explicit clears to persistence", async () => {
+  const items = [{ name: "Milk", specification: "", checked: false, iconId: "milch", imageUrl: null }];
+  let received;
+  const lease = { id: listId, token: randomUUID(), fence: 1, revision: 0 };
+  const db = {
+    acquireGrocerySync: async () => ({ lease, remoteId: "remote", items: [] }),
+    renewGrocerySync: async () => {},
+    finishGrocerySync: async (_household, _lease, snapshot) => { received = snapshot; return { syncStatus: "synced" }; },
+  };
+  assert.equal((await syncList(db, householdId, listId, {
+    listLists: async () => [{ id: "remote", name: "Food" }],
+    getItems: async () => items,
+  })).syncStatus, "synced");
+  assert.deepEqual(received, items);
+});
+
 test("database facade sends bounded named RPC commands and handles conflicts", async () => {
   const calls = [];
   const provider = createProvider(async (...args) => { calls.push(args); return { lists: [] }; });
@@ -287,6 +313,7 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
     assert.ok(existsSync(path.join(output, "shared/db/providers/groceries.js")));
     assert.ok(existsSync(path.join(output, "shared/bring-connections.js")));
     assert.ok(existsSync(path.join(output, "shared/bring-credentials.js")));
+    assert.ok(existsSync(path.join(output, "shared/bring-metadata.js")));
     const packaged = JSON.parse(readFileSync(path.join(output, "package.json"), "utf8"));
     assert.deepEqual(packaged.dependencies, JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8")).dependencies);
     execFileSync(process.execPath, ["-e", 'require("./workers/grocery-sync-package/grocery-sync")().catch(() => process.exit(1))'], {
@@ -337,10 +364,12 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
     insert into public.households values ('${householdId}', '${ownerId}'), ('${otherHousehold}', '${otherHousehold}');
     grant select on public.households to authenticated;
   `);
-  execFileSync("psql", [...args, "-d", database], {
-    input: readFileSync(require("node:path").join(__dirname, "../docs/sql/groceries.sql"), "utf8"),
-    stdio: ["pipe", "pipe", "pipe"],
-  });
+  for (let run = 0; run < 2; run++) {
+    execFileSync("psql", [...args, "-d", database], {
+      input: readFileSync(require("node:path").join(__dirname, "../docs/sql/groceries.sql"), "utf8"),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+  }
   const provider = createProvider(async (_path, options) => {
     const { p_household, p_action, p_data } = options.body;
     return JSON.parse(sql(`select public.grocery_command(${quote(p_household)}::uuid, ${quote(p_action)}, ${quote(JSON.stringify(p_data))}::jsonb)`));
@@ -363,6 +392,49 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
       removeItem: async (_id, name) => { operations.push(`remove:${name}`); remote.delete(name); },
     };
   };
+
+  await t.test("provider metadata roundtrips, updates pending rows without overwriting core fields, retains on outage and clears explicitly", async () => {
+    const id = await createList();
+    await mutate("lists_put", { id, remoteId: `metadata-${id}` });
+    const imageUrl = "https://web.getbring.com/assets/images/items/milch.png";
+    const remote = { name: "Milk", specification: "remote", checked: false, iconId: "milch", imageUrl };
+    const finish = async (items) => {
+      const { lease } = await provider.acquireGrocerySync(householdId, id);
+      return provider.finishGrocerySync(householdId, lease, items);
+    };
+    const item = async () => (await snapshot()).find((list) => list.id === id).items[0];
+    await finish([remote]);
+    assert.equal((await item()).iconId, "milch");
+    assert.equal((await item()).imageUrl, imageUrl);
+    const itemId = (await item()).id;
+    await mutate("items_put", { listId: id, id: itemId, specification: "local pending", checked: true,
+      iconId: "forged", imageUrl: "https://attacker.invalid/x.png" });
+    await finish([{ ...remote, iconId: "getraenke", imageUrl: null }]);
+    assert.equal((await item()).specification, "local pending");
+    assert.equal((await item()).checked, true);
+    assert.equal((await item()).iconId, "getraenke");
+    assert.equal((await item()).imageUrl, null);
+    assert.equal(sql(`select pending from public.grocery_items where id = '${itemId}'`), "t");
+    const { iconId, imageUrl: ignoredImage, ...withoutMetadata } = remote;
+    await finish([withoutMetadata]);
+    assert.equal((await item()).iconId, "getraenke");
+    await finish([{ ...withoutMetadata, iconId: null, imageUrl: null }]);
+    assert.equal((await item()).iconId, null);
+    await finish([remote]);
+    await mutate("items_put", { listId: id, id: itemId, name: "Renamed locally" });
+    assert.equal((await item()).iconId, null);
+    assert.equal((await item()).imageUrl, null);
+    await finish([{ ...remote, name: "Renamed locally" }]);
+    assert.equal((await item()).iconId, "milch");
+    await mutate("lists_put", { id, remoteId: null });
+    assert.equal((await item()).iconId, null);
+    assert.equal((await item()).imageUrl, null);
+    await mutate("lists_put", { id, remoteId: `metadata-${id}` });
+    await finish([{ ...remote, name: "Renamed locally" }]);
+    await mutate("lists_put", { id, remoteId: `replacement-${id}` });
+    assert.equal((await item()).iconId, null);
+    assert.equal((await item()).imageUrl, null);
+  });
 
   await t.test("local durable rows, checkoffs, deduplication, retry IDs and optimistic CAS", async () => {
     await mutate("lists_post", { id: listId, name: "Food" });
@@ -723,13 +795,22 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
   });
 
   await t.test("RLS owner-only reads and forbidden direct sync-state writes/RPC", () => {
+    sql(`update public.grocery_items set icon_id = 'milch',
+      image_url = 'https://web.getbring.com/assets/images/items/milch.png'
+      where household_id = '${householdId}' and not deleted`);
     const asOwner = `set role authenticated; set request.jwt.claim.sub = '${ownerId}';`;
     const asOther = `set role authenticated; set request.jwt.claim.sub = '${otherHousehold}';`;
     assert.ok(Number(sql(`${asOwner} select count(id) from public.grocery_lists`)) > 0);
     assert.equal(sql(`${asOther} select count(id) from public.grocery_lists`), "0");
+    assert.ok(Number(sql(`${asOwner} select count(id) from public.grocery_items`)) > 0);
+    assert.ok(Number(sql(`${asOwner} select count(icon_id) + count(image_url) from public.grocery_items`)) > 0);
+    assert.equal(sql(`${asOther} select count(icon_id) + count(image_url) from public.grocery_items`), "0");
+    assert.doesNotThrow(() => sql(`${asOwner} select icon_id, image_url from public.grocery_items`));
+    assert.throws(() => sql(`${asOwner} update public.grocery_items set icon_id = 'forged'`));
     assert.throws(() => sql(`${asOwner} update public.grocery_lists set sync_status = 'synced'`));
     assert.throws(() => sql(`${asOwner} select public.grocery_command('${householdId}', 'read', '{}')`));
     assert.throws(() => sql(`${asOwner} select lease_token from public.grocery_lists`));
     assert.throws(() => sql(`set role service_role; update public.grocery_items set pending = false`));
+    assert.throws(() => sql(`set role service_role; update public.grocery_items set icon_id = 'forged'`));
   });
 });

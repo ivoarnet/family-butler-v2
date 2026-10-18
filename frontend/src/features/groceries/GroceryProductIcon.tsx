@@ -1,26 +1,34 @@
 import { useState } from "react";
 import ShoppingBasketOutlinedIcon from "@mui/icons-material/ShoppingBasketOutlined";
+import type { GroceryItem } from "./types";
 
 export const BRING_ICON_ORIGIN = "https://web.getbring.com";
 
-// Only reviewed canonical assets: never send a household's free-text item name to the CDN.
-const icons = new Map([
-  ["milk", `${BRING_ICON_ORIGIN}/assets/images/items/milch.png`],
-  ["milch", `${BRING_ICON_ORIGIN}/assets/images/items/milch.png`],
-  ["eggs", `${BRING_ICON_ORIGIN}/assets/images/items/eier.png`],
-  ["eier", `${BRING_ICON_ORIGIN}/assets/images/items/eier.png`],
-  ["bread", `${BRING_ICON_ORIGIN}/assets/images/items/brot.png`],
-  ["brot", `${BRING_ICON_ORIGIN}/assets/images/items/brot.png`],
-]);
+type IconMetadata = Pick<GroceryItem, "iconId" | "imageUrl">;
+const safeIconId = /^[a-z0-9][a-z0-9_-]{0,159}$/;
+const safeImageUrl = /^https:\/\/web\.getbring\.com\/assets\/images\/items\/[a-z0-9][a-z0-9_-]{0,159}\.png$/;
 
-export const groceryIconUrl = (name: string) => icons.get(name.trim().toLowerCase());
+function iconSources({ iconId, imageUrl }: IconMetadata) {
+  // Validate the original string, before URL parsing can normalize traversal or escapes.
+  const explicit = typeof imageUrl === "string" && imageUrl === imageUrl.trim() && safeImageUrl.test(imageUrl) ? imageUrl : undefined;
+  const canonical = typeof iconId === "string" && iconId === iconId.trim() && safeIconId.test(iconId)
+    ? `${BRING_ICON_ORIGIN}/assets/images/items/${iconId}.png` : undefined;
+  return [...new Set([explicit, canonical].filter((src): src is string => Boolean(src)))];
+}
 
-export function GroceryProductIcon({ name }: { name: string }) {
-  const src = groceryIconUrl(name);
-  const [failedSrc, setFailedSrc] = useState<string>();
-  if (!src || src === failedSrc) {
+export const groceryIconUrl = (metadata: IconMetadata) => iconSources(metadata)[0];
+
+function ProductImage({ sources }: { sources: string[] }) {
+  const [sourceIndex, setSourceIndex] = useState(0);
+  const src = sources[sourceIndex];
+  if (!src) {
     return <ShoppingBasketOutlinedIcon className="grocery-product-icon" aria-hidden="true" />;
   }
   return <img className="grocery-product-icon" src={src} alt="" width={52} height={52}
-    referrerPolicy="no-referrer" crossOrigin="anonymous" onError={() => setFailedSrc(src)} />;
+    key={src} referrerPolicy="no-referrer" crossOrigin="anonymous"
+    onError={() => setSourceIndex((index) => index + 1)} />;
+}
+
+export function GroceryProductIcon(metadata: IconMetadata) {
+  return <ProductImage key={JSON.stringify([metadata.imageUrl, metadata.iconId])} sources={iconSources(metadata)} />;
 }
