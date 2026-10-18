@@ -222,14 +222,17 @@ export const OpenConnectionSettings: Story = {
   play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await canvas.findByRole("heading", { name: "Weekly shop" });
-    await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Open settings" }));
-    await expect(args.onNavigate).toHaveBeenCalledTimes(1);
-    await expect(args.onNavigate).toHaveBeenCalledWith("/groceries/settings");
-    await expect(await canvas.findByRole("heading", { name: "Bring connection" })).toBeVisible();
-    await expect(canvas.getByLabelText(/Bring email/)).toHaveValue("");
-    await expect(canvas.getByLabelText(/Bring password/)).toHaveValue("");
-    await userEvent.click(canvas.getByRole("button", { name: "Back to groceries" }));
-    await expect(await canvas.findByRole("heading", { name: "Weekly shop" })).toBeVisible();
+    for (const name of ["Go back", "Go to groceries"]) {
+      await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Open settings" }));
+      await expect(args.onNavigate).toHaveBeenCalledWith("/groceries/settings");
+      await expect(await canvas.findByRole("heading", { name: "Bring connection" })).toBeVisible();
+      await expect(canvas.getByLabelText(/Bring email/)).toHaveValue("");
+      await expect(canvas.getByLabelText(/Bring password/)).toHaveValue("");
+      await expect(within(canvas.getByRole("main")).queryByRole("button", { name: /back|groceries/i })).toBeNull();
+      await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name }));
+      await expect(await canvas.findByRole("heading", { name: "Weekly shop" })).toBeVisible();
+    }
+    await expect(args.onNavigate).toHaveBeenCalledTimes(2);
   },
 };
 

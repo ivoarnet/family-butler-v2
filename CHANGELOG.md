@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Matched Shop & Cook settings navigation to Calendar settings, with back and home icons in the header and no duplicate back button in the content. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
+
 - Matched the Shop & Cook grocery header to Calendar: module navigation icon, grocery-settings icon, and the same account avatar menu for profile, households, and logout, without a back button. Updated screenshot: `docs/screenshots/grocery-lists.png`.
 
 - Fixed SWA API packaging so workspace dependency hoisting cannot omit the Bring! SDK. Deferred optional client loading to keep connection settings and local grocery handlers available if the SDK cannot load.

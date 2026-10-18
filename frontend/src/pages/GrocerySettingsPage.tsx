@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import HomeIcon from "@mui/icons-material/Home";
 import { Alert, Box, Chip, CircularProgress, DialogTitle, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
 import type { BringConnection } from "../features/groceries/types";
@@ -110,11 +111,11 @@ function ConnectionSession({ householdId, householdName, accessToken, onBack, mo
   const disabled = loading || busy || !connection?.canConfigure;
   return <div className="dashboard-page settings-page">
     <header className="dashboard-header settings-header" role="banner">
-      <button type="button" className="icon-button" onClick={back} aria-label="Back to Shop & Cook"><ArrowBackIcon fontSize="small" /></button>
+      <button type="button" className="icon-button" onClick={back} title="Go back" aria-label="Go back"><ArrowBackIcon fontSize="small" /></button>
       <div className="header-branding">{moduleNavigation}<div><h1>Shop &amp; Cook settings</h1><p>{householdName}</p></div></div>
+      <button type="button" className="icon-button" onClick={back} title="Go to groceries" aria-label="Go to groceries"><HomeIcon fontSize="small" /></button>
     </header>
-    <Box component="main" className="settings-main" sx={{ gap: 3, maxWidth: 880, width: "100%", boxSizing: "border-box", mx: "auto" }}>
-      <SecondaryButton onClick={back} startIcon={<ArrowBackIcon />} sx={{ justifySelf: "start" }}>Back to groceries</SecondaryButton>
+    <main className="settings-main">
       <section className="settings-card">
         <Stack sx={{ gap: 2.5 }}>
           <Box><Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>Bring connection</Typography>
@@ -147,7 +148,7 @@ function ConnectionSession({ householdId, householdName, accessToken, onBack, mo
           <Typography role="status" aria-live="polite">{busy ? "Working on Bring connection…" : ""}</Typography>
         </Stack>
       </section>
-    </Box>
+    </main>
     <GlassDialog open={confirmDisconnect} onClose={() => { if (!busy) setConfirmDisconnect(false); }} aria-labelledby="disconnect-bring-title">
       <DialogTitle id="disconnect-bring-title">Disconnect Bring account?</DialogTitle>
       <DialogContentPanel>

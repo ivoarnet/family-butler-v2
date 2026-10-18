@@ -107,6 +107,13 @@ export const ConfiguredAccount: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("Account configured")).toBeVisible();
+    const header = within(canvas.getByRole("banner"));
+    for (const name of ["Go back", "Go to groceries"]) {
+      await expect(header.getByRole("button", { name })).toBeVisible();
+      await expect(header.getByRole("button", { name })).toHaveAttribute("title", name);
+    }
+    await expect(within(canvas.getByRole("main")).queryByRole("button", { name: /back|groceries/i })).toBeNull();
+    await expect(canvas.queryByRole("button", { name: "Back to groceries" })).toBeNull();
     await expectBlank(canvasElement);
   },
 };
@@ -224,11 +231,38 @@ export const CancelAndNavigationClearSecrets: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Switch household" }));
     await canvas.findByText("No account configured");
     await expectBlank(canvasElement);
-    await enterAccount(canvasElement);
-    await userEvent.click(canvas.getByRole("button", { name: "Back to groceries" }));
-    await userEvent.click(canvas.getByRole("button", { name: "Reopen settings" }));
-    await canvas.findByText("No account configured");
-    await expectBlank(canvasElement);
+    for (const name of ["Go back", "Go to groceries"]) {
+      await enterAccount(canvasElement);
+      await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name }));
+      await userEvent.click(canvas.getByRole("button", { name: "Reopen settings" }));
+      await canvas.findByText("No account configured");
+      await expectBlank(canvasElement);
+    }
+  },
+};
+
+export const InFlightSaveNavigationAbort: Story = {
+  args: { allowNavigation: true },
+  parameters: { connectionMock: { delayedSave: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    for (const name of ["Go back", "Go to groceries"]) {
+      await enterAccount(canvasElement);
+      const password = canvas.getByLabelText(/Bring password/);
+      await userEvent.click(canvas.getByRole("button", { name: "Test and save account" }));
+      await expect(canvas.getByText("Working on Bring connection…")).toBeVisible();
+      await expectBlank(canvasElement);
+      const navigation = within(canvas.getByRole("banner")).getByRole("button", { name });
+      await expect(navigation).toBeEnabled();
+      await userEvent.click(navigation);
+      await expect(password).toHaveValue("");
+      await expect(canvas.queryByRole("main")).toBeNull();
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await expect(canvas.queryByText(/Bring connection tested and saved/)).toBeNull();
+      await userEvent.click(canvas.getByRole("button", { name: "Reopen settings" }));
+      await canvas.findByText("Account configured");
+      await expectBlank(canvasElement);
+    }
   },
 };
 
