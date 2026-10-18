@@ -3,6 +3,7 @@ import ArrowBackIcon from "@mui/icons-material/ArrowBack";
 import HomeIcon from "@mui/icons-material/Home";
 import { Alert, Box, Chip, CircularProgress, DialogTitle, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
+import { GroceryListSettings } from "../features/groceries/GroceryListSettings";
 import type { BringConnection } from "../features/groceries/types";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 
@@ -20,6 +21,7 @@ export function GrocerySettingsPage(props: Props) {
 
 function ConnectionSession({ householdId, householdName, accessToken, onBack, moduleNavigation }: Props) {
   const [connection, setConnection] = useState<BringConnection | null>(null);
+  const [connectionRevision, setConnectionRevision] = useState(0);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -87,6 +89,7 @@ function ConnectionSession({ householdId, householdName, accessToken, onBack, mo
         else setError("Bring is currently unavailable. Please try again.");
       } else {
         setConnection(result as BringConnection);
+        setConnectionRevision((revision) => revision + 1);
         setConfirmDisconnect(false);
         setNotice(operation === "save"
           ? "Bring connection tested and saved. Link or import your Bring lists again."
@@ -109,13 +112,14 @@ function ConnectionSession({ householdId, householdName, accessToken, onBack, mo
 
   const back = () => { clearCredentials(); active.current?.abort(); onBack(); };
   const disabled = loading || busy || !connection?.canConfigure;
-  return <div className="dashboard-page settings-page">
+  return <div className="dashboard-page settings-page grocery-settings-page">
     <header className="dashboard-header settings-header" role="banner">
       <button type="button" className="icon-button" onClick={back} title="Go back" aria-label="Go back"><ArrowBackIcon fontSize="small" /></button>
       <div className="header-branding">{moduleNavigation}<div><h1>Shop &amp; Cook settings</h1><p>{householdName}</p></div></div>
       <button type="button" className="icon-button" onClick={back} title="Go to groceries" aria-label="Go to groceries"><HomeIcon fontSize="small" /></button>
     </header>
     <main className="settings-main">
+      <GroceryListSettings householdId={householdId} accessToken={accessToken} connectionRevision={connectionRevision} />
       <section className="settings-card">
         <Stack sx={{ gap: 2.5 }}>
           <Box><Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>Bring connection</Typography>

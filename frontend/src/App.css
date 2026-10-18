@@ -252,6 +252,10 @@ body,
   grid-template-columns: auto 1fr auto;
 }
 
+.grocery-settings-page .settings-header .header-branding {
+  padding-right: 0;
+}
+
 .dashboard-header.grocery-header {
   grid-template-columns: 1fr auto;
 }

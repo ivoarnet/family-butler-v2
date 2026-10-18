@@ -52,13 +52,15 @@ The event dialog offers an optional personal-event responsibility check. Until s
 
 The Shop & Cook workspace owns household grocery lists, with inline item entry, optional specifications (such as quantity), editing, removal, and check-off. Unchecked items appear first in **To buy**; checked items appear below in **Last used** and can be unchecked to return them to shopping. Lists remain usable without Bring! credentials or during a provider outage. A server-side adapter connects a household's configured Bring! account to existing Bring! lists, imports their items, and synchronizes pending local changes and remote changes with durable retry state. A manual Sync action is available alongside background polling where an Azure Functions timer host is configured.
 
-Its main-workspace header follows Calendar: the module icon opens side navigation, the settings icon opens grocery connection settings, and the account avatar offers the same profile, household-management, and logout actions. There is no back button on the main grocery workspace.
+Its main-workspace header follows Calendar: the module icon opens side navigation, the settings icon opens grocery list and connection settings, and the account avatar offers the same profile, household-management, and logout actions. There is no back button on the main grocery workspace.
 
 Lists can be deleted after confirmation, removing their local items and synchronization state without deleting a linked Bring! list or its contents.
 
 Linked lists obtain item icons from Bring's catalog/details during sync, without hardcoded product mappings. Safe references are cached for later reads; items without metadata or with unavailable images use a local fallback.
 
-Shop & Cook → Settings lets the household owner save and test a Bring! connection or disconnect it. Credentials are encrypted server-side, never returned to the browser, and require a server-managed encryption key. Saving a replacement account or disconnecting unlinks existing Bring! list mappings while preserving local shopping content; link lists again after an account change. Server-configured accounts remain supported as a fallback.
+Shop & Cook → Settings also lists the household's grocery lists, supports creating and renaming local lists, and shows whether each list is local, linked to Bring!, synced, pending, or unavailable. These controls remain available in the shopping workspace too. List names are local display names; renaming does not rename the remote Bring! list.
+
+Settings lets the household owner save and test a Bring! connection or disconnect it. Credentials are encrypted server-side, never returned to the browser, and require a server-managed encryption key. Saving a replacement account or disconnecting unlinks existing Bring! list mappings while preserving local shopping content; link lists again after an account change. Server-configured accounts remain supported as a fallback.
 
 Create remote lists in Bring! first, then link them in Shop & Cook: the maintained Node client does not expose remote list creation. Local lists do not require a remote counterpart. Pending local edits win conflicts on the same item; Bring!'s purchase/recent lists correspond to unchecked/checked items. Item names identify items within a Bring! list, so duplicate names are not separate purchases; use the specification for quantities. Disconnect preserves local data and stops synchronization. Grocery actions are not yet available through agent chat; cooking and recipes remain planned.
 

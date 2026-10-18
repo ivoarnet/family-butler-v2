@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added grocery-list creation and renaming to Shop & Cook settings, with an overview showing each list's Bring! link/sync status. Existing shopping-workspace controls remain available. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
+
 - Replaced hardcoded grocery icon mappings with Bring catalog/item-detail metadata persisted during synchronization, with validated image references and local fallback. Rerun `docs/sql/groceries.sql` and `docs/sql/bring-connections.sql`, deploy updated API/worker code, then sync linked lists. Updated screenshot: `docs/screenshots/grocery-lists.png`.
 
 - Replaced grocery checkboxes with card-click toggles, with keyboard support and separate edit/remove actions. No visible check flag is shown. Updated screenshot: `docs/screenshots/grocery-lists.png`.

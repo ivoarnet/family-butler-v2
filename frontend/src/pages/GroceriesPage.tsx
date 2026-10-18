@@ -8,6 +8,7 @@ import SyncIcon from "@mui/icons-material/Sync";
 import { Alert, Box, Chip, CircularProgress, DialogTitle, IconButton, MenuItem, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
 import { GroceryProductIcon } from "../features/groceries/GroceryProductIcon";
+import { syncLabel } from "../features/groceries/syncLabel";
 import type { BringList, GroceryData, GroceryItem, GroceryList } from "../features/groceries/types";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
@@ -36,13 +37,6 @@ const actionColors = {
   "&.Mui-disabled": { color: "var(--text-secondary)" },
 };
 const chipColors = { color: "var(--text-primary)", bgcolor: "var(--dialog-field)" };
-const syncLabel = (list: GroceryList, configured: boolean) => {
-  if (!list.remoteId) return "Local list";
-  if (!configured || list.syncStatus === "unavailable") return "Bring unavailable";
-  if (list.syncStatus === "pending") return "Sync pending";
-  if (list.syncStatus === "error" || list.syncStatus === "failed") return "Sync failed";
-  return list.syncStatus === "synced" ? "Synced with Bring" : "Linked to Bring";
-};
 
 // A new household or token gets isolated state and aborts the old session's requests.
 export function GroceriesPage(props: GroceriesPageProps) {
