@@ -50,7 +50,7 @@ The event dialog offers an optional personal-event responsibility check. Until s
 
 ## Shop & Cook — grocery lists and Bring! synchronization
 
-The Shop & Cook workspace owns household grocery lists, with item names, optional specifications (such as quantity), editing, removal, and check-off. Lists remain usable without Bring! credentials or during a provider outage. A server-side adapter connects a household's configured Bring! account to existing Bring! lists, imports their items, and synchronizes pending local changes and remote changes with durable retry state. A manual Sync action is available alongside background polling where an Azure Functions timer host is configured.
+The Shop & Cook workspace owns household grocery lists, with inline item entry, optional specifications (such as quantity), editing, removal, and check-off. Unchecked items appear first in **To buy**; checked items appear below in **Last used** and can be unchecked to return them to shopping. Lists remain usable without Bring! credentials or during a provider outage. A server-side adapter connects a household's configured Bring! account to existing Bring! lists, imports their items, and synchronizes pending local changes and remote changes with durable retry state. A manual Sync action is available alongside background polling where an Azure Functions timer host is configured.
 
 Its main-workspace header follows Calendar: the module icon opens side navigation, the settings icon opens grocery connection settings, and the account avatar offers the same profile, household-management, and logout actions. There is no back button on the main grocery workspace.
 

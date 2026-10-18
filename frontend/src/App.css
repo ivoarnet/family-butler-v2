@@ -18,6 +18,38 @@ body,
   container: dashboard / inline-size;
 }
 
+.grocery-tile-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(145px, 100%), 1fr));
+  gap: 0.85rem;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.grocery-tile {
+  min-width: 0;
+  min-height: 190px;
+  display: flex;
+  flex-direction: column;
+  padding: 0.7rem;
+  border-radius: 16px;
+  border: 1px solid var(--grocery-buy-border);
+  background: var(--grocery-buy);
+}
+
+.grocery-tile-used {
+  border-color: var(--grocery-used-border);
+  background: var(--grocery-used);
+}
+
+.grocery-tile .grocery-product-icon {
+  width: 52px;
+  height: 52px;
+  object-fit: contain;
+  color: var(--text-primary);
+}
+
 .report-empty-state {
   min-height: 16rem;
   display: grid;

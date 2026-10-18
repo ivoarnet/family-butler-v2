@@ -7,6 +7,7 @@ import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import SyncIcon from "@mui/icons-material/Sync";
 import { Alert, Box, Checkbox, Chip, CircularProgress, DialogTitle, IconButton, MenuItem, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
+import { GroceryProductIcon } from "../features/groceries/GroceryProductIcon";
 import type { BringList, GroceryData, GroceryItem, GroceryList } from "../features/groceries/types";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
@@ -26,7 +27,7 @@ interface GroceriesPageProps {
 }
 
 type Editor = { kind: "list"; id?: string; name: string } |
-  { kind: "item"; id?: string; name: string; specification: string };
+  { kind: "item"; id: string; name: string; specification: string };
 type BringPicker = { mode: "import" | "link"; localId?: string; remoteId: string };
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
@@ -39,6 +40,7 @@ const checkboxColors = {
   "&.Mui-checked": { color: "var(--accent-strong)" },
   "&.Mui-checked.Mui-disabled": { color: "var(--text-secondary)" },
 };
+const chipColors = { color: "var(--text-primary)", bgcolor: "var(--dialog-field)" };
 const syncLabel = (list: GroceryList, configured: boolean) => {
   if (!list.remoteId) return "Local list";
   if (!configured || list.syncStatus === "unavailable") return "Bring unavailable";
@@ -68,6 +70,7 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
   const [bringLoading, setBringLoading] = useState(false);
   const [bringError, setBringError] = useState<string | null>(null);
   const [dialogError, setDialogError] = useState<string | null>(null);
+  const [itemDraft, setItemDraft] = useState({ listId: "", name: "", specification: "" });
   const controller = useRef<AbortController | null>(null);
   const client = useRef<ReturnType<typeof createGroceryClient> | null>(null);
   const busyRef = useRef(false);
@@ -130,6 +133,11 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
 
   const selected = data.lists.find(({ id }) => id === selectedId);
   const disabled = loading || busy;
+  const draft = itemDraft.listId === selectedId ? itemDraft : { listId: selectedId, name: "", specification: "" };
+
+  useEffect(() => {
+    setItemDraft({ listId: selectedId, name: "", specification: "" });
+  }, [selectedId]);
 
   const mutate = async (action: (api: ReturnType<typeof createGroceryClient>) => Promise<unknown>, close?: () => void) => {
     const api = client.current;
@@ -229,9 +237,20 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
         return api.createList(draft.name.trim());
       }
       const fields = { name: draft.name.trim(), specification: draft.specification.trim() };
-      if (draft.id) return api.updateItem(selectedId, draft.id, fields);
-      return api.addItem(selectedId, fields);
+      return api.updateItem(selectedId, draft.id, fields);
     }, () => setEditor(null));
+  };
+
+  const addItem = () => {
+    const name = draft.name.trim();
+    const specification = draft.specification.trim();
+    if (disabled || !selected || !name || name.length > 160 || specification.length > 500) return;
+    const listId = selected.id;
+    const existing = selected.items.find((item) => item.name.trim().toLowerCase() === name.toLowerCase());
+    void mutate((api) => existing
+      ? api.updateItem(listId, existing.id, { checked: false, ...(specification ? { specification } : {}) })
+      : api.addItem(listId, { name, specification }),
+      () => setItemDraft({ listId, name: "", specification: "" }));
   };
 
   const lastSynced = selected?.lastSyncedAt ? new Date(selected.lastSyncedAt) : null;
@@ -282,7 +301,7 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
             {data.lists.map((list) => <SecondaryButton key={list.id} disabled={disabled} aria-current={selectedId === list.id ? "true" : undefined}
               onClick={() => setSelectedId(list.id)} sx={{ justifyContent: "space-between", textAlign: "left", border: "1px solid var(--border)",
                 bgcolor: selectedId === list.id ? "var(--dialog-field)" : undefined, overflowWrap: "anywhere" }}>
-              <span>{list.name}</span><Chip size="small" label={list.items.filter(({ checked }) => !checked).length} sx={{ ml: 1 }} />
+              <span>{list.name}</span><Chip size="small" label={list.items.filter(({ checked }) => !checked).length} sx={{ ...chipColors, ml: 1 }} />
             </SecondaryButton>)}
             {!loading && !data.lists.length && <Typography color="text.secondary">No lists yet. Create a list to start shopping.</Typography>}
           </Stack>
@@ -299,7 +318,7 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
             </Stack>
           </Stack>
           <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, alignItems: "center", mt: 2 }}>
-            <Chip label={syncLabel(selected, data.bringConfigured)} size="small" />
+            <Chip label={syncLabel(selected, data.bringConfigured)} size="small" sx={chipColors} />
             {selected.remoteId ? <>
               <SecondaryButton startIcon={<SyncIcon />} disabled={disabled || !data.bringConfigured} onClick={() => void mutate((api) => api.sync(selected.id))}>Sync now</SecondaryButton>
               <SecondaryButton disabled={disabled} onClick={() => void mutate((api) => api.updateList(selected.id, { remoteId: null }))}>Disconnect Bring</SecondaryButton>
@@ -307,21 +326,46 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
           </Stack>
           {lastSynced && !Number.isNaN(lastSynced.getTime()) && <Typography variant="caption" color="text.secondary">Last synced: {lastSynced.toLocaleString()}</Typography>}
           {selected.remoteId && selected.syncStatus === "pending" && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Changes are saved locally and waiting to sync with Bring.</Typography>}
-          <Box component="ul" sx={{ listStyle: "none", px: 0, my: 2 }}>
-            {selected.items.map((item: GroceryItem) => <Stack component="li" direction="row" key={item.id}
-              sx={{ py: 1, borderBottom: "1px solid var(--border)", alignItems: "center", gap: 0.5 }}>
-              <Checkbox sx={checkboxColors} checked={item.checked} disabled={disabled} slotProps={{ input: { "aria-label": `Check ${item.name}` } }}
-                onChange={(_, checked) => void mutate((api) => api.updateItem(selected.id, item.id, { checked }))} />
-              <Box sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", opacity: item.checked ? 0.65 : 1 }}>
-                <Typography sx={{ textDecoration: item.checked ? "line-through" : undefined }}>{item.name}</Typography>
-                {item.specification && <Typography variant="body2" color="text.secondary">{item.specification}</Typography>}
-              </Box>
-              <IconButton sx={actionColors} disabled={disabled} aria-label={`Edit item ${item.name}`} onClick={() => openEditor({ kind: "item", id: item.id, name: item.name, specification: item.specification ?? "" })}><EditOutlinedIcon fontSize="small" /></IconButton>
-              <IconButton sx={actionColors} disabled={disabled} aria-label={`Remove item ${item.name}`} onClick={() => void mutate((api) => api.removeItem(selected.id, item.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
-            </Stack>)}
-            {!selected.items.length && <Typography component="li" color="text.secondary" sx={{ py: 3 }}>Your list is empty. Add your first grocery item.</Typography>}
+          <Box component="form" aria-label="Add grocery item" sx={{ my: 3 }}
+            onSubmit={(event) => { event.preventDefault(); addItem(); }}>
+            <Stack direction={{ xs: "column", sm: "row" }} sx={{ gap: 1.5, alignItems: { sm: "start" } }}>
+              <FormField label="Item name" placeholder="What do you need?" required fullWidth disabled={disabled}
+                value={draft.name} slotProps={{ htmlInput: { maxLength: 160 } }}
+                onChange={(event) => setItemDraft({ ...draft, name: event.target.value })} />
+              <FormField label="Quantity or details" placeholder="Optional, e.g. 2 cartons" fullWidth disabled={disabled}
+                value={draft.specification} slotProps={{ htmlInput: { maxLength: 500 } }}
+                onChange={(event) => setItemDraft({ ...draft, specification: event.target.value })} />
+              <GradientButton type="submit" disabled={disabled || !draft.name.trim() || draft.name.trim().length > 160 || draft.specification.trim().length > 500}
+                startIcon={<AddIcon />} sx={{ flexShrink: 0, minHeight: 56 }}>Add item</GradientButton>
+            </Stack>
           </Box>
-          <GradientButton disabled={disabled} startIcon={<AddIcon />} onClick={() => openEditor({ kind: "item", name: "", specification: "" })}>Add item</GradientButton>
+          {[false, true].map((checked) => <Box component="section" key={String(checked)}
+            aria-label={checked ? "Last used" : "To buy"} sx={{ mt: 3 }}>
+            <Typography component="h3" variant="h6" sx={{ fontWeight: 700 }}>{checked ? "Last used" : "To buy"}</Typography>
+            <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
+              {checked ? "Uncheck an item to put it back on your shopping list." : "Check off items as you shop."}
+            </Typography>
+            <Box component="ul" className="grocery-tile-grid">
+              {selected.items.filter((item) => item.checked === checked).map((item: GroceryItem) =>
+                <Box component="li" key={item.id} className={`grocery-tile ${checked ? "grocery-tile-used" : "grocery-tile-buy"}`}>
+                  <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
+                    <Checkbox sx={checkboxColors} checked={item.checked} disabled={disabled}
+                      slotProps={{ input: { "aria-label": `Check ${item.name}`, title: checked ? "Put back on shopping list" : "Mark as bought" } }}
+                      onChange={(_, nextChecked) => void mutate((api) => api.updateItem(selected.id, item.id, { checked: nextChecked }))} />
+                    <GroceryProductIcon name={item.name} />
+                  </Stack>
+                  <Typography sx={{ fontWeight: 700, overflowWrap: "anywhere", mt: 1 }}>{item.name}</Typography>
+                  <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere", flex: 1 }}>{item.specification}</Typography>
+                  <Stack direction="row" sx={{ justifyContent: "end", mt: 1 }}>
+                    <IconButton sx={actionColors} disabled={disabled} aria-label={`Edit item ${item.name}`} onClick={() => openEditor({ kind: "item", id: item.id, name: item.name, specification: item.specification ?? "" })}><EditOutlinedIcon fontSize="small" /></IconButton>
+                    <IconButton sx={actionColors} disabled={disabled} aria-label={`Remove item ${item.name}`} onClick={() => void mutate((api) => api.removeItem(selected.id, item.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
+                  </Stack>
+                </Box>)}
+            </Box>
+            {!selected.items.some((item) => item.checked === checked) && <Typography color="text.secondary" sx={{ py: 2 }}>
+              {checked ? "Items you check off will appear here." : selected.items.length ? "All done! Your shopping list is clear." : "Your list is empty. Add your first grocery item."}
+            </Typography>}
+          </Box>)}
         </Box> : !loading && <Box className="settings-card" sx={{ textAlign: "center", py: 6 }}>
           <ShoppingBasketOutlinedIcon sx={{ fontSize: 52, color: "text.secondary" }} />
           <Typography component="h2" variant="h5">A little less “what did we forget?”</Typography>
@@ -348,12 +392,12 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
     </GlassDialog>
     <GlassDialog open={!!editor} onClose={() => { if (!busy) setEditor(null); }} aria-labelledby="grocery-editor-title" maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={(event) => { event.preventDefault(); saveEditor(); }}>
-        <DialogTitle id="grocery-editor-title">{editor?.kind === "list" ? editor.id ? "Rename list" : "New grocery list" : editor?.id ? "Edit grocery item" : "Add grocery item"}</DialogTitle>
+        <DialogTitle id="grocery-editor-title">{editor?.kind === "list" ? editor.id ? "Rename list" : "New grocery list" : "Edit grocery item"}</DialogTitle>
         <DialogContentPanel>
           {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          <FormField autoFocus label={editor?.kind === "list" ? "List name" : "Item name"} required fullWidth disabled={busy} value={editor?.name ?? ""}
+          <FormField autoFocus label={editor?.kind === "list" ? "List name" : "Item name"} required fullWidth disabled={busy} value={editor?.name ?? ""} slotProps={{ htmlInput: { maxLength: 160 } }}
             onChange={(event) => setEditor((current) => current ? { ...current, name: event.target.value } : null)} />
-          {editor?.kind === "item" && <FormField label="Quantity or details" fullWidth disabled={busy} value={editor.specification}
+          {editor?.kind === "item" && <FormField label="Quantity or details" fullWidth disabled={busy} value={editor.specification} slotProps={{ htmlInput: { maxLength: 500 } }}
             placeholder="e.g. 2 cartons, oat milk" onChange={(event) => setEditor((current) => current?.kind === "item" ? { ...current, specification: event.target.value } : current)} />}
         </DialogContentPanel>
         <DialogActionsBar>

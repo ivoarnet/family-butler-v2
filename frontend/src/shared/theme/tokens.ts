@@ -24,6 +24,10 @@ type ThemeTokenValues = {
   menuSurface: string;
   menuBackdropBlur: string;
   datePickerIndicatorFilter: string;
+  groceryBuy: string;
+  groceryBuyBorder: string;
+  groceryUsed: string;
+  groceryUsedBorder: string;
 };
 
 const toCssVariables = (tokens: ThemeTokenValues): Record<string, string> => ({
@@ -52,6 +56,10 @@ const toCssVariables = (tokens: ThemeTokenValues): Record<string, string> => ({
   "--menu-surface": tokens.menuSurface,
   "--menu-backdrop-blur": tokens.menuBackdropBlur,
   "--date-picker-indicator-filter": tokens.datePickerIndicatorFilter,
+  "--grocery-buy": tokens.groceryBuy,
+  "--grocery-buy-border": tokens.groceryBuyBorder,
+  "--grocery-used": tokens.groceryUsed,
+  "--grocery-used-border": tokens.groceryUsedBorder,
 });
 
 export const themeTokens = {
@@ -81,6 +89,10 @@ export const themeTokens = {
     menuSurface: "rgba(255, 255, 255, 0.5)",
     menuBackdropBlur: "52px",
     datePickerIndicatorFilter: "none",
+    groceryBuy: "#fff1f0",
+    groceryBuyBorder: "#ba4b47",
+    groceryUsed: "#eaf6ee",
+    groceryUsedBorder: "#387c55",
   } satisfies ThemeTokenValues,
   dark: {
     bg: "#090b14",
@@ -108,6 +120,10 @@ export const themeTokens = {
     menuSurface: "rgba(20, 24, 35, 0.52)",
     menuBackdropBlur: "52px",
     datePickerIndicatorFilter: "brightness(0) invert(0.88)",
+    groceryBuy: "#39272e",
+    groceryBuyBorder: "#e7928d",
+    groceryUsed: "#21382f",
+    groceryUsedBorder: "#78bc92",
   } satisfies ThemeTokenValues,
 } as const;
 

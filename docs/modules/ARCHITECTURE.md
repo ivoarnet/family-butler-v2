@@ -96,6 +96,10 @@ Define per-household external list/item mappings, least-privilege consent and di
 
 Grocery lists are the first Shop & Cook feature, not a generic Lists framework. The feature owns its API, persistence, pending synchronization state, and UI. It reuses Supabase authentication and the existing household-owner authorization; household members do not automatically gain login access. No new agent tools are shipped.
 
+The workspace adds items inline without a dialog. Item tiles are grouped into **To buy** (unchecked) and **Last used** (checked); toggling a last-used item returns it to the shopping section. Editing existing items still uses a dialog. These sections derive from the existing checked state, not a separate history table or recency timestamp.
+
+Known product names (milk, eggs, bread, and their German equivalents) use a small fixed mapping to provider-hosted Bring! icons under `https://web.getbring.com/assets/images/items/`; custom names and image failures use a local shopping icon. Images are not bundled or copied into this repository, and their use remains subject to the provider's terms. Requests omit cross-origin credentials and referrers; Bring! still receives the visitor's IP address and the requested icon identifier. Arbitrary item names, quantities, household IDs, and credentials are never placed in icon URLs. No icon request is required for local list operations.
+
 The HTTP base is `/api/households/{householdId}/groceries`:
 
 | Method/resource | Behavior |

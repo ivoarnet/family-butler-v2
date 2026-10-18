@@ -3,6 +3,7 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { ModuleNavigation } from "../features/app/components/ModuleNavigation";
 import type { GroceryData, GroceryItem } from "../features/groceries/types";
+import { BRING_ICON_ORIGIN, groceryIconUrl } from "../features/groceries/GroceryProductIcon";
 import { GroceriesPage } from "./GroceriesPage";
 import { GrocerySettingsPage } from "./GrocerySettingsPage";
 
@@ -23,13 +24,53 @@ const initialData: GroceryData = {
 type MockOptions = {
   configured?: boolean; failRead?: boolean; failMutation?: boolean; delayed?: boolean;
   failBring?: boolean; failLink?: boolean; delayedMutation?: boolean; failSync?: boolean;
-  failDelete?: boolean; dark?: boolean;
+  failDelete?: boolean; dark?: boolean; canonicalIcons?: boolean; failIcons?: boolean;
 };
 const deleteListRequest = fn();
+const addItemRequest = fn();
+const updateItemRequest = fn();
+const iconRequest = fn();
+
+function installIconMock(fail = false) {
+  iconRequest.mockClear();
+  // Keep plays fully offline, including browser-native image requests (which bypass fetch).
+  if (new URLSearchParams(window.location.search).get("realAssets") === "1") return () => undefined;
+  const asset = URL.createObjectURL(new Blob([fail ? "invalid image" :
+    '<svg xmlns="http://www.w3.org/2000/svg" width="52" height="52"><path fill="#69758c" d="M10 18h32l-4 25H14zM17 18l9-13 9 13h-5l-4-6-4 6z"/></svg>'],
+  { type: "image/svg+xml" }));
+  const originalAttribute = Element.prototype.setAttribute;
+  const originalSource = Object.getOwnPropertyDescriptor(HTMLImageElement.prototype, "src")!;
+  const source = (image: HTMLImageElement, value: string) => {
+    if (!value.startsWith(`${BRING_ICON_ORIGIN}/`)) return value;
+    iconRequest(value);
+    originalAttribute.call(image, "data-bring-src", value);
+    return asset;
+  };
+  Element.prototype.setAttribute = function (name, value) {
+    originalAttribute.call(this, name, this instanceof HTMLImageElement && name === "src" ? source(this, value) : value);
+  };
+  Object.defineProperty(HTMLImageElement.prototype, "src", { ...originalSource,
+    set(value: string) { originalSource.set!.call(this, source(this, value)); },
+  });
+  return () => {
+    Element.prototype.setAttribute = originalAttribute;
+    Object.defineProperty(HTMLImageElement.prototype, "src", originalSource);
+    URL.revokeObjectURL(asset);
+  };
+}
+
 function installMock(options: MockOptions = {}) {
   deleteListRequest.mockClear();
+  addItemRequest.mockClear();
+  updateItemRequest.mockClear();
   const original = window.fetch;
   const data = structuredClone(initialData);
+  if (options.canonicalIcons) {
+    data.lists[0].items.forEach((item, index) => {
+      item.name = ["Milk", "Eggs", "Bread"][index];
+      item.specification = ["2 cartons", "6 free-range", "1 loaf"][index];
+    });
+  }
   data.bringConfigured = options.configured ?? true;
   let failRead = options.failRead;
   let failMutation = options.failMutation;
@@ -43,10 +84,13 @@ function installMock(options: MockOptions = {}) {
     const url = new URL(typeof input === "string" ? input : input instanceof URL ? input.href : input.url, window.location.origin);
     if (!url.pathname.includes("/groceries")) return original(input, init);
     const headers = new Headers(init?.headers);
-    expect(headers.get("Authorization")).toBe(["Bearer", "storybook-grocery-session"].join(" "));
-    expect(headers.get("x-supabase-auth-token")).toBe("storybook-grocery-session");
+    const token = headers.get("x-supabase-auth-token");
+    expect(["storybook-grocery-session", "storybook-refreshed-session"]).toContain(token);
+    expect(headers.get("Authorization")).toBe(["Bearer", token].join(" "));
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : {};
+    if (method === "POST" && url.pathname.endsWith("/items")) addItemRequest(body);
+    if (method === "PUT" && url.pathname.endsWith("/items")) updateItemRequest(body);
     if (method === "DELETE" && url.pathname.endsWith("/lists")) deleteListRequest(body);
     if (url.pathname.endsWith("/connection")) return response({ configured: data.bringConfigured, source: data.bringConfigured ? "stored" : null, canConfigure: true });
     if (url.pathname.endsWith("/groceries")) {
@@ -99,7 +143,9 @@ function installMock(options: MockOptions = {}) {
     }
     if (url.pathname.endsWith("/items")) {
       const list = data.lists.find(({ id }) => id === body.listId)!;
-      if (method === "POST") list.items.push({ id: `item-${++sequence}`, name: body.name, specification: body.specification, checked: false });
+      if (method === "POST" && !list.items.some((item) => item.name.trim().toLowerCase() === body.name.trim().toLowerCase())) {
+        list.items.push({ id: `item-${++sequence}`, name: body.name, specification: body.specification, checked: false });
+      }
       if (method === "PUT") Object.assign(list.items.find(({ id }) => id === body.id)!, body as GroceryItem);
       if (method === "DELETE") list.items = list.items.filter(({ id }) => id !== body.id);
       list.syncStatus = list.remoteId ? "pending" : "local";
@@ -122,20 +168,23 @@ function installMock(options: MockOptions = {}) {
 
 interface GroceryStoryProps {
   allowSwitch?: boolean;
+  allowTokenSwitch?: boolean;
   onNavigate: (path: string) => void;
   onOpenAccountSection: (section: "profile" | "households") => void;
   onSignOut: () => Promise<void>;
 }
 
-function GroceryStory({ allowSwitch = false, onNavigate, onOpenAccountSection, onSignOut }: GroceryStoryProps) {
+function GroceryStory({ allowSwitch = false, allowTokenSwitch = false, onNavigate, onOpenAccountSection, onSignOut }: GroceryStoryProps) {
   const [householdId, setHouseholdId] = useState("demo");
+  const [accessToken, setAccessToken] = useState("storybook-grocery-session");
   const [settings, setSettings] = useState(false);
   return <div className="app-shell">
     {allowSwitch && <button type="button" onClick={() => setHouseholdId("other")}>Switch household</button>}
+    {allowTokenSwitch && <button type="button" onClick={() => setAccessToken("storybook-refreshed-session")}>Refresh session</button>}
     {settings ? <GrocerySettingsPage householdId={householdId} householdName="The Riverstone household"
       accessToken="storybook-grocery-session" onBack={() => setSettings(false)} />
       : <GroceriesPage householdId={householdId} householdName={householdId === "demo" ? "The Riverstone household" : "Other household"}
-        accessToken="storybook-grocery-session" onOpenSettings={() => { onNavigate("/groceries/settings"); setSettings(true); }}
+        accessToken={accessToken} onOpenSettings={() => { onNavigate("/groceries/settings"); setSettings(true); }}
         currentUserLabel="Alex Riverstone" currentUserEmail="alex@example.com" currentUserInitials="AR" currentUserAvatarUrl={null}
         onOpenAccountSection={onOpenAccountSection} onSignOut={onSignOut}
         moduleNavigation={<ModuleNavigation activeId="shop-cook" onNavigate={(destination) => onNavigate(destination.path!)} />} />}
@@ -153,8 +202,10 @@ const meta: Meta<typeof GroceryStory> = {
     const previousTheme = root.getAttribute("data-theme");
     root.setAttribute("data-theme", options?.dark ? "dark" : "light");
     const restore = installMock(options);
+    const restoreIcons = installIconMock(options?.failIcons);
     return () => {
       restore();
+      restoreIcons();
       if (previousTheme === null) root.removeAttribute("data-theme");
       else root.setAttribute("data-theme", previousTheme);
     };
@@ -169,6 +220,64 @@ export const GroceryLists: Story = {
     await expect(await canvas.findByRole("heading", { name: "Weekly shop" })).toBeVisible();
     await expect(canvas.getByText("Sync pending")).toBeVisible();
     await expect(canvas.getByRole("checkbox", { name: "Check Sourdough bread" })).toBeChecked();
+    await expect(within(canvas.getByRole("region", { name: "To buy" })).getByText("Oat milk")).toBeVisible();
+    await expect(within(canvas.getByRole("region", { name: "Last used" })).getByText("Sourdough bread")).toBeVisible();
+  },
+};
+
+export const DarkGroceryLists: Story = {
+  parameters: { groceryMock: { dark: true, canonicalIcons: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await expect(within(canvas.getByRole("region", { name: "To buy" })).getByText("Milk")).toBeVisible();
+    await expect(within(canvas.getByRole("region", { name: "Last used" })).getByText("Bread")).toBeVisible();
+  },
+};
+
+export const BringIconsAndFallback: Story = {
+  parameters: { groceryMock: { canonicalIcons: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    const images = [...canvasElement.querySelectorAll<HTMLImageElement>(".grocery-product-icon")];
+    await expect(images).toHaveLength(3);
+    const expected = ["milch", "eier", "brot"].map((id) => `${BRING_ICON_ORIGIN}/assets/images/items/${id}.png`);
+    await expect(images.map((image) => image.dataset.bringSrc)).toEqual(expected);
+    for (const image of images) {
+      await expect(image).toHaveAttribute("referrerpolicy", "no-referrer");
+      await expect(image).toHaveAttribute("crossorigin", "anonymous");
+      await expect(image).toHaveAttribute("alt", "");
+      await waitFor(() => expect(image.complete && image.naturalWidth > 0).toBe(true));
+    }
+    await expect(groceryIconUrl(" MILCH ")).toBe(expected[0]);
+    await expect(groceryIconUrl("Eier")).toBe(expected[1]);
+    await expect(groceryIconUrl("Brot")).toBe(expected[2]);
+    await expect(groceryIconUrl("Family secret / custom?")).toBeUndefined();
+    const previousRequests = iconRequest.mock.calls.length;
+    await fireEvent.change(canvas.getByRole("textbox", { name: "Item name" }), { target: { value: "Family secret / custom?" } });
+    await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
+    const custom = (await canvas.findByText("Family secret / custom?")).closest("li")!;
+    await expect(custom.querySelector("img")).toBeNull();
+    await expect(custom.querySelector("svg.grocery-product-icon")).toBeVisible();
+    await expect(iconRequest).toHaveBeenCalledTimes(previousRequests);
+    await fireEvent.error(images[0]);
+    await waitFor(() => expect(canvasElement.querySelectorAll("img.grocery-product-icon")).toHaveLength(2));
+    await expect(canvas.getByText("Milk").closest("li")!.querySelector("svg.grocery-product-icon")).toBeVisible();
+    await expect(canvas.getByRole("checkbox", { name: "Check Milk" })).not.toBeDisabled();
+  },
+};
+
+export const UnavailableIconAssets: Story = {
+  parameters: { groceryMock: { canonicalIcons: true, failIcons: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await waitFor(() => expect(canvasElement.querySelectorAll("img.grocery-product-icon")).toHaveLength(0));
+    await expect(canvasElement.querySelectorAll(".grocery-product-icon")).toHaveLength(3);
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Check Bread" }));
+    await waitFor(() => expect(within(canvas.getByRole("region", { name: "To buy" })).getByText("Bread")).toBeVisible());
+    await expect(canvas.getByRole("checkbox", { name: "Check Bread" })).not.toBeChecked();
   },
 };
 
@@ -213,6 +322,7 @@ export const DeleteConflictRetry: Story = {
     await canvas.findByRole("heading", { name: "Weekly shop" });
     await userEvent.click(canvas.getByRole("button", { name: "Delete list Weekly shop" }));
     const dialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+    await waitFor(() => expect(page.getByRole("dialog", { name: "Delete grocery list?" })).toBeVisible());
     const confirm = dialog.getByRole("button", { name: "Delete list" });
     for (const attempt of [1, 2]) {
       await fireEvent.click(confirm);
@@ -240,6 +350,9 @@ export const DarkActionColors: Story = {
     const canvas = within(canvasElement);
     await canvas.findByRole("heading", { name: "Weekly shop" });
     await expect(canvasElement.ownerDocument.documentElement).toHaveAttribute("data-theme", "dark");
+    for (const chip of canvasElement.querySelectorAll(".MuiChip-root")) {
+      await expect(getComputedStyle(chip).color).toBe("rgb(243, 245, 255)");
+    }
     const actions = canvas.getAllByRole("button", { name: /^(Rename list|Delete list|Edit item|Remove item) / });
     const checkboxes = canvas.getAllByRole("checkbox").map((input) => input.parentElement!);
     for (const action of actions) {
@@ -359,17 +472,21 @@ export const LocalListAndItems: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "Save" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
     await userEvent.click(await canvas.findByRole("button", { name: /School snacks/ }));
-    await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
-    dialog = within(await page.findByRole("dialog", { name: "Add grocery item" }));
-    await fireEvent.change(dialog.getByRole("textbox", { name: "Item name" }), { target: { value: "Apples" } });
-    await fireEvent.change(dialog.getByRole("textbox", { name: "Quantity or details" }), { target: { value: "6 green" } });
-    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await fireEvent.change(canvas.getByRole("textbox", { name: "Item name" }), { target: { value: " Apples " } });
+    await fireEvent.change(canvas.getByRole("textbox", { name: "Quantity or details" }), { target: { value: " 6 green " } });
+    await userEvent.click(canvas.getByRole("textbox", { name: "Item name" }));
+    await userEvent.keyboard("{Enter}");
+    await expect(page.queryByRole("dialog")).toBeNull();
     await expect(await canvas.findByText("6 green")).toBeVisible();
+    await expect(canvas.getByRole("textbox", { name: "Item name" })).toHaveValue("");
+    await expect(canvas.getByRole("textbox", { name: "Quantity or details" })).toHaveValue("");
+    await expect(addItemRequest).toHaveBeenCalledWith({ listId: expect.any(String), name: "Apples", specification: "6 green" });
     await userEvent.click(canvas.getByRole("checkbox", { name: "Check Apples" }));
     await waitFor(() => expect(canvas.getByRole("checkbox", { name: "Check Apples" })).toBeChecked());
+    await expect(within(canvas.getByRole("region", { name: "Last used" })).getByText("Apples")).toBeVisible();
     await userEvent.click(canvas.getByRole("checkbox", { name: "Check Apples" }));
     await waitFor(() => expect(canvas.getByRole("checkbox", { name: "Check Apples" })).not.toBeChecked());
+    await expect(within(canvas.getByRole("region", { name: "To buy" })).getByText("Apples")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Edit item Apples" }));
     dialog = within(await page.findByRole("dialog", { name: "Edit grocery item" }));
     await fireEvent.change(dialog.getByRole("textbox", { name: "Item name" }), { target: { value: "Pears" } });
@@ -385,6 +502,110 @@ export const LocalListAndItems: Story = {
     await expect(await canvas.findByRole("heading", { name: "Lunch snacks" })).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Remove item Pears" }));
     await waitFor(() => expect(canvas.queryByText("Pears")).toBeNull());
+  },
+};
+
+export const InlineAddGuards: Story = {
+  parameters: { groceryMock: { delayedMutation: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    const name = canvas.getByRole("textbox", { name: "Item name" });
+    const details = canvas.getByRole("textbox", { name: "Quantity or details" });
+    const form = canvas.getByRole("form", { name: "Add grocery item" });
+    await expect(name).toHaveAttribute("maxlength", "160");
+    await expect(details).toHaveAttribute("maxlength", "500");
+    await fireEvent.change(name, { target: { value: "   " } });
+    await fireEvent.submit(form);
+    await expect(addItemRequest).not.toHaveBeenCalled();
+    await fireEvent.change(name, { target: { value: "a".repeat(161) } });
+    await fireEvent.submit(form);
+    await expect(addItemRequest).not.toHaveBeenCalled();
+    await fireEvent.change(name, { target: { value: "Rice" } });
+    await fireEvent.change(details, { target: { value: "a".repeat(501) } });
+    await fireEvent.submit(form);
+    await expect(addItemRequest).not.toHaveBeenCalled();
+    await fireEvent.change(details, { target: { value: "1 bag" } });
+    // Repeated submit events model rapid Enter presses before React can paint the busy state.
+    await fireEvent.submit(form);
+    await fireEvent.submit(form);
+    await fireEvent.submit(form);
+    await expect(addItemRequest).toHaveBeenCalledTimes(1);
+    await expect(name).toBeDisabled();
+    await expect(within(canvasElement.ownerDocument.body).queryByRole("dialog")).toBeNull();
+    await expect(await canvas.findByText("Rice")).toBeVisible();
+    await expect(canvas.getAllByText("Rice")).toHaveLength(1);
+    await expect(name).toHaveValue("");
+    await expect(details).toHaveValue("");
+  },
+};
+
+export const InlineDraftIsolation: Story = {
+  args: { allowSwitch: true, allowTokenSwitch: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    const fillDraft = async () => {
+      await fireEvent.change(canvas.getByRole("textbox", { name: "Item name" }), { target: { value: "Private draft" } });
+      await fireEvent.change(canvas.getByRole("textbox", { name: "Quantity or details" }), { target: { value: "For this list only" } });
+    };
+    const expectEmpty = async () => {
+      await expect(canvas.getByRole("textbox", { name: "Item name" })).toHaveValue("");
+      await expect(canvas.getByRole("textbox", { name: "Quantity or details" })).toHaveValue("");
+    };
+    await fillDraft();
+    await userEvent.click(canvas.getByRole("button", { name: /Weekend cooking 1/ }));
+    await expectEmpty();
+    await userEvent.click(canvas.getByRole("button", { name: /Weekly shop 2/ }));
+    await expectEmpty();
+    await fillDraft();
+    await userEvent.click(canvas.getByRole("button", { name: "Refresh session" }));
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await expectEmpty();
+    await fillDraft();
+    await userEvent.click(canvas.getByRole("button", { name: "Switch household" }));
+    await canvas.findByRole("heading", { name: "Other household list" });
+    await expectEmpty();
+    await expect(addItemRequest).not.toHaveBeenCalled();
+  },
+};
+
+export const ReaddLastUsedInline: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    const name = canvas.getByRole("textbox", { name: "Item name" });
+    const details = canvas.getByRole("textbox", { name: "Quantity or details" });
+    const toBuy = within(canvas.getByRole("region", { name: "To buy" }));
+    const lastUsed = within(canvas.getByRole("region", { name: "Last used" }));
+    for (const specification of ["", "2 loaves"]) {
+      await expect(lastUsed.getByRole("checkbox", { name: "Check Sourdough bread" })).toBeChecked();
+      await fireEvent.change(name, { target: { value: "  sourDOUGH bread  " } });
+      await fireEvent.change(details, { target: { value: specification ? ` ${specification} ` : "   " } });
+      await userEvent.click(name);
+      await userEvent.keyboard("{Enter}");
+      await waitFor(() => expect(toBuy.getByRole("checkbox", { name: "Check Sourdough bread" })).not.toBeChecked());
+      await expect(toBuy.getByText(specification || "1 loaf")).toBeVisible();
+      await expect(lastUsed.queryByText("Sourdough bread")).toBeNull();
+      await expect(updateItemRequest).toHaveBeenLastCalledWith({
+        listId: "weekly", id: "bread", checked: false, ...(specification ? { specification } : {}),
+      });
+      await expect(canvas.getAllByText("Sourdough bread")).toHaveLength(1);
+      await expect(name).toHaveValue("");
+      await expect(details).toHaveValue("");
+      if (!specification) {
+        await userEvent.click(toBuy.getByRole("checkbox", { name: "Check Sourdough bread" }));
+        await waitFor(() => expect(lastUsed.getByRole("checkbox", { name: "Check Sourdough bread" })).toBeChecked());
+      }
+    }
+    // An already-active item also reuses its id without erasing its quantity.
+    await fireEvent.change(name, { target: { value: "Sourdough bread" } });
+    await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
+    await waitFor(() => expect(name).toHaveValue(""));
+    await expect(canvas.getAllByText("Sourdough bread")).toHaveLength(1);
+    await expect(toBuy.getByText("2 loaves")).toBeVisible();
+    await expect(updateItemRequest).toHaveBeenLastCalledWith({ listId: "weekly", id: "bread", checked: false });
+    await expect(addItemRequest).not.toHaveBeenCalled();
   },
 };
 
@@ -425,7 +646,7 @@ export const UnavailableAndRetry: Story = {
     await expect(canvas.getByText("Bring unavailable")).toBeVisible();
     await expect(canvas.getByRole("button", { name: "Import from Bring" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Sync now" })).toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Add item" })).not.toBeDisabled();
+    await expect(canvas.getByRole("textbox", { name: "Item name" })).not.toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Disconnect Bring" })).not.toBeDisabled();
   },
 };
@@ -436,17 +657,16 @@ export const FailedSaveAndBringRetry: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await canvas.findByRole("heading", { name: "Weekly shop" });
+    await fireEvent.change(canvas.getByRole("textbox", { name: "Item name" }), { target: { value: "Bananas" } });
+    await fireEvent.change(canvas.getByRole("textbox", { name: "Quantity or details" }), { target: { value: "3 ripe" } });
     await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
-    let dialog = within(await page.findByRole("dialog", { name: "Add grocery item" }));
-    await fireEvent.change(dialog.getByRole("textbox", { name: "Item name" }), { target: { value: "Bananas" } });
-    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(dialog.getByText("Could not save grocery changes")).toBeVisible());
-    await expect(dialog.getByRole("textbox", { name: "Item name" })).toHaveValue("Bananas");
-    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
-    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await waitFor(() => expect(canvas.getByText("Could not save grocery changes")).toBeVisible());
+    await expect(canvas.getByRole("textbox", { name: "Item name" })).toHaveValue("Bananas");
+    await expect(canvas.getByRole("textbox", { name: "Quantity or details" })).toHaveValue("3 ripe");
+    await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
     await expect(await canvas.findByText("Bananas")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Import from Bring" }));
-    dialog = within(await page.findByRole("dialog", { name: "Import from Bring" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Import from Bring" }));
     await waitFor(() => expect(dialog.getByText("Bring is temporarily unreachable")).toBeVisible());
     await userEvent.click(dialog.getByRole("button", { name: "Retry" }));
     await expect(await dialog.findByRole("combobox", { name: "Bring list" })).toBeVisible();
@@ -500,7 +720,7 @@ export const HouseholdSwitchIgnoresStaleMutation: Story = {
     await new Promise((resolve) => setTimeout(resolve, 850));
     await expect(canvas.queryByText("Weekly shop")).toBeNull();
     await expect(canvas.queryByText("Saving grocery changes…")).toBeNull();
-    await expect(canvas.getByRole("button", { name: "Add item" })).not.toBeDisabled();
+    await expect(canvas.getByRole("textbox", { name: "Item name" })).not.toBeDisabled();
   },
 };
 
