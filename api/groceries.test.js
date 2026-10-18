@@ -241,6 +241,10 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
       .every((binding) => binding.type === "httpTrigger"), `${entry.name} is not SWA-compatible`);
   }
   const root = path.join(__dirname, "..");
+  const workflow = readFileSync(path.join(root,
+    ".github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml"), "utf8");
+  assert.match(workflow,
+    /api_build_command: "npm install --omit=dev --workspaces=false --package-lock=false --ignore-scripts"/);
   const output = path.join(root, "workers/grocery-sync-package");
   try {
     execFileSync(process.execPath, ["workers/build-grocery-sync.js"], { cwd: root });

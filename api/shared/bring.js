@@ -1,5 +1,3 @@
-const Bring = require("bring-shopping");
-
 const unavailable = () => new Error("Bring is unavailable; synchronization will retry later");
 
 const bounded = async (operation, timeoutMs) => {
@@ -37,17 +35,18 @@ const configuredHouseholds = (env = process.env) =>
     .map(([id]) => id);
 
 // This is the only module that knows the third-party client's API.
-const createBringClient = (householdId, { env = process.env, Client = Bring, timeoutMs = 15000 } = {}) => {
+const createBringClient = (householdId, { env = process.env, Client, timeoutMs = 15000 } = {}) => {
   const accounts = readAccounts(env);
   const account = Object.hasOwn(accounts, householdId) ? accounts[householdId] : null;
   return createClientFromCredentials(account, { Client, timeoutMs });
 };
 
-const createClientFromCredentials = (account, { Client = Bring, timeoutMs = 15000 } = {}) => {
+const createClientFromCredentials = (account, { Client, timeoutMs = 15000 } = {}) => {
   if (!account || typeof account.mail !== "string" || !account.mail.trim()
     || typeof account.password !== "string" || !account.password) return null;
 
-  const client = new Client({ mail: account.mail, password: account.password });
+  const BringClient = Client ?? require("bring-shopping");
+  const client = new BringClient({ mail: account.mail, password: account.password });
   let login;
   const call = (operation) => {
     const deadline = Date.now() + timeoutMs;

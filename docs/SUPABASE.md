@@ -15,6 +15,12 @@ Credential payloads use AES-256-GCM with a fresh nonce and household-bound authe
 
 The community Bring! SDK requires Node 18+. Its API/terms can change; deployment operators must verify their permitted use. No live Bring! calls are made in unit tests. Verify `GET /api/health?checks=1` and authenticated grocery endpoints against your configured Supabase instance after applying the migration.
 
+### Bring settings fails to load after migrations
+
+The SWA deployment must include `bring-shopping` inside the API artifact, not only in the repository's root workspace `node_modules`. Oryx's default workspace install can hoist the SDK out of `/api` even when deployment succeeds. The workflow's `api_build_command` performs a standalone production install after that step. Redeploy the updated workflow; rerunning SQL alone cannot repair an incomplete API artifact.
+
+Metadata/settings and local-list handlers defer SDK loading, so an optional client-loading failure does not prevent them starting. If settings still fail after redeployment, inspect the status/body of the `/api/households/…/groceries/connection` request and API host logs. Do not share authorization headers, credentials, or encrypted payloads. A missing/invalid encryption key disables credential editing but does not itself fail the settings read.
+
 ## 1) Create a Supabase project
 
 1. Create a new Supabase project.

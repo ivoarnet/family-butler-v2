@@ -1,9 +1,47 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const { execFileSync } = require("node:child_process");
 const { createBringClient, configuredHouseholds } = require("./shared/bring");
 
 const householdId = "11111111-1111-4111-8111-111111111111";
 const env = { BRING_ACCOUNTS_JSON: JSON.stringify({ [householdId]: { mail: "test@example.invalid", password: "test-only" } }) };
+
+test("settings and local grocery handlers load without the optional SDK", () => {
+  execFileSync(process.execPath, ["-e", `
+    const assert = require("node:assert/strict");
+    const { randomBytes } = require("node:crypto");
+    const Module = require("node:module");
+    const originalLoad = Module._load;
+    Module._load = function (name, ...args) {
+      if (name === "bring-shopping") throw new Error("SDK unavailable");
+      return originalLoad.call(this, name, ...args);
+    };
+    const { createHandler } = require("./groceries");
+    const store = {
+      getChildcareHousehold: async () => ({ id: "${householdId}" }),
+      getBringConnectionMetadata: async () => null,
+      getGroceries: async () => ({ lists: [] }),
+      mutateGroceries: async () => ({ ok: true }),
+    };
+    const env = { BRING_CREDENTIALS_KEY: randomBytes(32).toString("base64") };
+    const handler = createHandler(store, async () => "owner", undefined, { env });
+    const invoke = async (method, resource, body) => {
+      const context = {};
+      await handler(context, { method, params: { householdId: "${householdId}", resource }, body });
+      return context.res;
+    };
+    (async () => {
+      assert.deepEqual(await invoke("GET", "connection"), {
+        status: 200, body: { configured: false, source: null, canConfigure: true },
+      });
+      assert.equal((await invoke("GET")).status, 200);
+      assert.equal((await invoke("POST", "lists", { name: "Local groceries" })).status, 201);
+      assert.deepEqual(await invoke("PUT", "connection", {
+        mail: "test@example.invalid", password: "test-only",
+      }), { status: 503, body: { error: "unavailable" } });
+    })().catch(() => process.exit(1));
+  `], { cwd: __dirname });
+});
 
 test("Bring configuration is household-scoped and malformed config disables integration", () => {
   assert.equal(createBringClient(householdId, { env: {} }), null);
