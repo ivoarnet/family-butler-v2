@@ -2,7 +2,7 @@
 
 ## Status and scope
 
-This is the concept for growing Family Butler as a **modular monolith**: one React application, one Azure Functions API, and provider-based persistence. No plugin loader, separate servers, event broker, Azure infrastructure, or new module database tables are introduced by this change. The navigation registry and left drawer are implemented; the future contracts below are design guidance, not shipped APIs.
+Family Butler is a **modular monolith**: one React application, one Azure Functions API, and provider-based persistence. The navigation registry, left drawer, and Shop & Cook grocery module are implemented. No plugin loader, separate servers, event broker, or Azure infrastructure is introduced. Cross-module contracts below remain design guidance unless explicitly marked implemented.
 
 The [product overview](../PRODUCT_OVERVIEW.md) remains the canonical module/status index.
 
@@ -13,7 +13,7 @@ The [product overview](../PRODUCT_OVERVIEW.md) remains the canonical module/stat
 | Shared Parenting | Shipped Family Calendar sub-feature, named **Parenting Time** in existing Settings/API; owns parties, schedules, changes, and resolved responsibility. This concept does not rename existing UI or APIs. |
 | Reports & exports | Existing `/reports` workspace; actual reports/downloads are still planned. Accessed through the existing header shortcut, not module navigation. |
 | Tasks | Planned independent module: member-assigned Kanban tasks with due dates; provides due-task summaries to Calendar. A disabled **Tasks — Coming soon** navigation entry is present, but no Tasks workflow is implemented. |
-| Shop & Cook | Planned independent module: shopping lists/items, with a future Bring! adapter. No synchronization is implemented. |
+| Shop & Cook | Household grocery lists/items and optional Bring! synchronization through a server-side adapter; cooking/recipes and agent coverage remain planned. |
 | Gamification | Planned independent module: can react to other modules' committed domain events. Family Coins and award rules are deliberately unspecified. |
 
 Households, members, contacts, authentication, theme, navigation, and reusable UI are shared foundations, not competing calendar modules. A sub-feature belongs to a module's workflow but may have its own API/resolver and Settings entry. Future peer modules need not be children of Calendar.
@@ -56,15 +56,15 @@ Gamification can subscribe to task-completed events or later Shop & Cook/Calenda
 
 When a durable reaction is implemented, persist an outbox record atomically with the domain write through the provider layer; process it with a supported Azure Functions background/queue pattern selected in that release. Assume at-least-once delivery, retries/backoff and failed-message visibility. Consumers deduplicate by event ID plus consumer ID and commit their effect and processed marker together. Do not use a browser event bus or fire-and-forget HTTP call for durable rewards. Reprocessing or unavailable Gamification must not prevent completing a task. Document ordering needs and correction events before shipping consumers. No broker or worker is added now.
 
-### External integrations (future)
+### External integrations
 
-Shop & Cook owns the Bring! integration behind a server-side adapter, separate from its list domain. Keep OAuth tokens/credentials server-side in approved secret stores, never frontend settings or event payloads. Before implementation, verify the provider's supported API, authentication, and usage terms; availability is not assumed.
+Shop & Cook owns the Bring! integration behind a server-side adapter, separate from its list domain. Keep tokens/credentials server-side in approved secret stores, never frontend settings or event payloads. The community client is not an official Bring! API contract; availability is not assumed.
 
 Define per-household external list/item mappings, least-privilege consent and disconnect/revocation, conflict/deletion policies, retry and rate-limit handling, idempotent writes, and sync-origin markers to avoid echo loops. Authenticate any webhook and verify signatures/replay protection if supported. Provider outages must leave local lists usable and expose synchronization status. Agents call the same permission-checked product capability, not external providers directly.
 
 ## Navigation and open-question assumptions
 
-- `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/app/modules.ts` is the implemented ordered **main-module-only** registry. It starts with **Calendar** and **Tasks**. Calendar links to `/`; Tasks has no path and is disabled with a **Coming soon** label. Shop & Cook and Gamification are not listed yet.
+- `/home/runner/work/family-butler-v2/family-butler-v2/frontend/src/features/app/modules.ts` is the implemented ordered **main-module-only** registry. Calendar links to `/`; Shop & Cook has its own grocery workspace; Tasks has no path and is disabled with a **Coming soon** label. Gamification is not listed yet.
 - The narrow, icon-only MUI `SwipeableDrawer` centers module icons vertically, with accessible names and tooltips (including Tasks' **Coming soon** status). The active module's header icon opens it, replacing the separate hamburger button and decorative calendar badge. Header and drawer icons share the module registry's `icon` definition; auxiliary workspaces without an active module fall back to the Calendar icon. The trigger is available on Calendar, Settings, Reports, and Profile with a selected household. The overlay closes on selection, swipe, Escape, backdrop click, or its close button; focus is trapped inside and restored to the opening control after dismissal. Existing header shortcuts, default calendar route, and calendar layout remain intact.
 - Childcare and Shared Parenting remain Calendar sub-features, accessible through existing Settings tabs rather than side navigation. Reports & exports remains a workspace accessed through its existing header shortcut. Settings tabs remain local to Settings, and reload defaults to Members. Back/forward follows existing pathname behavior, not a history of Settings tabs.
 - **Assumption: per-family enabling/disabling is deferred.** All shipped destinations remain available. If adopted later, add household-scoped capability settings with enabled-by-default existing behavior; filter navigation and enforce access server-side. Hiding a menu entry is not authorization. Decide how disabling affects existing data and cross-module projections before rollout.

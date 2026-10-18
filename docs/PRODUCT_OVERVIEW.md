@@ -10,7 +10,7 @@ Family Butler helps households coordinate the people and plans involved in famil
 
 ## Core household and calendar capabilities — implemented
 
-**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The swipeable left-side module menu contains only main modules: **Calendar** and a disabled **Tasks — Coming soon** entry. Childcare and Parenting Time remain in Settings, and Reports & exports keeps its existing header shortcut. Existing calendar workflows remain available.
+**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The swipeable left-side module menu contains main modules: **Calendar**, **Shop & Cook**, and a disabled **Tasks — Coming soon** entry. Childcare and Parenting Time remain in Settings, and Reports & exports keeps its existing header shortcut. Existing calendar workflows remain available.
 
 See [Modular architecture and developer guide](modules/ARCHITECTURE.md) for module boundaries, navigation conventions, step-by-step integration, cross-module reads/events, and external-integration guidance.
 
@@ -48,13 +48,20 @@ Settings → Members records child classification, optional school building (for
 
 The event dialog offers an optional personal-event responsibility check. Until secure user-to-party mapping exists, party selection and warnings are development-only (`npm run dev`); production explains that identity cannot yet be determined. Warnings never block saving, and only the proposed first occurrence of a recurring event is checked. Childcare does not transfer parenting responsibility. Automated reminders, messaging, approvals, and parenting arrangement changes through agents remain out of scope. See [Parenting time model and API](DATA_MODEL.md#parenting-time--persisted-plan-and-server-resolver).
 
+## Shop & Cook — grocery lists and Bring! synchronization
+
+The Shop & Cook workspace owns household grocery lists, with item names, optional specifications (such as quantity), editing, removal, and check-off. Lists remain usable without Bring! credentials or during a provider outage. A server-side adapter connects a household's configured Bring! account to existing Bring! lists, imports their items, and synchronizes pending local changes and remote changes with durable retry state. A manual Sync action is available alongside background polling where an Azure Functions timer host is configured.
+
+Create remote lists in Bring! first, then link them in Shop & Cook: the maintained Node client does not expose remote list creation. Local lists do not require a remote counterpart. Pending local edits win conflicts on the same item; Bring!'s purchase/recent lists correspond to unchecked/checked items. Item names identify items within a Bring! list, so duplicate names are not separate purchases; use the specification for quantities. Disconnect preserves local data and stops synchronization. Grocery actions are not yet available through agent chat; cooking and recipes remain planned.
+
+See [Shop & Cook integration](modules/ARCHITECTURE.md#shop--cook-implementation), [data model](DATA_MODEL.md#groceries), and [setup](SUPABASE.md#groceries-and-bring).
+
 ## Planned modules
 
 - **Tasks:** member-assigned Kanban tasks with due dates; planned Calendar integration shows due tasks by day/member.
-- **Shop & Cook:** shopping lists and items; future synchronization with Bring! through a server-side adapter.
 - **Gamification:** future Family Coins and reactions to committed events from other modules. Rules and mechanics are not defined in this release.
 
-None of these modules, their agent workflows, the event/outbox infrastructure, or Bring! synchronization is implemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
+Tasks and Gamification, their agent workflows, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
 
 ## Managing module documentation
 
