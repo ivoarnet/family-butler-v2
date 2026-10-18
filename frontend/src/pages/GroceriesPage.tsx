@@ -30,6 +30,15 @@ type Editor = { kind: "list"; id?: string; name: string } |
 type BringPicker = { mode: "import" | "link"; localId?: string; remoteId: string };
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
+const actionColors = {
+  color: "var(--text-primary)",
+  "&.Mui-disabled": { color: "var(--text-secondary)" },
+};
+const checkboxColors = {
+  ...actionColors,
+  "&.Mui-checked": { color: "var(--accent-strong)" },
+  "&.Mui-checked.Mui-disabled": { color: "var(--text-secondary)" },
+};
 const syncLabel = (list: GroceryList, configured: boolean) => {
   if (!list.remoteId) return "Local list";
   if (!configured || list.syncStatus === "unavailable") return "Bring unavailable";
@@ -53,6 +62,7 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
+  const [deleteList, setDeleteList] = useState<GroceryList | null>(null);
   const [bringPicker, setBringPicker] = useState<BringPicker | null>(null);
   const [bringLists, setBringLists] = useState<BringList[]>([]);
   const [bringLoading, setBringLoading] = useState(false);
@@ -132,8 +142,8 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
     try {
       await action(api);
       if (active.signal.aborted) return;
-      close?.();
       await refresh();
+      if (!active.signal.aborted) close?.();
     } catch (failure) {
       if (active.signal.aborted) return;
       setError(errorMessage(failure));
@@ -283,7 +293,10 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
               <Typography component="h2" variant="h5" sx={{ fontWeight: 700, overflowWrap: "anywhere" }}>{selected.name}</Typography>
               <Typography color="text.secondary">{remaining} to buy · {selected.items.length - remaining} checked</Typography>
             </Box>
-            <IconButton disabled={disabled} aria-label={`Rename list ${selected.name}`} onClick={() => openEditor({ kind: "list", id: selected.id, name: selected.name })}><EditOutlinedIcon /></IconButton>
+            <Stack direction="row">
+              <IconButton sx={actionColors} disabled={disabled} aria-label={`Rename list ${selected.name}`} onClick={() => openEditor({ kind: "list", id: selected.id, name: selected.name })}><EditOutlinedIcon /></IconButton>
+              <IconButton sx={actionColors} disabled={disabled} aria-label={`Delete list ${selected.name}`} onClick={() => { setDialogError(null); setDeleteList(selected); }}><DeleteOutlineIcon /></IconButton>
+            </Stack>
           </Stack>
           <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, alignItems: "center", mt: 2 }}>
             <Chip label={syncLabel(selected, data.bringConfigured)} size="small" />
@@ -297,14 +310,14 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
           <Box component="ul" sx={{ listStyle: "none", px: 0, my: 2 }}>
             {selected.items.map((item: GroceryItem) => <Stack component="li" direction="row" key={item.id}
               sx={{ py: 1, borderBottom: "1px solid var(--border)", alignItems: "center", gap: 0.5 }}>
-              <Checkbox checked={item.checked} disabled={disabled} slotProps={{ input: { "aria-label": `Check ${item.name}` } }}
+              <Checkbox sx={checkboxColors} checked={item.checked} disabled={disabled} slotProps={{ input: { "aria-label": `Check ${item.name}` } }}
                 onChange={(_, checked) => void mutate((api) => api.updateItem(selected.id, item.id, { checked }))} />
               <Box sx={{ flex: 1, minWidth: 0, overflowWrap: "anywhere", opacity: item.checked ? 0.65 : 1 }}>
                 <Typography sx={{ textDecoration: item.checked ? "line-through" : undefined }}>{item.name}</Typography>
                 {item.specification && <Typography variant="body2" color="text.secondary">{item.specification}</Typography>}
               </Box>
-              <IconButton disabled={disabled} aria-label={`Edit item ${item.name}`} onClick={() => openEditor({ kind: "item", id: item.id, name: item.name, specification: item.specification ?? "" })}><EditOutlinedIcon fontSize="small" /></IconButton>
-              <IconButton disabled={disabled} aria-label={`Remove item ${item.name}`} onClick={() => void mutate((api) => api.removeItem(selected.id, item.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
+              <IconButton sx={actionColors} disabled={disabled} aria-label={`Edit item ${item.name}`} onClick={() => openEditor({ kind: "item", id: item.id, name: item.name, specification: item.specification ?? "" })}><EditOutlinedIcon fontSize="small" /></IconButton>
+              <IconButton sx={actionColors} disabled={disabled} aria-label={`Remove item ${item.name}`} onClick={() => void mutate((api) => api.removeItem(selected.id, item.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
             </Stack>)}
             {!selected.items.length && <Typography component="li" color="text.secondary" sx={{ py: 3 }}>Your list is empty. Add your first grocery item.</Typography>}
           </Box>
@@ -317,6 +330,22 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
       </Box>
       <Box role="status" aria-live="polite">{busy ? "Saving grocery changes…" : ""}</Box>
     </Box>
+    <GlassDialog open={!!deleteList} onClose={() => { if (!busyRef.current) setDeleteList(null); }}
+      aria-labelledby="grocery-delete-title" aria-describedby="grocery-delete-description" maxWidth="sm" fullWidth>
+      <DialogTitle id="grocery-delete-title">Delete grocery list?</DialogTitle>
+      <DialogContentPanel>
+        {dialogError && <Alert severity="error">{dialogError}</Alert>}
+        <Typography id="grocery-delete-description">
+          “{deleteList?.name}” and its items will be removed here. Any linked Bring list and its items will NOT be deleted.
+        </Typography>
+      </DialogContentPanel>
+      <DialogActionsBar>
+        <SecondaryButton disabled={busy} onClick={() => { if (!busyRef.current) setDeleteList(null); }}>Cancel</SecondaryButton>
+        <GradientButton disabled={busy} onClick={() => {
+          if (deleteList) void mutate((api) => api.removeList(deleteList.id), () => setDeleteList(null));
+        }}>Delete list</GradientButton>
+      </DialogActionsBar>
+    </GlassDialog>
     <GlassDialog open={!!editor} onClose={() => { if (!busy) setEditor(null); }} aria-labelledby="grocery-editor-title" maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={(event) => { event.preventDefault(); saveEditor(); }}>
         <DialogTitle id="grocery-editor-title">{editor?.kind === "list" ? editor.id ? "Rename list" : "New grocery list" : editor?.id ? "Edit grocery item" : "Add grocery item"}</DialogTitle>

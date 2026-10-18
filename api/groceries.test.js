@@ -42,11 +42,39 @@ test("local mutations require no Bring client or network calls", async () => {
   for (const [method, resource, body] of [
     ["POST", "lists", { name: "Food" }],
     ["PUT", "lists", { id: listId, name: "Home", remoteId: null }],
+    ["DELETE", "lists", { id: listId }],
     ["POST", "items", { listId, name: "Milk" }],
     ["PUT", "items", { listId, id: itemId, checked: true }],
     ["DELETE", "items", { listId, id: itemId }],
   ]) assert.ok((await invoke(handler, method, resource, body)).status < 300);
-  assert.equal(calls.length, 5);
+  assert.equal(calls.length, 6);
+  assert.deepEqual(calls[2], [householdId, "lists_delete", { id: listId }]);
+});
+
+test("list deletion validates IDs, scopes owner access, and propagates lease conflicts without Bring", async () => {
+  const calls = [];
+  const forbidden = () => { throw new Error("Bring must not be accessed"); };
+  const db = {
+    ...store(),
+    getChildcareHousehold: async (...args) => { calls.push(args); return { id: householdId }; },
+    getBringConnection: forbidden,
+    getBringConnectionMetadata: forbidden,
+    mutateGroceries: async (...args) => { calls.push(args); return { ok: true }; },
+  };
+  const handler = createHandler(db, async () => ownerId, forbidden);
+  for (const body of [undefined, null, [], {}, { id: null }, { id: "bad" }]) {
+    assert.equal((await invoke(handler, "DELETE", "lists", body)).status, 400);
+  }
+  assert.equal((await invoke(handler, "DELETE", "lists", { id: listId, remoteId: "ignored" })).status, 200);
+  assert.deepEqual(calls.at(-2), [householdId, ownerId]);
+  assert.deepEqual(calls.at(-1), [householdId, "lists_delete", { id: listId }]);
+  db.mutateGroceries = async () => { throw Object.assign(new Error("sync in progress"), { status: 409 }); };
+  assert.deepEqual(await invoke(handler, "DELETE", "lists", { id: listId }),
+    { status: 409, body: { error: "conflict; refresh and retry" } });
+  db.mutateGroceries = forbidden;
+  assert.equal((await invoke(createHandler(db, async () => null, forbidden), "DELETE", "lists", { id: listId })).status, 401);
+  db.getChildcareHousehold = async () => null;
+  assert.equal((await invoke(handler, "DELETE", "lists", { id: listId })).status, 404);
 });
 
 test("HTTP returns disconnected lists, rejects bad inputs, and masks provider secrets", async () => {
@@ -84,6 +112,9 @@ test("validation permits optional stable creation IDs and optimistic revisions",
   assert.throws(() => validateMutation("lists", "PUT", { id: listId, revision: -1 }), { status: 400 });
   assert.throws(() => validateMutation("items", "PUT", { id: itemId, listId, name: "bad\nname" }), { status: 400 });
   assert.throws(() => validateMutation("lists", "POST", { name: "Food", remoteId: "remote" }), { status: 400 });
+  assert.deepEqual(validateMutation("lists", "DELETE", { id: listId, revision: 2, name: "ignored", remoteId: "ignored" }),
+    { id: listId, revision: 2 });
+  assert.throws(() => validateMutation("lists", "DELETE", { id: listId, revision: -1 }), { status: 400 });
 });
 
 test("remote snapshots reject malformed, incomplete-shaped, and over-limit data", () => {
@@ -101,6 +132,10 @@ test("database facade sends bounded named RPC commands and handles conflicts", a
   await provider.getGroceries(householdId);
   assert.deepEqual(calls[0], ["rpc/grocery_command", {
     method: "POST", body: { p_household: householdId, p_action: "read", p_data: {} },
+  }]);
+  await provider.mutateGroceries(householdId, "lists_delete", { id: listId });
+  assert.deepEqual(calls[1], ["rpc/grocery_command", {
+    method: "POST", body: { p_household: householdId, p_action: "lists_delete", p_data: { id: listId } },
   }]);
   const conflict = createProvider(async () => ({ error: "stale sync", status: 409 }));
   await assert.rejects(conflict.renewGrocerySync(householdId, {}), { status: 409 });
@@ -272,6 +307,19 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
   const sql = (statement, db = database) => execFileSync("psql", [...args, "-d", db, "-c", statement],
     { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
   const quote = (value) => `'${String(value).replaceAll("'", "''")}'`;
+  const concurrentCommand = (statement, applicationName) => new Promise((resolve, reject) => {
+    execFile("psql", [...args, "-d", database, "-c", statement], {
+      encoding: "utf8", env: { ...process.env, PGAPPNAME: applicationName },
+    }, (error, stdout) => error ? reject(error) : resolve(JSON.parse(stdout.trim().split("\n").at(-1))));
+  });
+  const waitForSleepingTransaction = async (applicationName) => {
+    for (let attempt = 0; attempt < 100; attempt++) {
+      if (sql(`select exists (select 1 from pg_stat_activity where application_name = ${quote(applicationName)}
+        and wait_event = 'PgSleep')`) === "t") return;
+      await new Promise((resolve) => setTimeout(resolve, 10));
+    }
+    assert.fail("concurrent transaction did not reach its locked pause");
+  };
   sql(`create database ${database}`, "postgres");
   t.after(() => sql(`drop database ${database}`, "postgres"));
   sql(`
@@ -337,6 +385,77 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
     await assert.rejects(mutate("items_post", { listId, name: "Secret" }, otherHousehold), { status: 404 });
     await assert.rejects(provider.acquireGrocerySync(otherHousehold, listId), { status: 404 });
     await assert.rejects(mutate("lists_put", { id: listId, name: "Stale", revision: 0 }), { status: 409 });
+    assert.deepEqual(await mutate("lists_delete", { id: listId }, otherHousehold), { ok: true });
+    assert.ok((await snapshot()).some((list) => list.id === listId));
+  });
+
+  await t.test("local list deletion cascades all items and is idempotent", async () => {
+    const id = await createList();
+    await mutate("items_post", { listId: id, name: "Milk" });
+    await assert.rejects(mutate("lists_delete", { id, revision: 0 }), { status: 409 });
+    assert.equal((await mutate("lists_delete", { id })).ok, true);
+    assert.deepEqual(await mutate("lists_delete", { id }), { ok: true });
+    assert.equal((await snapshot()).some((list) => list.id === id), false);
+    assert.equal(sql(`select count(*) from public.grocery_items where list_id = '${id}'`), "0");
+  });
+
+  await t.test("linked list deletion works offline and preserves Bring contents without sending pending removals", async () => {
+    const id = await createList();
+    const remoteId = `remote-${id}`;
+    await mutate("lists_put", { id, remoteId });
+    const added = await mutate("items_post", { listId: id, name: "Milk" });
+    const bring = client(remoteId);
+    await syncList(provider, householdId, id, bring);
+    await mutate("items_delete", { listId: id, id: added.id });
+    await mutate("items_post", { listId: id, name: "Eggs" });
+    const before = [...bring.remote.values()];
+    const operations = [...bring.operations];
+    const handler = createHandler({ ...store(), ...provider }, async () => ownerId,
+      () => { throw new Error("offline"); });
+    assert.equal((await invoke(handler, "DELETE", "lists", { id })).status, 200);
+    assert.deepEqual([...bring.remote.values()], before);
+    assert.deepEqual(bring.operations, operations);
+    assert.equal(sql(`select count(*) from public.grocery_items where list_id = '${id}'`), "0");
+    await assert.rejects(provider.acquireGrocerySync(householdId, id), { status: 404 });
+    assert.equal((await snapshot()).some((list) => list.id === id), false);
+  });
+
+  await t.test("active leases block deletion; expired leases and stale workers cannot resurrect deleted lists", async () => {
+    const id = await createList();
+    await mutate("lists_put", { id, remoteId: `remote-${id}` });
+    await mutate("items_post", { listId: id, name: "Milk" });
+    const { lease } = await provider.acquireGrocerySync(householdId, id);
+    await assert.rejects(mutate("lists_delete", { id }), { status: 409 });
+    assert.equal(sql(`select count(*) from public.grocery_items where list_id = '${id}'`), "1");
+    sql(`update public.grocery_lists set lease_until = clock_timestamp() - interval '1 second' where id = '${id}'`);
+    await mutate("lists_delete", { id });
+    for (const action of ["renewGrocerySync", "releaseGrocerySync", "finishGrocerySync"]) {
+      await assert.rejects(provider[action](householdId, lease, [{ name: "Ghost", specification: "", checked: false }]),
+        { status: 404 });
+      await assert.rejects(provider[action](otherHousehold, lease, []), { status: 404 });
+    }
+    await assert.rejects(mutate("items_post", { listId: id, name: "Ghost" }), { status: 404 });
+    await assert.rejects(mutate("lists_put", { id, name: "Ghost" }), { status: 404 });
+    await assert.rejects(provider.acquireGrocerySync(householdId, id), { status: 404 });
+    assert.equal(sql(`select count(*) from public.grocery_items where list_id = '${id}'`), "0");
+  });
+
+  await t.test("a worker queued behind deletion cannot recreate the list or acquire a stale mapping", async () => {
+    const id = await createList();
+    await mutate("lists_put", { id, remoteId: `remote-${id}` });
+    const applicationName = `delete-race-${id}`;
+    const deletion = concurrentCommand(`begin; set local lock_timeout = '3s';
+      select id from public.households where id = '${householdId}' for update;
+      select pg_sleep(1);
+      select public.grocery_command('${householdId}', 'lists_delete', '{"id":"${id}"}');
+      commit;`, applicationName);
+    await waitForSleepingTransaction(applicationName);
+    const acquisition = concurrentCommand(`set lock_timeout = '3s';
+      select public.grocery_command('${householdId}', 'acquire', '{"id":"${id}"}')`, `acquire-${id}`);
+    const [deleted, acquired] = await Promise.all([deletion, acquisition]);
+    assert.equal(deleted.ok, true);
+    assert.equal(acquired.status, 404);
+    assert.equal((await snapshot()).some((list) => list.id === id), false);
   });
 
   await t.test("pending local wins, imports remote checkoffs, remote deletion, and no echo", async () => {
@@ -580,6 +699,27 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
     assert.equal(list.items.length, 1);
     assert.equal(list.remoteId, null);
     assert.equal(list.syncStatus, "local");
+  });
+
+  await t.test("deletion keeps household-first lock ordering with connection mutations", async () => {
+    execFileSync("psql", [...args, "-d", database], {
+      input: readFileSync(path.join(__dirname, "../docs/sql/bring-connections.sql"), "utf8"),
+      stdio: ["pipe", "pipe", "pipe"],
+    });
+    const id = await createList();
+    const applicationName = `connection-delete-race-${id}`;
+    const connection = concurrentCommand(`begin; set local lock_timeout = '3s';
+      select id from public.households where id = '${householdId}' for update;
+      select pg_sleep(1);
+      select public.bring_connection_command('${householdId}', false, null, 0);
+      commit;`, applicationName);
+    await waitForSleepingTransaction(applicationName);
+    const deletion = concurrentCommand(`set lock_timeout = '3s';
+      select public.grocery_command('${householdId}', 'lists_delete', '{"id":"${id}"}')`, `delete-${id}`);
+    const [changed, deleted] = await Promise.all([connection, deletion]);
+    assert.equal(changed.ok, true);
+    assert.equal(deleted.ok, true);
+    assert.equal((await snapshot()).some((list) => list.id === id), false);
   });
 
   await t.test("RLS owner-only reads and forbidden direct sync-state writes/RPC", () => {

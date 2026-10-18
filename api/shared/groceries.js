@@ -16,6 +16,7 @@ const validateMutation = (resource, method, input) => {
     assert(Number.isSafeInteger(input.revision) && input.revision >= 0, "revision is invalid");
     data.revision = input.revision;
   }
+  if (resource === "lists" && method === "DELETE") return data;
   if (resource === "items") {
     data.listId = validateId(input.listId, "listId");
     if (method === "POST" || input.name !== undefined) data.name = text(input.name, "name", 160);

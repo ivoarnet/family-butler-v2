@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added confirmed local grocery-list deletion (linked Bring! lists remain untouched) and theme-aware grocery action icons for dark mode. Rerun `docs/sql/groceries.sql` before deploying. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
 - Matched Shop & Cook settings navigation to Calendar settings, with back and home icons in the header and no duplicate back button in the content. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
 
 - Matched the Shop & Cook grocery header to Calendar: module navigation icon, grocery-settings icon, and the same account avatar menu for profile, households, and logout, without a back button. Updated screenshot: `docs/screenshots/grocery-lists.png`.

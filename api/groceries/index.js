@@ -62,7 +62,7 @@ const createHandler = (store, authenticate, createClient, options = {}) => async
       assert(data.lists.some((list) => list.id === listId), "list is not part of this household");
       const current = await client();
       body = await syncList(store, householdId, listId, current.client, current.revision);
-    } else if ((resource === "lists" && ["POST", "PUT"].includes(method))
+    } else if ((resource === "lists" && ["POST", "PUT", "DELETE"].includes(method))
       || (resource === "items" && ["POST", "PUT", "DELETE"].includes(method))) {
       const data = validateMutation(resource, method, request.body);
       if (resource === "lists" && data.remoteId != null) {

@@ -23,8 +23,11 @@ const initialData: GroceryData = {
 type MockOptions = {
   configured?: boolean; failRead?: boolean; failMutation?: boolean; delayed?: boolean;
   failBring?: boolean; failLink?: boolean; delayedMutation?: boolean; failSync?: boolean;
+  failDelete?: boolean; dark?: boolean;
 };
+const deleteListRequest = fn();
 function installMock(options: MockOptions = {}) {
+  deleteListRequest.mockClear();
   const original = window.fetch;
   const data = structuredClone(initialData);
   data.bringConfigured = options.configured ?? true;
@@ -33,6 +36,7 @@ function installMock(options: MockOptions = {}) {
   let failBring = options.failBring;
   let failLink = options.failLink;
   let failSync = options.failSync;
+  let failDelete = options.failDelete;
   let sequence = 0;
   const response = (payload: unknown, status = 200) => new Response(JSON.stringify(payload), { status, headers: { "Content-Type": "application/json" } });
   window.fetch = async (input, init) => {
@@ -43,6 +47,7 @@ function installMock(options: MockOptions = {}) {
     expect(headers.get("x-supabase-auth-token")).toBe("storybook-grocery-session");
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : {};
+    if (method === "DELETE" && url.pathname.endsWith("/lists")) deleteListRequest(body);
     if (url.pathname.endsWith("/connection")) return response({ configured: data.bringConfigured, source: data.bringConfigured ? "stored" : null, canConfigure: true });
     if (url.pathname.endsWith("/groceries")) {
       if (failRead) {
@@ -74,6 +79,15 @@ function installMock(options: MockOptions = {}) {
       return response({ error: "Bring link failed. Please retry." }, 503);
     }
     if (url.pathname.endsWith("/lists")) {
+      if (method === "DELETE") {
+        if (failDelete) {
+          failDelete = false;
+          return response({ error: "This list is syncing. Please retry." }, 409);
+        }
+        expect(Object.keys(body)).toEqual(["id"]);
+        data.lists = data.lists.filter(({ id }) => id !== body.id);
+        return response({ ok: true });
+      }
       if (method === "POST") {
         const list = { id: `new-${++sequence}`, name: body.name, remoteId: null, syncStatus: "local", lastSyncedAt: null, items: [] };
         data.lists.push(list);
@@ -133,7 +147,18 @@ const meta: Meta<typeof GroceryStory> = {
   component: GroceryStory,
   parameters: { layout: "fullscreen" },
   args: { onNavigate: fn(), onOpenAccountSection: fn(), onSignOut: fn(async () => undefined) },
-  beforeEach: ({ parameters }) => installMock(parameters.groceryMock as MockOptions | undefined),
+  beforeEach: ({ parameters }) => {
+    const options = parameters.groceryMock as MockOptions | undefined;
+    const root = document.documentElement;
+    const previousTheme = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", options?.dark ? "dark" : "light");
+    const restore = installMock(options);
+    return () => {
+      restore();
+      if (previousTheme === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", previousTheme);
+    };
+  },
 };
 export default meta;
 type Story = StoryObj<typeof GroceryStory>;
@@ -144,6 +169,93 @@ export const GroceryLists: Story = {
     await expect(await canvas.findByRole("heading", { name: "Weekly shop" })).toBeVisible();
     await expect(canvas.getByText("Sync pending")).toBeVisible();
     await expect(canvas.getByRole("checkbox", { name: "Check Sourdough bread" })).toBeChecked();
+  },
+};
+
+export const DeleteListsLocally: Story = {
+  parameters: { groceryMock: { configured: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: "Delete list Weekly shop" }));
+    let dialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+    await expect(dialog.getByText(/and its items will be removed here/)).toHaveTextContent("Any linked Bring list and its items will NOT be deleted.");
+    await userEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(deleteListRequest).not.toHaveBeenCalled();
+    await expect(canvas.getByRole("heading", { name: "Weekly shop" })).toBeVisible();
+    for (const name of ["Weekly shop", "Weekend cooking"]) {
+      await userEvent.click(canvas.getByRole("button", { name: `Delete list ${name}` }));
+      dialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+      await userEvent.click(dialog.getByRole("button", { name: "Delete list" }));
+      await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+      await expect(canvas.queryByRole("heading", { name })).toBeNull();
+      if (name === "Weekly shop") {
+        await expect(canvas.getByRole("heading", { name: "Weekend cooking" })).toBeVisible();
+        await expect(canvas.getByRole("button", { name: /Weekend cooking 1/ })).toHaveAttribute("aria-current", "true");
+        await expect(canvas.queryByText("Oat milk")).toBeNull();
+      }
+    }
+    await expect(canvas.getByText("No lists yet. Create a list to start shopping.")).toBeVisible();
+    await expect(canvas.getByRole("heading", { name: "A little less “what did we forget?”" })).toBeVisible();
+    await expect(deleteListRequest).toHaveBeenCalledTimes(2);
+    await expect(deleteListRequest).toHaveBeenNthCalledWith(1, { id: "weekly" });
+    await expect(deleteListRequest).toHaveBeenNthCalledWith(2, { id: "weekend" });
+  },
+};
+
+export const DeleteConflictRetry: Story = {
+  parameters: { groceryMock: { failDelete: true, delayedMutation: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: "Delete list Weekly shop" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+    const confirm = dialog.getByRole("button", { name: "Delete list" });
+    for (const attempt of [1, 2]) {
+      await fireEvent.click(confirm);
+      await fireEvent.click(confirm);
+      await expect(confirm).toBeDisabled();
+      await expect(dialog.getByRole("button", { name: "Cancel" })).toBeDisabled();
+      await userEvent.keyboard("{Escape}");
+      await expect(page.getByRole("dialog", { name: "Delete grocery list?" })).toBeVisible();
+      await expect(deleteListRequest).toHaveBeenCalledTimes(attempt);
+      if (attempt === 1) {
+        await expect(await dialog.findByText("This list is syncing. Please retry.")).toBeVisible();
+        await expect(confirm).not.toBeDisabled();
+        await expect(canvas.getByRole("heading", { name: "Weekly shop", hidden: true })).toBeInTheDocument();
+      }
+    }
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(canvas.getByRole("heading", { name: "Weekend cooking" })).toBeVisible();
+    await expect(deleteListRequest).toHaveBeenCalledTimes(2);
+  },
+};
+
+export const DarkActionColors: Story = {
+  parameters: { groceryMock: { dark: true, delayedMutation: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await expect(canvasElement.ownerDocument.documentElement).toHaveAttribute("data-theme", "dark");
+    const actions = canvas.getAllByRole("button", { name: /^(Rename list|Delete list|Edit item|Remove item) / });
+    const checkboxes = canvas.getAllByRole("checkbox").map((input) => input.parentElement!);
+    for (const action of actions) {
+      await expect(getComputedStyle(action).color).toBe("rgb(243, 245, 255)");
+      await expect(getComputedStyle(action.querySelector("svg")!).color).toBe("rgb(243, 245, 255)");
+    }
+    for (const checkbox of checkboxes) {
+      await expect(getComputedStyle(checkbox).color).toBe(checkbox.classList.contains("Mui-checked") ? "rgb(138, 151, 255)" : "rgb(243, 245, 255)");
+    }
+    await userEvent.click(canvas.getByRole("checkbox", { name: "Check Oat milk" }));
+    for (const action of [...actions, ...checkboxes]) {
+      await expect(action).toHaveClass("Mui-disabled");
+      await expect(getComputedStyle(action).color).toBe("rgb(164, 169, 194)");
+      await expect(getComputedStyle(action.querySelector("svg")!).color).toBe("rgb(164, 169, 194)");
+    }
+    await waitFor(() => expect(actions[0]).not.toBeDisabled());
   },
 };
 
@@ -370,7 +482,7 @@ export const ImportRetryKeepsCreatedList: Story = {
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
     await expect(await canvas.findByRole("heading", { name: "Dinner party" })).toBeVisible();
-    await expect(canvas.getAllByRole("button", { name: /Dinner party/ })).toHaveLength(2);
+    await expect(within(canvas.getByRole("navigation", { name: "Grocery lists" })).getAllByRole("button", { name: /Dinner party/ })).toHaveLength(1);
     await expect(await canvas.findByText("Synced with Bring")).toBeVisible();
   },
 };

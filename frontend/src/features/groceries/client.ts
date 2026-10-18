@@ -44,6 +44,7 @@ export function createGroceryClient(householdId: string, accessToken: string, si
     createList: (name: string) => request<{ id?: string; list?: { id: string } } | undefined>("/lists", "POST", { name }),
     updateList: (id: string, fields: { name?: string; remoteId?: string | null }) =>
       request("/lists", "PUT", { id, ...fields }),
+    removeList: (id: string) => request("/lists", "DELETE", { id }),
     addItem: (listId: string, fields: Pick<GroceryItem, "name" | "specification">) =>
       request("/items", "POST", { listId, ...fields }),
     updateItem: (listId: string, id: string, fields: Partial<Pick<GroceryItem, "name" | "specification" | "checked">>) =>

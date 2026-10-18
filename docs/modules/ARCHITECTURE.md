@@ -103,6 +103,7 @@ The HTTP base is `/api/households/{householdId}/groceries`:
 | `GET` base | Lists with active items, sync status, and `bringConfigured`; does not contact Bring!. |
 | `POST lists` | Creates a local list with `name`. |
 | `PUT lists` | Updates a list by `id`; optional `name` and `remoteId` (null disconnects). Linking verifies the configured account can access the remote list. |
+| `DELETE lists` | Deletes a local list by `id` and cascades its local items/history. Idempotent; leaves Bring! untouched and rejects an active synchronization lease with a retryable conflict. |
 | `POST items` | Adds an item with `listId`, `name`, optional `specification`/`checked`. |
 | `PUT items` | Changes an item by `listId`/`id`; fields omitted from the request remain unchanged. |
 | `DELETE items` | Removes an item by `listId`/`id`; retains pending remote deletion state. |

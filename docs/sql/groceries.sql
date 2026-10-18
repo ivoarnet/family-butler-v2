@@ -1,4 +1,5 @@
 -- Run after the core household tables. Optional encrypted credentials use bring-connections.sql.
+-- Rerun this file to enable local list deletion; linked Bring lists and their contents are preserved.
 begin;
 
 create table if not exists public.grocery_lists (
@@ -88,7 +89,7 @@ begin
     ), '[]'::jsonb));
   end if;
 
-  -- Connection mutations, links and sync acquisition share this lock order.
+  -- Connection mutations, links, deletion and sync acquisition share household-first lock order.
   perform 1 from public.households where id = p_household for update;
   if not found then return jsonb_build_object('error', 'not found', 'status', 404); end if;
   if p_action in ('acquire', 'lists_put') then
@@ -129,7 +130,11 @@ begin
 
   v_id := case when p_action like 'items_%' then (p_data->>'listId')::uuid else (p_data->>'id')::uuid end;
   select * into l from public.grocery_lists where id = v_id and household_id = p_household for update;
-  if not found then return jsonb_build_object('error', 'not found', 'status', 404); end if;
+  if not found then
+    -- Idempotent deletion never reveals or touches another household's list.
+    if p_action = 'lists_delete' then return jsonb_build_object('ok', true); end if;
+    return jsonb_build_object('error', 'not found', 'status', 404);
+  end if;
 
   if p_action in ('renew', 'finish', 'release') then
     if l.lease_token is null or not (p_data ?& array['token', 'fence', 'revision'])
@@ -247,9 +252,15 @@ begin
         from public.grocery_items gi where gi.list_id = l.id and (not gi.deleted or gi.pending)), '[]'::jsonb));
   end if;
 
-  if p_action = 'lists_put' then
+  if p_action in ('lists_put', 'lists_delete') then
     if p_data ? 'revision' and l.revision <> (p_data->>'revision')::bigint then
       return jsonb_build_object('error', 'stale revision', 'status', 409);
+    end if;
+    if p_action = 'lists_delete' then
+      -- The shared lease guard above excludes active workers. Cascading local
+      -- rows leaves Bring untouched; queued/stale workers now find no list.
+      delete from public.grocery_lists where id = l.id and household_id = p_household;
+      return jsonb_build_object('ok', true, 'id', l.id);
     end if;
     v_name := coalesce(btrim(p_data->>'name'), l.name);
     if length(v_name) not between 1 and 160 then return jsonb_build_object('error', 'invalid name', 'status', 400); end if;
