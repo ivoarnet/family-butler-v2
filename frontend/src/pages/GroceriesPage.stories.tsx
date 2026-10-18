@@ -4,6 +4,7 @@ import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
 import { ModuleNavigation } from "../features/app/components/ModuleNavigation";
 import type { GroceryData, GroceryItem } from "../features/groceries/types";
 import { GroceriesPage } from "./GroceriesPage";
+import { GrocerySettingsPage } from "./GrocerySettingsPage";
 
 const initialData: GroceryData = {
   bringConfigured: true,
@@ -42,6 +43,7 @@ function installMock(options: MockOptions = {}) {
     expect(headers.get("x-supabase-auth-token")).toBe("storybook-grocery-session");
     const method = init?.method ?? "GET";
     const body = init?.body ? JSON.parse(String(init.body)) : {};
+    if (url.pathname.endsWith("/connection")) return response({ configured: data.bringConfigured, source: data.bringConfigured ? "stored" : null, canConfigure: true });
     if (url.pathname.endsWith("/groceries")) {
       if (failRead) {
         failRead = false;
@@ -106,11 +108,14 @@ function installMock(options: MockOptions = {}) {
 
 function GroceryStory({ allowSwitch = false }: { allowSwitch?: boolean }) {
   const [householdId, setHouseholdId] = useState("demo");
+  const [settings, setSettings] = useState(false);
   return <div className="app-shell">
     {allowSwitch && <button type="button" onClick={() => setHouseholdId("other")}>Switch household</button>}
-    <GroceriesPage householdId={householdId} householdName={householdId === "demo" ? "The Riverstone household" : "Other household"}
-      accessToken="storybook-grocery-session" onGoHome={() => undefined}
-      moduleNavigation={<ModuleNavigation activeId="shop-cook" onNavigate={() => undefined} />} />
+    {settings ? <GrocerySettingsPage householdId={householdId} householdName="The Riverstone household"
+      accessToken="storybook-grocery-session" onBack={() => setSettings(false)} />
+      : <GroceriesPage householdId={householdId} householdName={householdId === "demo" ? "The Riverstone household" : "Other household"}
+        accessToken="storybook-grocery-session" onGoHome={() => undefined} onOpenSettings={() => setSettings(true)}
+        moduleNavigation={<ModuleNavigation activeId="shop-cook" onNavigate={() => undefined} />} />}
   </div>;
 }
 
@@ -129,6 +134,20 @@ export const GroceryLists: Story = {
     await expect(await canvas.findByRole("heading", { name: "Weekly shop" })).toBeVisible();
     await expect(canvas.getByText("Sync pending")).toBeVisible();
     await expect(canvas.getByRole("checkbox", { name: "Check Sourdough bread" })).toBeChecked();
+  },
+};
+
+export const OpenConnectionSettings: Story = {
+  parameters: { groceryMock: { configured: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: "Settings" }));
+    await expect(await canvas.findByRole("heading", { name: "Bring connection" })).toBeVisible();
+    await expect(canvas.getByLabelText(/Bring email/)).toHaveValue("");
+    await expect(canvas.getByLabelText(/Bring password/)).toHaveValue("");
+    await userEvent.click(canvas.getByRole("button", { name: "Back to groceries" }));
+    await expect(await canvas.findByRole("heading", { name: "Weekly shop" })).toBeVisible();
   },
 };
 

@@ -246,6 +246,8 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
     execFileSync(process.execPath, ["workers/build-grocery-sync.js"], { cwd: root });
     assert.equal(JSON.parse(readFileSync(path.join(output, "grocery-sync/function.json"), "utf8")).bindings[0].type, "timerTrigger");
     assert.ok(existsSync(path.join(output, "shared/db/providers/groceries.js")));
+    assert.ok(existsSync(path.join(output, "shared/bring-connections.js")));
+    assert.ok(existsSync(path.join(output, "shared/bring-credentials.js")));
     const packaged = JSON.parse(readFileSync(path.join(output, "package.json"), "utf8"));
     assert.deepEqual(packaged.dependencies, JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8")).dependencies);
     execFileSync(process.execPath, ["-e", 'require("./workers/grocery-sync-package/grocery-sync")().catch(() => process.exit(1))'], {
@@ -269,6 +271,7 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
   sql(`create database ${database}`, "postgres");
   t.after(() => sql(`drop database ${database}`, "postgres"));
   sql(`
+    select pg_advisory_xact_lock(17293021);
     do $$ begin
       if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon; end if;
       if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if;

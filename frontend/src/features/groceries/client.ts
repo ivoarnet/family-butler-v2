@@ -1,10 +1,10 @@
-import type { BringList, GroceryData, GroceryItem } from "./types";
+import type { BringConnection, BringList, GroceryData, GroceryItem } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
 export function createGroceryClient(householdId: string, accessToken: string, signal: AbortSignal) {
   const base = `${API_BASE_URL}/api/households/${encodeURIComponent(householdId)}/groceries`;
-  const request = async <T>(path: string, method = "GET", body?: unknown): Promise<T> => {
+  const request = async <T>(path: string, method = "GET", body?: unknown, secretSafe = false): Promise<T> => {
     const response = await fetch(`${base}${path}`, {
       method,
       signal,
@@ -16,6 +16,11 @@ export function createGroceryClient(householdId: string, accessToken: string, si
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
     });
     if (!response.ok) {
+      if (secretSafe) {
+        throw new Error(response.status === 403
+          ? "Only the household owner can manage the Bring connection."
+          : "Bring connection request failed. Check availability and try again.");
+      }
       let message = `Grocery request failed (${response.status}). Please try again.`;
       try {
         const error = await response.json() as { error?: string; message?: string };
@@ -31,6 +36,10 @@ export function createGroceryClient(householdId: string, accessToken: string, si
   };
 
   return {
+    connection: () => request<BringConnection>("/connection", "GET", undefined, true),
+    saveConnection: (mail: string, password: string) => request<BringConnection>("/connection", "PUT", { mail, password }, true),
+    disconnectConnection: () => request<BringConnection>("/connection", "DELETE", undefined, true),
+    testConnection: () => request<{ connected: boolean }>("/connection-test", "POST", undefined, true),
     read: () => request<GroceryData>(""),
     createList: (name: string) => request<{ id?: string; list?: { id: string } } | undefined>("/lists", "POST", { name }),
     updateList: (id: string, fields: { name?: string; remoteId?: string | null }) =>

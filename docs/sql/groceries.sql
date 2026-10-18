@@ -1,4 +1,4 @@
--- Run after the core household tables. No Bring credentials are stored in PostgreSQL.
+-- Run after the core household tables. Optional encrypted credentials use bring-connections.sql.
 begin;
 
 create table if not exists public.grocery_lists (
@@ -67,6 +67,7 @@ declare
   v_names text[];
   v_pending boolean;
   v_snapshot jsonb;
+  v_connection_revision bigint;
 begin
   if jsonb_typeof(p_data) is distinct from 'object' or octet_length(p_data::text) > 400000 then
     return jsonb_build_object('error', 'invalid command', 'status', 400);
@@ -85,6 +86,22 @@ begin
       ) order by lower(gl.name), gl.id)
       from public.grocery_lists gl where gl.household_id = p_household
     ), '[]'::jsonb));
+  end if;
+
+  -- Connection mutations, links and sync acquisition share this lock order.
+  perform 1 from public.households where id = p_household for update;
+  if not found then return jsonb_build_object('error', 'not found', 'status', 404); end if;
+  if p_action in ('acquire', 'lists_put') then
+    v_connection_revision := null;
+    if to_regclass('public.bring_connections') is not null then
+      execute 'select revision from public.bring_connections where household_id = $1'
+        into v_connection_revision using p_household;
+    end if;
+    if (p_data ? 'connectionRevision' or (v_connection_revision is not null
+      and (p_action = 'acquire' or p_data->>'remoteId' is not null)))
+      and coalesce(v_connection_revision, 0) is distinct from (p_data->>'connectionRevision')::bigint then
+      return jsonb_build_object('error', 'connection changed', 'status', 409);
+    end if;
   end if;
 
   if p_action = 'lists_post' then

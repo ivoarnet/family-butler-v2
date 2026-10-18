@@ -18,6 +18,11 @@ const getProvider = () => {
 };
 
 module.exports = {
+  getBringConnectionMetadata: (...args) => getProvider().getBringConnectionMetadata(...args),
+  getBringConnection: (...args) => getProvider().getBringConnection(...args),
+  listBringConnections: (...args) => getProvider().listBringConnections(...args),
+  saveBringConnection: (...args) => getProvider().saveBringConnection(...args),
+  disconnectBringConnection: (...args) => getProvider().disconnectBringConnection(...args),
   getGroceries: (...args) => getProvider().getGroceries(...args),
   mutateGroceries: (...args) => getProvider().mutateGroceries(...args),
   acquireGrocerySync: (...args) => getProvider().acquireGrocerySync(...args),

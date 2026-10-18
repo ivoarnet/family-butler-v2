@@ -23,3 +23,9 @@ export interface BringList {
   id: string;
   name: string;
 }
+
+export interface BringConnection {
+  configured: boolean;
+  source: "stored" | "environment" | null;
+  canConfigure: boolean;
+}

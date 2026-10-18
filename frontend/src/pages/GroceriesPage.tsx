@@ -15,6 +15,7 @@ interface GroceriesPageProps {
   householdName: string;
   accessToken: string;
   onGoHome: () => void;
+  onOpenSettings?: () => void;
   moduleNavigation?: ReactNode;
 }
 
@@ -36,7 +37,7 @@ export function GroceriesPage(props: GroceriesPageProps) {
   return <GrocerySession key={`${props.householdId}:${props.accessToken}`} {...props} />;
 }
 
-function GrocerySession({ householdId, householdName, accessToken, onGoHome, moduleNavigation }: GroceriesPageProps) {
+function GrocerySession({ householdId, householdName, accessToken, onGoHome, onOpenSettings, moduleNavigation }: GroceriesPageProps) {
   const [data, setData] = useState<GroceryData>({ lists: [], bringConfigured: false });
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -216,6 +217,7 @@ function GrocerySession({ householdId, householdName, accessToken, onGoHome, mod
           <Box><Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>Groceries, together</Typography>
             <Typography color="text.secondary">Keep household shopping in one place. Link an existing Bring list when you’re ready.</Typography></Box>
           <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center" }}>
+            {onOpenSettings && <SecondaryButton onClick={onOpenSettings}>Settings</SecondaryButton>}
             <SecondaryButton disabled={disabled || !data.bringConfigured} onClick={() => openBring("import")}>Import from Bring</SecondaryButton>
             <GradientButton startIcon={<AddIcon />} disabled={disabled} onClick={() => openEditor({ kind: "list", name: "" })}>New list</GradientButton>
           </Stack>

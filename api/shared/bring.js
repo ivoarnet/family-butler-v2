@@ -40,6 +40,10 @@ const configuredHouseholds = (env = process.env) =>
 const createBringClient = (householdId, { env = process.env, Client = Bring, timeoutMs = 15000 } = {}) => {
   const accounts = readAccounts(env);
   const account = Object.hasOwn(accounts, householdId) ? accounts[householdId] : null;
+  return createClientFromCredentials(account, { Client, timeoutMs });
+};
+
+const createClientFromCredentials = (account, { Client = Bring, timeoutMs = 15000 } = {}) => {
   if (!account || typeof account.mail !== "string" || !account.mail.trim()
     || typeof account.password !== "string" || !account.password) return null;
 
@@ -97,4 +101,4 @@ const createBringClient = (householdId, { env = process.env, Client = Bring, tim
   };
 };
 
-module.exports = { createBringClient, configuredHouseholds };
+module.exports = { createBringClient, createClientFromCredentials, configuredHouseholds };

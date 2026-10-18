@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added Shop & Cook connection settings for write-only Bring! credential entry, connection testing, and household disconnect. Credentials are encrypted server-side; account replacement/disconnect preserves local items and clears remote mappings. Rerun `docs/sql/groceries.sql`, apply `docs/sql/bring-connections.sql`, and configure `BRING_CREDENTIALS_KEY` on updated API/worker hosts. Updated settings screenshot: `docs/screenshots/bring-connection-settings.png`.
+
 - Added Shop & Cook household grocery lists with item editing/check-off, optional server-side Bring! linking/import and bidirectional synchronization, durable pending changes/retries, and mocked client tests. Apply `docs/sql/groceries.sql`; configure optional `BRING_ACCOUNTS_JSON` only server-side. Bring! list creation remains in Bring!; unattended polling needs a timer-capable Functions host rather than SWA managed APIs. Updated UI screenshot: `docs/screenshots/grocery-lists.png`.
 
 - Added Parenting as a List view on the calendar dashboard, with centered tabs above the filter and results sections, separate From/To filters, and a default three-month range. Updated screenshot: `docs/screenshots/dashboard-parenting-list.png`.

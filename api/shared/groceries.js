@@ -60,11 +60,11 @@ const listBringLists = async (client) => {
   } catch (_) { throw new Error("unavailable"); }
 };
 
-const syncList = async (db, householdId, listId, client) => {
+const syncList = async (db, householdId, listId, client, connectionRevision) => {
   if (!client) return { syncStatus: "unavailable" };
   let lease;
   try {
-    const state = await db.acquireGrocerySync(householdId, listId);
+    const state = await db.acquireGrocerySync(householdId, listId, connectionRevision);
     if (!state.lease) return { syncStatus: state.syncStatus || "local" };
     lease = state.lease;
     const deadline = Date.now() + 100000;

@@ -11,7 +11,9 @@ Shop & Cook owns household-scoped grocery lists and items, separate from calenda
 
 The initial bounded implementation supports up to 50 lists per household, 200 active items per list, and 2,000 retained rows per list including synchronization history. Names are limited to 160 characters; specifications to 500. Names are unique within a list ignoring surrounding whitespace and case. A synchronization lease temporarily rejects overlapping mutations with a retryable conflict rather than overwriting concurrent state.
 
-The authenticated Azure Functions API checks the existing household owner before accessing the provider; secrets remain server-side. Grocery data is not added to `HouseholdData`, calendar replacement writes, or agent chat actions. See [integration boundaries and conflict policy](modules/ARCHITECTURE.md#shop--cook-implementation). Plan
+The authenticated Azure Functions API checks the existing household owner before accessing the provider; secrets remain server-side. Grocery data is not added to `HouseholdData`, calendar replacement writes, or agent chat actions. See [integration boundaries and conflict policy](modules/ARCHITECTURE.md#shop--cook-implementation).
+
+Apply `docs/sql/bring-connections.sql` after the grocery schema for household Bring! connection settings. It stores encrypted credentials or an explicit disconnected override, with no browser read/write access. Encryption uses a server-managed key and household-bound authenticated data; APIs expose status only. Account replacement/disconnect atomically unlinks existing remote list mappings while preserving local content, so old mappings are never silently applied to a replacement account. An explicit disconnected row suppresses the legacy environment-account fallback. No credentials are stored in list/item rows or returned through household data reads.
 
 ## Recorded decisions
 
