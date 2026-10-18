@@ -600,7 +600,7 @@ export const AccountMenuDismissal: Story = {
     await expect(avatar).toHaveAttribute("aria-expanded", "false");
     await userEvent.click(avatar);
     await expect(canvas.getByRole("menu", { name: "Account menu" })).toBeVisible();
-    await userEvent.click(canvas.getByRole("heading", { name: "Groceries, together" }));
+    await userEvent.click(canvas.getByRole("heading", { name: "Weekly shop" }));
     await expect(canvas.queryByRole("menu")).toBeNull();
     await expect(avatar).toHaveAttribute("aria-expanded", "false");
     await expect(args.onOpenAccountSection).not.toHaveBeenCalled();
@@ -632,11 +632,15 @@ export const LocalListAndItems: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await canvas.findByRole("heading", { name: "Weekly shop" });
-    await userEvent.click(canvas.getByRole("button", { name: "New list" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Open settings" }));
+    await canvas.findByRole("heading", { name: "Grocery lists" });
+    await userEvent.click(canvas.getByRole("button", { name: "Create list" }));
     let dialog = within(await page.findByRole("dialog", { name: "New grocery list" }));
     await fireEvent.change(dialog.getByRole("textbox", { name: "List name" }), { target: { value: "School snacks" } });
-    await userEvent.click(dialog.getByRole("button", { name: "Save" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Save list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Go to groceries" }));
+    await canvas.findByRole("heading", { name: "Weekly shop" });
     await userEvent.click(await canvas.findByRole("button", { name: /School snacks/ }));
     await fireEvent.change(canvas.getByRole("textbox", { name: "Item name" }), { target: { value: " Apples " } });
     await fireEvent.change(canvas.getByRole("textbox", { name: "Quantity or details" }), { target: { value: " 6 green " } });
@@ -780,25 +784,34 @@ export const BringLinkImportAndSync: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await canvas.findByRole("heading", { name: "Weekly shop" });
+    await expect(canvas.queryByRole("heading", { name: "Groceries, together" })).toBeNull();
+    await expect(canvas.queryByText(/\d+ to buy · \d+ checked/)).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: "Sync now" }));
-    await expect(await canvas.findByText("Synced with Bring")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Disconnect Bring" }));
-    await expect(await canvas.findByText("Local list")).toBeVisible();
+    await expect(await canvas.findByText(/^Last synced:/)).toBeVisible();
+    await expect(canvas.queryByText("Synced with Bring")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: /Weekend cooking/ }));
+    await expect(canvas.queryByRole("button", { name: "Sync now" })).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: "Link Bring list" }));
     let dialog = within(await page.findByRole("dialog", { name: "Link Bring list" }));
     await userEvent.click(await dialog.findByRole("combobox", { name: "Bring list" }));
     await userEvent.click(await page.findByRole("option", { name: "Bring weekly" }));
     await userEvent.click(dialog.getByRole("button", { name: "Link list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
-    await expect(await canvas.findByText("Synced with Bring")).toBeVisible();
+    await expect(canvas.queryByText("Synced with Bring")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Open settings" }));
+    await canvas.findByRole("heading", { name: "Grocery lists" });
     await userEvent.click(canvas.getByRole("button", { name: "Import from Bring" }));
     dialog = within(await page.findByRole("dialog", { name: "Import from Bring" }));
     await userEvent.click(await dialog.findByRole("combobox", { name: "Bring list" }));
     await userEvent.click(await page.findByRole("option", { name: "Dinner party" }));
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Go to groceries" }));
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: /Dinner party/ }));
     await expect(await canvas.findByRole("heading", { name: "Dinner party" })).toBeVisible();
     await expect(await canvas.findByText("Fresh basil")).toBeVisible();
+    await expect(canvas.queryByText("Synced with Bring")).toBeNull();
   },
 };
 
@@ -809,11 +822,8 @@ export const UnavailableAndRetry: Story = {
     await expect(await canvas.findByText("Grocery service temporarily unavailable")).toBeVisible();
     await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
     await canvas.findByRole("heading", { name: "Weekly shop" });
-    await expect(canvas.getByText("Bring unavailable")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Import from Bring" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Sync now" })).toBeDisabled();
     await expect(canvas.getByRole("textbox", { name: "Item name" })).not.toBeDisabled();
-    await expect(canvas.getByRole("button", { name: "Disconnect Bring" })).not.toBeDisabled();
   },
 };
 
@@ -831,9 +841,11 @@ export const FailedSaveAndBringRetry: Story = {
     await expect(canvas.getByRole("textbox", { name: "Quantity or details" })).toHaveValue("3 ripe");
     await userEvent.click(canvas.getByRole("button", { name: "Add item" }));
     await expect(await canvas.findByText("Bananas")).toBeVisible();
+    await userEvent.click(canvas.getByRole("button", { name: "Open settings" }));
+    await canvas.findByRole("heading", { name: "Grocery lists" });
     await userEvent.click(canvas.getByRole("button", { name: "Import from Bring" }));
     const dialog = within(await page.findByRole("dialog", { name: "Import from Bring" }));
-    await waitFor(() => expect(dialog.getByText("Bring is temporarily unreachable")).toBeVisible());
+    await waitFor(() => expect(dialog.getByText("Could not load Bring lists. Please retry.")).toBeVisible());
     await userEvent.click(dialog.getByRole("button", { name: "Retry" }));
     await expect(await dialog.findByRole("combobox", { name: "Bring list" })).toBeVisible();
     await userEvent.click(dialog.getByRole("button", { name: "Cancel" }));
@@ -859,6 +871,8 @@ export const ImportRetryKeepsCreatedList: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: "Open settings" }));
+    await canvas.findByRole("heading", { name: "Grocery lists" });
     await userEvent.click(canvas.getByRole("button", { name: "Import from Bring" }));
     const dialog = within(await page.findByRole("dialog", { name: "Import from Bring" }));
     await userEvent.click(await dialog.findByRole("combobox", { name: "Bring list" }));
@@ -867,9 +881,13 @@ export const ImportRetryKeepsCreatedList: Story = {
     await waitFor(() => expect(dialog.getByText("Bring link failed. Please retry.")).toBeVisible());
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(await canvas.findByText("Dinner party")).toBeVisible();
+    await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Go to groceries" }));
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: /Dinner party/ }));
     await expect(await canvas.findByRole("heading", { name: "Dinner party" })).toBeVisible();
     await expect(within(canvas.getByRole("navigation", { name: "Grocery lists" })).getAllByRole("button", { name: /Dinner party/ })).toHaveLength(1);
-    await expect(await canvas.findByText("Synced with Bring")).toBeVisible();
+    await expect(canvas.queryByText("Synced with Bring")).toBeNull();
   },
 };
 
@@ -896,17 +914,21 @@ export const ImportUnavailableKeepsLocalLink: Story = {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: "Open settings" }));
+    await canvas.findByRole("heading", { name: "Grocery lists" });
     await userEvent.click(canvas.getByRole("button", { name: "Import from Bring" }));
     const dialog = within(await page.findByRole("dialog", { name: "Import from Bring" }));
     await userEvent.click(await dialog.findByRole("combobox", { name: "Bring list" }));
     await userEvent.click(await page.findByRole("option", { name: "Dinner party" }));
     await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
+    await expect(await dialog.findByText("Could not import the Bring list. Your local list is kept. Please retry.")).toBeVisible();
+    await expect(canvas.getByText("Dinner party").closest("tr")).toHaveTextContent("Bring unavailable");
+    await userEvent.click(dialog.getByRole("button", { name: "Import list" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
-    await expect(await canvas.findByRole("heading", { name: "Dinner party" })).toBeVisible();
-    await expect(await canvas.findByText("Bring unavailable")).toBeVisible();
-    await expect(canvas.getByRole("button", { name: "Disconnect Bring" })).not.toBeDisabled();
-    await expect(canvas.getByText("Bring is unavailable; your list remains linked")).toBeVisible();
-    await userEvent.click(canvas.getByRole("button", { name: "Sync now" }));
+    await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Go to groceries" }));
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(canvas.getByRole("button", { name: /Dinner party/ }));
     await expect(await canvas.findByText("Fresh basil")).toBeVisible();
+    await expect(canvas.getByRole("button", { name: "Sync now" })).toBeEnabled();
   },
 };
