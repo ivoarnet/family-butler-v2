@@ -183,6 +183,10 @@ body,
   grid-template-columns: auto 1fr auto;
 }
 
+.dashboard-header.grocery-header {
+  grid-template-columns: 1fr auto;
+}
+
 .header-branding {
   display: flex;
   align-items: center;

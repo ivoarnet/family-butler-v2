@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Matched the Shop & Cook grocery header to Calendar: module navigation icon, grocery-settings icon, and the same account avatar menu for profile, households, and logout, without a back button. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
 - Fixed SWA API packaging so workspace dependency hoisting cannot omit the Bring! SDK. Deferred optional client loading to keep connection settings and local grocery handlers available if the SDK cannot load.
 
 - Added Shop & Cook connection settings for write-only Bring! credential entry, connection testing, and household disconnect. Credentials are encrypted server-side; account replacement/disconnect preserves local items and clears remote mappings. Rerun `docs/sql/groceries.sql`, apply `docs/sql/bring-connections.sql`, and configure `BRING_CREDENTIALS_KEY` on updated API/worker hosts. Updated settings screenshot: `docs/screenshots/bring-connection-settings.png`.

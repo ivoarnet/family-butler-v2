@@ -1,6 +1,6 @@
 import { useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { ModuleNavigation } from "../features/app/components/ModuleNavigation";
 import type { GroceryData, GroceryItem } from "../features/groceries/types";
 import { GroceriesPage } from "./GroceriesPage";
@@ -106,7 +106,14 @@ function installMock(options: MockOptions = {}) {
   return () => { window.fetch = original; };
 }
 
-function GroceryStory({ allowSwitch = false }: { allowSwitch?: boolean }) {
+interface GroceryStoryProps {
+  allowSwitch?: boolean;
+  onNavigate: (path: string) => void;
+  onOpenAccountSection: (section: "profile" | "households") => void;
+  onSignOut: () => Promise<void>;
+}
+
+function GroceryStory({ allowSwitch = false, onNavigate, onOpenAccountSection, onSignOut }: GroceryStoryProps) {
   const [householdId, setHouseholdId] = useState("demo");
   const [settings, setSettings] = useState(false);
   return <div className="app-shell">
@@ -114,8 +121,10 @@ function GroceryStory({ allowSwitch = false }: { allowSwitch?: boolean }) {
     {settings ? <GrocerySettingsPage householdId={householdId} householdName="The Riverstone household"
       accessToken="storybook-grocery-session" onBack={() => setSettings(false)} />
       : <GroceriesPage householdId={householdId} householdName={householdId === "demo" ? "The Riverstone household" : "Other household"}
-        accessToken="storybook-grocery-session" onGoHome={() => undefined} onOpenSettings={() => setSettings(true)}
-        moduleNavigation={<ModuleNavigation activeId="shop-cook" onNavigate={() => undefined} />} />}
+        accessToken="storybook-grocery-session" onOpenSettings={() => { onNavigate("/groceries/settings"); setSettings(true); }}
+        currentUserLabel="Alex Riverstone" currentUserEmail="alex@example.com" currentUserInitials="AR" currentUserAvatarUrl={null}
+        onOpenAccountSection={onOpenAccountSection} onSignOut={onSignOut}
+        moduleNavigation={<ModuleNavigation activeId="shop-cook" onNavigate={(destination) => onNavigate(destination.path!)} />} />}
   </div>;
 }
 
@@ -123,6 +132,7 @@ const meta: Meta<typeof GroceryStory> = {
   title: "Shop & Cook/Groceries",
   component: GroceryStory,
   parameters: { layout: "fullscreen" },
+  args: { onNavigate: fn(), onOpenAccountSection: fn(), onSignOut: fn(async () => undefined) },
   beforeEach: ({ parameters }) => installMock(parameters.groceryMock as MockOptions | undefined),
 };
 export default meta;
@@ -137,12 +147,84 @@ export const GroceryLists: Story = {
   },
 };
 
-export const OpenConnectionSettings: Story = {
-  parameters: { groceryMock: { configured: false } },
-  play: async ({ canvasElement }) => {
+export const HeaderNavigation: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    const header = within(canvas.getByRole("banner"));
+    await expect(header.getByRole("heading", { name: "Shop & Cook" })).toBeVisible();
+    await expect(header.queryByRole("button", { name: /back|home|calendar/i })).toBeNull();
+    await expect(header.getAllByRole("button")).toHaveLength(3);
+    await expect(header.getByRole("button", { name: "Open settings" }).textContent).toBe("");
+    await expect(canvas.queryByRole("button", { name: "Settings" })).toBeNull();
+    await userEvent.click(header.getByRole("button", { name: "Open module menu" }));
+    const menu = within(await page.findByRole("dialog", { name: "Modules" }));
+    await expect(menu.getByRole("button", { name: "Shop & Cook" })).toHaveAttribute("aria-current", "page");
+    await userEvent.click(menu.getByRole("button", { name: "Calendar" }));
+    await expect(args.onNavigate).toHaveBeenCalledTimes(1);
+    await expect(args.onNavigate).toHaveBeenCalledWith("/");
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "Modules" })).toBeNull());
+  },
+};
+
+export const AccountMenuActions: Story = {
+  play: async ({ canvasElement, args }) => {
     const canvas = within(canvasElement);
     await canvas.findByRole("heading", { name: "Weekly shop" });
-    await userEvent.click(canvas.getByRole("button", { name: "Settings" }));
+    const avatar = canvas.getByRole("button", { name: "Alex Riverstone · Open account menu" });
+    await expect(avatar).toHaveTextContent("AR");
+    await expect(avatar).toHaveAttribute("aria-haspopup", "menu");
+    for (const [label, section] of [["My profile", "profile"], ["My households", "households"]] as const) {
+      await userEvent.click(avatar);
+      await expect(avatar).toHaveAttribute("aria-expanded", "true");
+      const menu = within(canvas.getByRole("menu", { name: "Account menu" }));
+      await expect(menu.getByText("Alex Riverstone")).toBeVisible();
+      await expect(menu.getByText("alex@example.com")).toBeVisible();
+      await expect(menu.getByText("AR")).toBeVisible();
+      await userEvent.click(menu.getByRole("button", { name: label }));
+      await expect(args.onOpenAccountSection).toHaveBeenLastCalledWith(section);
+      await expect(canvas.queryByRole("menu")).toBeNull();
+      await expect(avatar).toHaveAttribute("aria-expanded", "false");
+    }
+    await expect(args.onOpenAccountSection).toHaveBeenCalledTimes(2);
+    await userEvent.click(avatar);
+    await userEvent.click(canvas.getByRole("button", { name: "Logout" }));
+    await expect(args.onSignOut).toHaveBeenCalledTimes(1);
+    await expect(args.onSignOut).toHaveBeenCalledWith();
+    await expect(canvas.queryByRole("menu")).toBeNull();
+    await expect(avatar).toHaveAttribute("aria-expanded", "false");
+  },
+};
+
+export const AccountMenuDismissal: Story = {
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    const avatar = canvas.getByRole("button", { name: "Alex Riverstone · Open account menu" });
+    await userEvent.click(avatar);
+    await expect(canvas.getByRole("menu", { name: "Account menu" })).toBeVisible();
+    await userEvent.keyboard("{Escape}");
+    await expect(canvas.queryByRole("menu")).toBeNull();
+    await expect(avatar).toHaveAttribute("aria-expanded", "false");
+    await userEvent.click(avatar);
+    await expect(canvas.getByRole("menu", { name: "Account menu" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("heading", { name: "Groceries, together" }));
+    await expect(canvas.queryByRole("menu")).toBeNull();
+    await expect(avatar).toHaveAttribute("aria-expanded", "false");
+    await expect(args.onOpenAccountSection).not.toHaveBeenCalled();
+    await expect(args.onSignOut).not.toHaveBeenCalled();
+  },
+};
+
+export const OpenConnectionSettings: Story = {
+  parameters: { groceryMock: { configured: false } },
+  play: async ({ canvasElement, args }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("heading", { name: "Weekly shop" });
+    await userEvent.click(within(canvas.getByRole("banner")).getByRole("button", { name: "Open settings" }));
+    await expect(args.onNavigate).toHaveBeenCalledTimes(1);
+    await expect(args.onNavigate).toHaveBeenCalledWith("/groceries/settings");
     await expect(await canvas.findByRole("heading", { name: "Bring connection" })).toBeVisible();
     await expect(canvas.getByLabelText(/Bring email/)).toHaveValue("");
     await expect(canvas.getByLabelText(/Bring password/)).toHaveValue("");

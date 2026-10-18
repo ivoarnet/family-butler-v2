@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import ArrowBackIcon from "@mui/icons-material/ArrowBack";
+import SettingsIcon from "@mui/icons-material/Settings";
 import ShoppingBasketOutlinedIcon from "@mui/icons-material/ShoppingBasketOutlined";
 import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -9,13 +9,19 @@ import { Alert, Box, Checkbox, Chip, CircularProgress, DialogTitle, IconButton, 
 import { createGroceryClient } from "../features/groceries/client";
 import type { BringList, GroceryData, GroceryItem, GroceryList } from "../features/groceries/types";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
+import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 
 interface GroceriesPageProps {
   householdId: string;
   householdName: string;
   accessToken: string;
-  onGoHome: () => void;
   onOpenSettings?: () => void;
+  currentUserLabel: string;
+  currentUserEmail: string;
+  currentUserInitials: string;
+  currentUserAvatarUrl: string | null;
+  onOpenAccountSection: (section: "profile" | "households") => void;
+  onSignOut: () => Promise<void>;
   moduleNavigation?: ReactNode;
 }
 
@@ -37,7 +43,10 @@ export function GroceriesPage(props: GroceriesPageProps) {
   return <GrocerySession key={`${props.householdId}:${props.accessToken}`} {...props} />;
 }
 
-function GrocerySession({ householdId, householdName, accessToken, onGoHome, onOpenSettings, moduleNavigation }: GroceriesPageProps) {
+function GrocerySession({ householdId, householdName, accessToken, onOpenSettings, moduleNavigation,
+  currentUserLabel, currentUserEmail, currentUserInitials, currentUserAvatarUrl, onOpenAccountSection, onSignOut }: GroceriesPageProps) {
+  const [isAvatarMenuOpen, setIsAvatarMenuOpen] = useState(false);
+  const avatarMenuRef = useRef<HTMLDivElement | null>(null);
   const [data, setData] = useState<GroceryData>({ lists: [], bringConfigured: false });
   const [selectedId, setSelectedId] = useState("");
   const [loading, setLoading] = useState(true);
@@ -54,6 +63,22 @@ function GrocerySession({ householdId, householdName, accessToken, onGoHome, onO
   const busyRef = useRef(false);
   const readVersion = useRef(0);
   const bringVersion = useRef(0);
+
+  useEffect(() => {
+    if (!isAvatarMenuOpen) return;
+    const handlePointerDown = (event: MouseEvent) => {
+      if (!avatarMenuRef.current?.contains(event.target as Node)) setIsAvatarMenuOpen(false);
+    };
+    const handleEscape = (event: KeyboardEvent) => {
+      if (event.key === "Escape") setIsAvatarMenuOpen(false);
+    };
+    window.addEventListener("mousedown", handlePointerDown);
+    window.addEventListener("keydown", handleEscape);
+    return () => {
+      window.removeEventListener("mousedown", handlePointerDown);
+      window.removeEventListener("keydown", handleEscape);
+    };
+  }, [isAvatarMenuOpen]);
 
   const refresh = useCallback(async () => {
     const currentClient = client.current;
@@ -203,13 +228,28 @@ function GrocerySession({ householdId, householdName, accessToken, onGoHome, onO
   const remaining = selected?.items.filter(({ checked }) => !checked).length ?? 0;
 
   return <div className="dashboard-page settings-page">
-    <header className="dashboard-header settings-header" role="banner">
-      <button type="button" className="icon-button" onClick={onGoHome} aria-label="Go to calendar"><ArrowBackIcon fontSize="small" /></button>
+    <header className="dashboard-header grocery-header" role="banner">
       <div className="header-branding">
         {moduleNavigation}
         <div><h1>Shop &amp; Cook</h1><p>{householdName}</p></div>
       </div>
-      <ShoppingBasketOutlinedIcon aria-hidden="true" />
+      <div className="header-meta">
+        {onOpenSettings && <button type="button" className="icon-button" onClick={onOpenSettings}
+          title="Open settings" aria-label="Open settings"><SettingsIcon fontSize="small" /></button>}
+        <div className="avatar-menu-wrapper" ref={avatarMenuRef}>
+          <button type="button" className="icon-button user-avatar-button"
+            onClick={() => setIsAvatarMenuOpen((current) => !current)}
+            title={`${currentUserLabel} · Open account menu`} aria-label={`${currentUserLabel} · Open account menu`}
+            aria-expanded={isAvatarMenuOpen} aria-haspopup="menu">{currentUserInitials}</button>
+          {isAvatarMenuOpen && <AvatarContextMenu
+            currentUserLabel={currentUserLabel} currentUserEmail={currentUserEmail}
+            currentUserInitials={currentUserInitials} currentUserAvatarUrl={currentUserAvatarUrl}
+            onProfileClick={() => { setIsAvatarMenuOpen(false); onOpenAccountSection("profile"); }}
+            onHouseholdsClick={() => { setIsAvatarMenuOpen(false); onOpenAccountSection("households"); }}
+            onLogoutClick={() => { setIsAvatarMenuOpen(false); void onSignOut(); }}
+          />}
+        </div>
+      </div>
     </header>
     <Box component="main" className="settings-main" sx={{ gap: 3 }}>
       <section className="settings-card">
@@ -217,7 +257,6 @@ function GrocerySession({ householdId, householdName, accessToken, onGoHome, onO
           <Box><Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>Groceries, together</Typography>
             <Typography color="text.secondary">Keep household shopping in one place. Link an existing Bring list when you’re ready.</Typography></Box>
           <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-            {onOpenSettings && <SecondaryButton onClick={onOpenSettings}>Settings</SecondaryButton>}
             <SecondaryButton disabled={disabled || !data.bringConfigured} onClick={() => openBring("import")}>Import from Bring</SecondaryButton>
             <GradientButton startIcon={<AddIcon />} disabled={disabled} onClick={() => openEditor({ kind: "list", name: "" })}>New list</GradientButton>
           </Stack>

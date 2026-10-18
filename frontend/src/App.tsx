@@ -917,7 +917,10 @@ export function App() {
       accessToken={authSession.access_token} onBack={() => navigateTo("/groceries")} moduleNavigation={moduleNavigation} />
   ) : pathname === "/groceries" ? (
     <GroceriesPage householdId={activeHouseholdId!} householdName={householdData.householdName}
-      accessToken={authSession.access_token} onGoHome={() => navigateTo("/")} onOpenSettings={() => navigateTo("/groceries/settings")} moduleNavigation={moduleNavigation} />
+      accessToken={authSession.access_token} onOpenSettings={() => navigateTo("/groceries/settings")} moduleNavigation={moduleNavigation}
+      currentUserLabel={currentUserLabel} currentUserEmail={currentUserEmail}
+      currentUserInitials={currentUserInitials} currentUserAvatarUrl={currentUserAvatarUrl}
+      onOpenAccountSection={openSettingsSection} onSignOut={signOut} />
   ) : pathname === "/reports" ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
