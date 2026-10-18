@@ -5,6 +5,7 @@ import { Alert, Box, Chip, CircularProgress, DialogTitle, Stack, Typography } fr
 import { createGroceryClient } from "../features/groceries/client";
 import { GroceryListSettings } from "../features/groceries/GroceryListSettings";
 import type { BringConnection } from "../features/groceries/types";
+import { SettingsInfo } from "../features/settings/components/SettingsInfo";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 
 interface Props {
@@ -122,8 +123,9 @@ function ConnectionSession({ householdId, householdName, accessToken, onBack, mo
       <GroceryListSettings householdId={householdId} accessToken={accessToken} connectionRevision={connectionRevision} />
       <section className="settings-card">
         <Stack sx={{ gap: 2.5 }}>
-          <Box><Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>Bring connection</Typography>
-            <Typography color="text.secondary">Connect one Bring account for this household. Only the household owner can save or disconnect it.</Typography></Box>
+          <div className="section-toolbar"><span className="section-title-info"><h2>Bring connection</h2>
+            <SettingsInfo label="Bring connection information" text="Connect one Bring account for this household. Only the household owner can save or disconnect it." />
+          </span></div>
           {loading && <Stack direction="row" spacing={1} sx={{ alignItems: "center" }} role="status"><CircularProgress size={20} />Loading connection settings…</Stack>}
           {error && <Alert severity="error" action={!connection && !loading ? <SecondaryButton onClick={() => void load()}>Retry</SecondaryButton> : undefined}>{error}</Alert>}
           {notice && <Alert severity="success" role="status">{notice}</Alert>}
@@ -134,8 +136,9 @@ function ConnectionSession({ householdId, householdName, accessToken, onBack, mo
             <Alert severity="warning">Saving replaces the household’s Bring account and unlinks all current Bring list mappings. Local lists and items are kept. Link or import Bring lists again after saving.</Alert>
           </>}
           <Box component="form" autoComplete="off" onSubmit={(event) => { event.preventDefault(); void run("save"); }} sx={{ display: "grid", gap: 2 }}>
-            <Typography component="h3" sx={{ fontWeight: 700 }}>Save a Bring account</Typography>
-            <Typography color="text.secondary" variant="body2">Credentials are write-only: existing email and password are never shown. Saving tests the account before storing it securely on the server.</Typography>
+            <span className="section-title-info"><Typography component="h3" sx={{ fontWeight: 700 }}>Save a Bring account</Typography>
+              <SettingsInfo label="Bring account credential information" text="Credentials are write-only: existing email and password are never shown. Saving tests the account before storing it securely on the server." />
+            </span>
             <FormField label="Bring email" name="bring-mail" type="email" autoComplete="off" required fullWidth disabled={disabled}
               value={mail} onChange={(event) => setMail(event.target.value)} />
             <FormField label="Bring password" name="bring-password" type="password" autoComplete="new-password" required fullWidth disabled={disabled}

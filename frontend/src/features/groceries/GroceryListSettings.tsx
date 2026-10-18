@@ -6,6 +6,7 @@ import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientB
 import { createGroceryClient } from "./client";
 import { syncLabel } from "./syncLabel";
 import type { GroceryData } from "./types";
+import { SettingsInfo } from "../settings/components/SettingsInfo";
 
 interface Props {
   householdId: string;
@@ -75,30 +76,35 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
   };
 
   const openEditor = (draft: { id?: string; name: string }) => { setSaveError(""); setEditor(draft); };
-  return <section className="settings-card" aria-labelledby="grocery-lists-heading">
+  return <section className="settings-card" aria-labelledby="grocery-lists-heading" style={{ minWidth: 0 }}>
     <Stack sx={{ gap: 2.5 }}>
-      <Box>
-        <Typography id="grocery-lists-heading" variant="h5" component="h2" sx={{ fontWeight: 700 }}>Grocery lists</Typography>
-        <Typography color="text.secondary">Create and rename household lists here or in the Shop &amp; Cook workspace. Items stay unchanged.</Typography>
-      </Box>
-      <Box><GradientButton startIcon={<AddIcon />} disabled={busy} onClick={() => openEditor({ name: "" })}>Create list</GradientButton></Box>
+      <div className="section-toolbar">
+        <span className="section-title-info"><h2 id="grocery-lists-heading">Grocery lists</h2>
+          <SettingsInfo label="Grocery list information" text="Create and rename household lists here or in the Shop & Cook workspace. Items stay unchanged. Local lists are not linked to Bring. Linked does not mean synced; status reflects the last recorded sync. Link, import and sync lists in the workspace." />
+        </span>
+        <button type="button" className="primary-pill no-wrap-button" disabled={busy} onClick={() => openEditor({ name: "" })}>
+          <AddIcon fontSize="small" /> Create list
+        </button>
+      </div>
       {loading && <Stack direction="row" spacing={1} sx={{ alignItems: "center" }} role="status"><CircularProgress size={20} />Loading grocery lists…</Stack>}
       {error && <Alert severity="error" action={<SecondaryButton disabled={loading || busy} onClick={() => void reload()}>Retry lists</SecondaryButton>}>{error}</Alert>}
       {data && !data.lists.length && <Typography color="text.secondary">No grocery lists yet. Create your first list to get started.</Typography>}
-      {data && data.lists.length > 0 && <Stack component="ul" sx={{ m: 0, p: 0, listStyle: "none", gap: 2 }}>
-        {data.lists.map((list) => <Box component="li" key={list.id} sx={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 1.5, borderTop: "1px solid var(--border)", pt: 2 }}>
-          <Box sx={{ flex: "1 1 180px", minWidth: 0 }}>
-            <Typography component="h3" sx={{ fontWeight: 700, overflowWrap: "anywhere" }}>{list.name}</Typography>
-            <Chip size="small" label={syncLabel(list, data.bringConfigured)} sx={{ mt: 1, color: "var(--text-primary)", bgcolor: "var(--dialog-field)" }} />
-            {list.remoteId && list.lastSyncedAt && Number.isFinite(Date.parse(list.lastSyncedAt)) && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
-              Last synced: <time dateTime={list.lastSyncedAt}>{new Date(list.lastSyncedAt).toLocaleString()}</time>
-            </Typography>}
-          </Box>
-          <SecondaryButton startIcon={<EditOutlinedIcon />} aria-label={`Rename ${list.name}`} disabled={busy}
-            onClick={() => openEditor({ id: list.id, name: list.name })}>Rename</SecondaryButton>
-        </Box>)}
-      </Stack>}
-      <Typography variant="body2" color="text.secondary">Local lists are not linked to Bring. Linked does not mean synced; status reflects the last recorded sync. Link, import and sync lists in the workspace.</Typography>
+      {data && data.lists.length > 0 && <div className="table-scroll">
+        <table className="settings-table" aria-label="Grocery lists">
+          <thead><tr><th scope="col">Name</th><th scope="col">Bring sync status</th><th scope="col">Last synced</th><th scope="col" className="actions-column">Actions</th></tr></thead>
+          <tbody>{data.lists.map((list) => <tr key={list.id}>
+            <td style={{ overflowWrap: "anywhere" }}>{list.name}</td>
+            <td><Chip size="small" label={syncLabel(list, data.bringConfigured)} sx={{ color: "var(--text-primary)", bgcolor: "var(--dialog-field)" }} /></td>
+            <td>{list.remoteId && list.lastSyncedAt && Number.isFinite(Date.parse(list.lastSyncedAt))
+              ? <time dateTime={list.lastSyncedAt}>{new Date(list.lastSyncedAt).toLocaleString()}</time>
+              : "—"}</td>
+            <td className="actions-cell"><div className="icon-actions">
+              <button type="button" className="icon-button compact-icon-button" aria-label={`Rename ${list.name}`} title="Rename list" disabled={busy}
+                onClick={() => openEditor({ id: list.id, name: list.name })}><EditOutlinedIcon fontSize="small" /></button>
+            </div></td>
+          </tr>)}</tbody>
+        </table>
+      </div>}
     </Stack>
     <GlassDialog open={!!editor} onClose={() => { if (!busy) setEditor(null); }} aria-labelledby="grocery-list-editor-title">
       <Box component="form" onSubmit={(event) => { event.preventDefault(); void save(); }}>

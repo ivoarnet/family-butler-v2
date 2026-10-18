@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Matched grocery settings to the shared settings-table layout with compact rename actions, and moved secondary guidance into title info icons like Parenting settings. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
+
 - Added grocery-list creation and renaming to Shop & Cook settings, with an overview showing each list's Bring! link/sync status. Existing shopping-workspace controls remain available. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
 
 - Replaced hardcoded grocery icon mappings with Bring catalog/item-detail metadata persisted during synchronization, with validated image references and local fallback. Rerun `docs/sql/groceries.sql` and `docs/sql/bring-connections.sql`, deploy updated API/worker code, then sync linked lists. Updated screenshot: `docs/screenshots/grocery-lists.png`.

@@ -391,11 +391,59 @@ export const ListOverviewStatuses: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await canvas.findByText("Weekly shop");
+    const table = within(canvas.getByRole("table", { name: "Grocery lists" }));
+    await expect(canvasElement.ownerDocument.documentElement.scrollWidth).toBeLessThanOrEqual(window.innerWidth);
+    await expect(table.getAllByRole("columnheader").map((header) => header.textContent)).toEqual(["Name", "Bring sync status", "Last synced", "Actions"]);
+    await expect(table.getAllByRole("row")).toHaveLength(8);
+    const weekly = within(table.getByRole("row", { name: /Weekly shop/ }));
+    await expect(weekly.getByText("Synced with Bring")).toBeVisible();
+    await expect(weekly.getByRole("button", { name: "Rename Weekly shop" })).toHaveAttribute("title", "Rename list");
+    await expect(weekly.getAllByRole("cell")[2].querySelector("time")).toHaveAttribute("datetime", "2026-10-18T10:30:00Z");
+    const local = within(table.getByRole("row", { name: /Weekend cooking/ }));
+    await expect(local.getAllByRole("cell")[2]).toHaveTextContent("—");
+    for (const row of table.getAllByRole("row").slice(1)) {
+      await expect(within(row).getByRole("button", { name: /^Rename / })).toBeEnabled();
+      await expect(within(row).getAllByRole("cell")).toHaveLength(4);
+    }
     for (const label of ["Local list", "Synced with Bring", "Linked to Bring", "Sync pending", "Bring unavailable"]) {
       await expect(canvas.getByText(label)).toBeVisible();
     }
     await expect(canvas.getAllByText("Sync failed")).toHaveLength(2);
-    await expect(canvas.getByText(/Last synced:/)).toBeVisible();
+    await expect(table.getByRole("columnheader", { name: "Last synced" })).toBeVisible();
+  },
+};
+
+export const SettingsInformationTooltips: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByText("Weekly shop");
+    const information = [
+      { name: "Grocery list information", text: /Create and rename household lists here/ },
+      { name: "Bring connection information", text: /Connect one Bring account for this household/ },
+      { name: "Bring account credential information", text: /Credentials are write-only/ },
+    ];
+    for (const { name, text } of information) {
+      await expect(page.queryByText(text)).toBeNull();
+      const button = canvas.getByRole("button", { name });
+      button.focus();
+      await userEvent.tab({ shift: true });
+      await userEvent.tab();
+      await expect(button).toHaveFocus();
+      await userEvent.hover(button);
+      await expect(await page.findByRole("tooltip")).toHaveTextContent(text);
+      if (name === "Grocery list information") {
+        await expect(page.getByRole("tooltip")).toHaveTextContent("Items stay unchanged.");
+        await expect(page.getByRole("tooltip")).toHaveTextContent("Local lists are not linked to Bring. Linked does not mean synced; status reflects the last recorded sync.");
+        await expect(page.getByRole("tooltip")).toHaveTextContent("Link, import and sync lists in the workspace.");
+      }
+      await userEvent.keyboard("{Escape}");
+      await waitFor(() => expect(page.queryByRole("tooltip")).toBeNull());
+      await userEvent.unhover(button);
+      await userEvent.tab();
+    }
+    await expect(canvas.getByText(/Saving replaces the household/)).toBeVisible();
+    await expect(listWrites).not.toHaveBeenCalled();
   },
 };
 
