@@ -420,6 +420,14 @@ export const CreateAndRenameLists: Story = {
     await expect(dialog.getByRole("button", { name: "Save list" })).toBeDisabled();
     await fireEvent.change(dialog.getByLabelText(/List name/), { target: { value: "   " } });
     await expect(dialog.getByRole("button", { name: "Save list" })).toBeDisabled();
+    await expect(dialog.getByLabelText(/List name/)).toHaveAttribute("maxlength", "160");
+    await fireEvent.change(dialog.getByLabelText(/List name/), { target: { value: "x".repeat(161) } });
+    await expect(dialog.getByRole("button", { name: "Save list" })).toBeDisabled();
+    await waitFor(() => expect(dialog.getByText("Use 160 characters or fewer.")).toBeVisible());
+    await fireEvent.submit(dialog.getByLabelText(/List name/).closest("form")!);
+    await expect(listWrites).not.toHaveBeenCalled();
+    await fireEvent.change(dialog.getByLabelText(/List name/), { target: { value: "x".repeat(160) } });
+    await expect(dialog.getByRole("button", { name: "Save list" })).toBeEnabled();
     await userEvent.keyboard("{Escape}");
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
     await expect(listWrites).not.toHaveBeenCalled();

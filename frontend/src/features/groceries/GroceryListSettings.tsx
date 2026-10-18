@@ -53,7 +53,7 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
 
   const save = async () => {
     const current = session.current;
-    if (!current || current.controller.signal.aborted || pending.current || !editor?.name.trim()) return;
+    if (!current || current.controller.signal.aborted || pending.current || !editor?.name.trim() || editor.name.trim().length > 160) return;
     pending.current = true;
     setBusy(true);
     setSaveError("");
@@ -106,11 +106,14 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
         <DialogContentPanel>
           {saveError && <Alert severity="error">{saveError}</Alert>}
           <FormField autoFocus fullWidth required label="List name" value={editor?.name ?? ""} disabled={busy}
+            slotProps={{ htmlInput: { maxLength: 160 } }}
+            error={(editor?.name.trim().length ?? 0) > 160}
+            helperText={(editor?.name.trim().length ?? 0) > 160 ? "Use 160 characters or fewer." : undefined}
             onChange={(event) => setEditor((previous) => previous ? { ...previous, name: event.target.value } : previous)} />
         </DialogContentPanel>
         <DialogActionsBar>
           <SecondaryButton disabled={busy} onClick={() => setEditor(null)}>Cancel</SecondaryButton>
-          <GradientButton type="submit" disabled={busy || !editor?.name.trim()}>{busy ? "Saving…" : "Save list"}</GradientButton>
+          <GradientButton type="submit" disabled={busy || !editor?.name.trim() || editor.name.trim().length > 160}>{busy ? "Saving…" : "Save list"}</GradientButton>
         </DialogActionsBar>
       </Box>
     </GlassDialog>
