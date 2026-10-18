@@ -5,7 +5,7 @@ import AddIcon from "@mui/icons-material/Add";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import SyncIcon from "@mui/icons-material/Sync";
-import { Alert, Box, Checkbox, Chip, CircularProgress, DialogTitle, IconButton, MenuItem, Stack, Typography } from "@mui/material";
+import { Alert, Box, Chip, CircularProgress, DialogTitle, IconButton, MenuItem, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
 import { GroceryProductIcon } from "../features/groceries/GroceryProductIcon";
 import type { BringList, GroceryData, GroceryItem, GroceryList } from "../features/groceries/types";
@@ -34,11 +34,6 @@ const errorMessage = (error: unknown) => error instanceof Error ? error.message 
 const actionColors = {
   color: "var(--text-primary)",
   "&.Mui-disabled": { color: "var(--text-secondary)" },
-};
-const checkboxColors = {
-  ...actionColors,
-  "&.Mui-checked": { color: "var(--accent-strong)" },
-  "&.Mui-checked.Mui-disabled": { color: "var(--text-secondary)" },
 };
 const chipColors = { color: "var(--text-primary)", bgcolor: "var(--dialog-field)" };
 const syncLabel = (list: GroceryList, configured: boolean) => {
@@ -343,20 +338,20 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
             aria-label={checked ? "Last used" : "To buy"} sx={{ mt: 3 }}>
             <Typography component="h3" variant="h6" sx={{ fontWeight: 700 }}>{checked ? "Last used" : "To buy"}</Typography>
             <Typography variant="body2" color="text.secondary" sx={{ mb: 1.5 }}>
-              {checked ? "Uncheck an item to put it back on your shopping list." : "Check off items as you shop."}
+              {checked ? "Click an item to put it back on your shopping list." : "Click an item as you buy it."}
             </Typography>
             <Box component="ul" className="grocery-tile-grid">
               {selected.items.filter((item) => item.checked === checked).map((item: GroceryItem) =>
                 <Box component="li" key={item.id} className={`grocery-tile ${checked ? "grocery-tile-used" : "grocery-tile-buy"}`}>
-                  <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "center" }}>
-                    <Checkbox sx={checkboxColors} checked={item.checked} disabled={disabled}
-                      slotProps={{ input: { "aria-label": `Check ${item.name}`, title: checked ? "Put back on shopping list" : "Mark as bought" } }}
-                      onChange={(_, nextChecked) => void mutate((api) => api.updateItem(selected.id, item.id, { checked: nextChecked }))} />
+                  <button type="button" className="grocery-tile-toggle" disabled={disabled}
+                    aria-label={`Check ${item.name}`} aria-pressed={item.checked}
+                    title={checked ? "Put back on shopping list" : "Mark as bought"}
+                    onClick={() => void mutate((api) => api.updateItem(selected.id, item.id, { checked: !item.checked }))}>
                     <GroceryProductIcon name={item.name} />
-                  </Stack>
-                  <Typography sx={{ fontWeight: 700, overflowWrap: "anywhere", mt: 1 }}>{item.name}</Typography>
-                  <Typography variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere", flex: 1 }}>{item.specification}</Typography>
-                  <Stack direction="row" sx={{ justifyContent: "end", mt: 1 }}>
+                    <Typography component="span" sx={{ fontWeight: 700, overflowWrap: "anywhere", mt: 1 }}>{item.name}</Typography>
+                    <Typography component="span" variant="body2" color="text.secondary" sx={{ overflowWrap: "anywhere", flex: 1 }}>{item.specification}</Typography>
+                  </button>
+                  <Stack direction="row" sx={{ justifyContent: "end", mt: 1, position: "relative", zIndex: 1, alignSelf: "end" }}>
                     <IconButton sx={actionColors} disabled={disabled} aria-label={`Edit item ${item.name}`} onClick={() => openEditor({ kind: "item", id: item.id, name: item.name, specification: item.specification ?? "" })}><EditOutlinedIcon fontSize="small" /></IconButton>
                     <IconButton sx={actionColors} disabled={disabled} aria-label={`Remove item ${item.name}`} onClick={() => void mutate((api) => api.removeItem(selected.id, item.id))}><DeleteOutlineIcon fontSize="small" /></IconButton>
                   </Stack>

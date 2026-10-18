@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced grocery checkboxes with card-click toggles, with keyboard support and separate edit/remove actions. No visible check flag is shown. Updated screenshot: `docs/screenshots/grocery-lists.png`.
+
 - Refreshed grocery lists with inline item entry and Bring-inspired item tiles: unchecked items appear first under “To buy,” and checked items move to “Last used” for reuse. Known products use Bring-hosted icons with a local fallback when unavailable. Updated screenshot: `docs/screenshots/grocery-lists.png`.
 
 - Added confirmed local grocery-list deletion (linked Bring! lists remain untouched) and theme-aware grocery action icons for dark mode. Rerun `docs/sql/groceries.sql` before deploying. Updated screenshot: `docs/screenshots/grocery-lists.png`.

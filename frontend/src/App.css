@@ -28,6 +28,7 @@ body,
 }
 
 .grocery-tile {
+  position: relative;
   min-width: 0;
   min-height: 190px;
   display: flex;
@@ -36,6 +37,42 @@ body,
   border-radius: 16px;
   border: 1px solid var(--grocery-buy-border);
   background: var(--grocery-buy);
+}
+
+.grocery-tile-toggle {
+  display: flex;
+  flex: 1;
+  flex-direction: column;
+  align-items: flex-start;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--text-primary);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+/* Extend the native toggle across the card without nesting its action buttons. */
+.grocery-tile-toggle::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: 16px;
+}
+
+.grocery-tile-toggle:focus-visible {
+  outline: none;
+}
+
+.grocery-tile-toggle:focus-visible::after {
+  outline: 3px solid var(--accent-strong);
+  outline-offset: 3px;
+}
+
+.grocery-tile-toggle:disabled {
+  color: var(--text-secondary);
+  cursor: default;
 }
 
 .grocery-tile-used {
