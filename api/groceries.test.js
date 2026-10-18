@@ -171,6 +171,48 @@ test("200 slow pending writes make forward progress across deadline-limited retr
   assert.equal(finished, 1);
 });
 
+test("oversized retry snapshot permits cleanup after a silent rename removal failure at capacity", async () => {
+  const unchanged = Array.from({ length: 199 }, (_, index) => ({
+    name: `Item-${index}`, specification: "", checked: false, pending: false, removeNames: [],
+  }));
+  const renamed = { name: "B", specification: "renamed", checked: false, pending: true, removeNames: ["A"] };
+  const remote = new Map([...unchanged, { name: "A", specification: "old", checked: false }]
+    .map(({ name, specification, checked }) => [name, { name, specification, checked }]));
+  let removalAttempts = 0;
+  let saves = 0;
+  let finishes = 0;
+  let releases = 0;
+  const db = {
+    acquireGrocerySync: async () => ({ lease: { id: listId }, remoteId: "remote", items: [...unchanged, renamed] }),
+    renewGrocerySync: async () => {},
+    releaseGrocerySync: async () => { releases++; },
+    finishGrocerySync: async (_household, _lease, snapshot) => {
+      finishes++;
+      assert.equal(snapshot.length, 200);
+      assert.equal(snapshot.some((item) => item.name === "A"), false);
+      assert.equal(snapshot.filter((item) => item.name === "B").length, 1);
+      return { syncStatus: "synced" };
+    },
+  };
+  const client = {
+    listLists: async () => [{ id: "remote", name: "Food" }],
+    getItems: async () => [...remote.values()],
+    removeItem: async (_id, name) => {
+      if (++removalAttempts > 1) remote.delete(name);
+    },
+    saveItem: async (_id, item) => { saves++; remote.set(item.name, item); },
+  };
+  assert.equal((await syncList(db, householdId, listId, client)).syncStatus, "unavailable");
+  assert.equal(remote.size, 201);
+  assert.equal(finishes, 0);
+  assert.equal(releases, 1);
+  assert.equal((await syncList(db, householdId, listId, client)).syncStatus, "synced");
+  assert.equal(remote.size, 200);
+  assert.equal(removalAttempts, 2);
+  assert.equal(saves, 1);
+  assert.equal(finishes, 1);
+});
+
 test("failed fetches and lost fences never acknowledge or import an empty snapshot", async () => {
   let finishes = 0;
   let releases = 0;

@@ -33,8 +33,8 @@ const validateMutation = (resource, method, input) => {
 };
 
 // A malformed or over-limit response must never become an authoritative empty snapshot.
-const validateRemoteItems = (items) => {
-  if (!Array.isArray(items) || items.length > MAX_ITEMS) throw new Error("unavailable");
+const validateRemoteItems = (items, maxItems = MAX_ITEMS) => {
+  if (!Array.isArray(items) || items.length > maxItems) throw new Error("unavailable");
   return items.map((item) => {
     if (!item || typeof item.checked !== "boolean" || typeof item.specification !== "string") throw new Error("unavailable");
     const name = text(item.name, "name", 160);
@@ -78,7 +78,7 @@ const syncList = async (db, householdId, listId, client) => {
     const lists = await run(() => listBringLists(client));
     if (!lists.some((list) => list.id === state.remoteId)) throw new Error("unavailable");
     if (!Array.isArray(state.items) || state.items.length > MAX_SYNC_ITEMS) throw new Error("unavailable");
-    const initial = validateRemoteItems(await run(() => client.getItems(state.remoteId)));
+    const initial = validateRemoteItems(await run(() => client.getItems(state.remoteId)), MAX_SYNC_ITEMS + MAX_ITEMS);
     const remoteByName = new Map(initial.map((item) => [item.name, item]));
     const liveNames = new Set(state.items.filter((item) => !item.deleted).map((item) => item.name));
     const matches = (item) => {
