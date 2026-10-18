@@ -32,6 +32,7 @@ create table if not exists public.grocery_items (
 );
 create unique index if not exists grocery_lists_name
   on public.grocery_lists (household_id, lower(btrim(name)));
+alter table public.grocery_items add column if not exists retire_at timestamptz;
 create unique index if not exists grocery_items_live_name
   on public.grocery_items (list_id, lower(btrim(name))) where not deleted;
 create index if not exists grocery_items_list on public.grocery_items (list_id);
@@ -67,7 +68,7 @@ declare
   v_pending boolean;
   v_snapshot jsonb;
 begin
-  if jsonb_typeof(p_data) <> 'object' or octet_length(p_data::text) > 400000 then
+  if jsonb_typeof(p_data) is distinct from 'object' or octet_length(p_data::text) > 400000 then
     return jsonb_build_object('error', 'invalid command', 'status', 400);
   end if;
   if p_action = 'read' then
@@ -131,7 +132,7 @@ begin
     end if;
 
     v_snapshot := p_data->'items';
-    if jsonb_typeof(v_snapshot) <> 'array' or jsonb_array_length(v_snapshot) > 200 then
+    if jsonb_typeof(v_snapshot) is distinct from 'array' or jsonb_array_length(v_snapshot) > 200 then
       return jsonb_build_object('error', 'invalid snapshot', 'status', 400);
     end if;
     if exists (select 1 from jsonb_array_elements(v_snapshot) x where
@@ -156,8 +157,11 @@ begin
             and (x->>'checked')::boolean = i.checked);
       end if;
       if not v_pending then
-        -- Keep historical identities: a timed-out provider write can complete late.
-        update public.grocery_items set pending = false where id = i.id;
+        -- Bounded quarantine for late provider writes; later genuine re-adds win.
+        update public.grocery_items set pending = false,
+          retire_at = case when deleted or cardinality(remove_names) > 0
+            then coalesce(retire_at, clock_timestamp() + interval '10 minutes') else null end
+          where id = i.id;
       else
         update public.grocery_items set pending = true where id = i.id;
       end if;
@@ -184,10 +188,10 @@ begin
         -- Bring's check-off operation discards specification. Keep local detail
         -- while it remains checked/blank; explicit remote detail or unchecking wins.
         update public.grocery_items set name = r.name,
-          specification = case when checked and r.checked and r.specification = '' then specification else r.specification end,
+          specification = case when r.checked and r.specification = '' then specification else r.specification end,
           checked = r.checked,
           revision = revision + case when (name, specification, checked) is distinct from
-            (r.name, case when checked and r.checked and r.specification = '' then specification else r.specification end,
+            (r.name, case when r.checked and r.specification = '' then specification else r.specification end,
               r.checked) then 1 else 0 end
           where id = i.id;
       else
@@ -210,6 +214,11 @@ begin
   end if;
   if p_action = 'acquire' then
     if l.remote_id is null then return jsonb_build_object('syncStatus', 'local'); end if;
+    -- Only acknowledged histories have a deadline. A never-confirmed delete
+    -- remains pending until the remote snapshot verifies it.
+    delete from public.grocery_items where list_id = l.id and deleted and retire_at <= clock_timestamp();
+    update public.grocery_items set remove_names = '{}', retire_at = null, pending = false
+      where list_id = l.id and not deleted and retire_at <= clock_timestamp();
     v_token := gen_random_uuid();
     update public.grocery_lists set lease_token = v_token, lease_until = clock_timestamp() + interval '90 seconds',
       fence = fence + 1, sync_status = 'syncing' where id = l.id;
@@ -241,7 +250,7 @@ begin
     if v_remote is distinct from l.remote_id then
       -- Detach never deletes anything in the old account/list.
       delete from public.grocery_items where list_id = l.id and deleted;
-      update public.grocery_items set pending = true, remove_names = '{}' where list_id = l.id;
+      update public.grocery_items set pending = true, remove_names = '{}', retire_at = null where list_id = l.id;
     end if;
     update public.grocery_lists set name = v_name, remote_id = v_remote, revision = revision + 1,
       last_synced_at = case when v_remote is distinct from l.remote_id then null else last_synced_at end,
@@ -265,6 +274,12 @@ begin
       and lower(name) = lower(btrim(p_data->>'name')) order by deleted, id limit 1;
   end if;
   if p_action = 'items_post' and i.id is not null and not i.deleted then
+    return jsonb_build_object('ok', true, 'id', i.id);
+  end if;
+  if p_action = 'items_put' and i.deleted then
+    return jsonb_build_object('error', 'item was deleted', 'status', 409);
+  end if;
+  if p_action = 'items_delete' and i.deleted then
     return jsonb_build_object('ok', true, 'id', i.id);
   end if;
   if p_data ? 'revision' and i.id is not null and i.revision <> (p_data->>'revision')::bigint then
@@ -298,7 +313,7 @@ begin
     v_id := i.id;
     update public.grocery_items set name = v_name, specification = coalesce(p_data->>'specification', specification),
       checked = coalesce((p_data->>'checked')::boolean, checked), deleted = p_action = 'items_delete',
-      pending = true, remove_names = v_names, revision = revision + 1 where id = i.id;
+      pending = true, remove_names = v_names, retire_at = null, revision = revision + 1 where id = i.id;
     -- Purely local deletions need no remote tombstone.
     if p_action = 'items_delete' and l.remote_id is null then delete from public.grocery_items where id = i.id; end if;
   end if;

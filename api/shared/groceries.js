@@ -39,9 +39,11 @@ const validateRemoteItems = (items) => {
     if (!item || typeof item.checked !== "boolean" || typeof item.specification !== "string") throw new Error("unavailable");
     const name = text(item.name, "name", 160);
     if (name !== item.name) throw new Error("unavailable");
+    text(item.specification, "specification", 500, true);
+    if (item.specification.length > 500) throw new Error("unavailable");
     return {
       name,
-      specification: text(item.specification, "specification", 500, true),
+      specification: item.specification,
       checked: item.checked,
     };
   });
@@ -76,14 +78,28 @@ const syncList = async (db, householdId, listId, client) => {
     const lists = await run(() => listBringLists(client));
     if (!lists.some((list) => list.id === state.remoteId)) throw new Error("unavailable");
     if (!Array.isArray(state.items) || state.items.length > MAX_SYNC_ITEMS) throw new Error("unavailable");
+    const initial = validateRemoteItems(await run(() => client.getItems(state.remoteId)));
+    const remoteByName = new Map(initial.map((item) => [item.name, item]));
+    const liveNames = new Set(state.items.filter((item) => !item.deleted).map((item) => item.name));
+    const matches = (item) => {
+      const remote = remoteByName.get(item.name);
+      return remote && remote.checked === item.checked
+        && (item.checked || remote.specification === item.specification);
+    };
     const pending = state.items.filter((item) => item.pending);
     const removals = new Set(pending.flatMap((item) => [
       ...(item.removeNames || []), ...(item.deleted ? [item.name] : []),
     ]));
-    // Remove all old identities first: rename chains and tombstone/name reuse are safe.
-    for (const name of removals) await run(() => client.removeItem(state.remoteId, name));
+    // Read-before-write makes progress durable remotely even if the time budget
+    // expires before acknowledgement. Retried batches skip already completed work.
+    // A current live identity is updated by save, never deleted as an old name.
+    for (const name of removals) {
+      if (remoteByName.has(name) && !liveNames.has(name)) {
+        await run(() => client.removeItem(state.remoteId, name));
+      }
+    }
     for (const item of state.items) {
-      if (!item.deleted && (item.pending || [...removals].some((name) => key(name) === key(item.name)))) {
+      if (!item.deleted && (item.pending || [...removals].some((name) => key(name) === key(item.name))) && !matches(item)) {
         await run(() => client.saveItem(state.remoteId, {
           name: item.name, specification: item.specification, checked: item.checked,
         }));

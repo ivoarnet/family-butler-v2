@@ -108,6 +108,9 @@ test("database facade sends bounded named RPC commands and handles conflicts", a
 
 test("sync removes every old identity before saves; tombstones never become saves", async () => {
   const calls = [];
+  const remote = new Map(["Old", "Gone before", "Gone"].map((name) => [
+    name, { name, specification: "", checked: false },
+  ]));
   const lease = { id: listId, token: randomUUID(), fence: 1, revision: 0 };
   const db = {
     acquireGrocerySync: async () => ({
@@ -121,12 +124,51 @@ test("sync removes every old identity before saves; tombstones never become save
   };
   const client = {
     listLists: async () => [{ id: "remote", name: "Food" }],
-    removeItem: async (_id, name) => calls.push(`remove:${name}`),
-    saveItem: async (_id, item) => calls.push(`save:${item.name}:${item.checked}`),
-    getItems: async () => [{ name: "New", specification: "2", checked: true }],
+    removeItem: async (_id, name) => { calls.push(`remove:${name}`); remote.delete(name); },
+    saveItem: async (_id, item) => { calls.push(`save:${item.name}:${item.checked}`); remote.set(item.name, item); },
+    getItems: async () => [...remote.values()],
   };
   assert.deepEqual(await syncList(db, householdId, listId, client), { syncStatus: "synced" });
   assert.deepEqual(calls, ["remove:Old", "remove:Gone before", "remove:Gone", "save:New:true", "finish"]);
+});
+
+test("200 slow pending writes make forward progress across deadline-limited retries", async (t) => {
+  let now = 0;
+  t.mock.method(Date, "now", () => now);
+  const remote = new Map();
+  const writes = [];
+  let released = 0;
+  let finished = 0;
+  const items = Array.from({ length: 200 }, (_, index) => ({
+    name: `Item-${index}`, specification: `${index}`, checked: false, pending: true, removeNames: [],
+  }));
+  const db = {
+    acquireGrocerySync: async () => ({ lease: { id: listId }, remoteId: "remote", items }),
+    renewGrocerySync: async () => {},
+    releaseGrocerySync: async () => { released++; },
+    finishGrocerySync: async (_household, _lease, snapshot) => {
+      assert.equal(snapshot.length, 200);
+      finished++;
+      return { syncStatus: "synced" };
+    },
+  };
+  const client = {
+    listLists: async () => [{ id: "remote", name: "Food" }],
+    getItems: async () => [...remote.values()],
+    removeItem: async () => { throw new Error("not expected"); },
+    saveItem: async (_id, item) => {
+      writes.push(item.name);
+      remote.set(item.name, item);
+      now += 1000;
+    },
+  };
+  assert.equal((await syncList(db, householdId, listId, client)).syncStatus, "unavailable");
+  assert.ok(remote.size > 0 && remote.size < 200);
+  assert.equal((await syncList(db, householdId, listId, client)).syncStatus, "synced");
+  assert.equal(writes.length, 200);
+  assert.equal(new Set(writes).size, 200);
+  assert.equal(released, 1);
+  assert.equal(finished, 1);
 });
 
 test("failed fetches and lost fences never acknowledge or import an empty snapshot", async () => {
@@ -289,6 +331,12 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
     await mutate("items_put", { listId: id, id: added.id, checked: false });
     assert.equal((await syncList(provider, householdId, id, bring)).syncStatus, "synced");
     assert.equal(bring.remote.get("Milk").specification, "2 L");
+    bring.remote.set("Milk", { name: "Milk", checked: true, specification: "" });
+    await syncList(provider, householdId, id, bring);
+    await syncList(provider, householdId, id, bring);
+    local = (await snapshot()).find((list) => list.id === id).items[0];
+    assert.equal(local.checked, true);
+    assert.equal(local.specification, "2 L");
     bring.remote.set("Milk", { name: "Milk", checked: true, specification: "remote detail" });
     await syncList(provider, householdId, id, bring);
     local = (await snapshot()).find((list) => list.id === id).items[0];
@@ -356,6 +404,56 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
     assert.equal(sql(`select count(*) from public.grocery_items where list_id = '${id}' and deleted`), "200");
   });
 
+  await t.test("stale PUT cannot resurrect pending or acknowledged tombstones; explicit POST can", async () => {
+    const id = await createList();
+    const remoteId = `remote-${id}`;
+    await mutate("lists_put", { id, remoteId });
+    const item = await mutate("items_post", { listId: id, name: "Milk" });
+    const bring = client(remoteId);
+    await syncList(provider, householdId, id, bring);
+    await mutate("items_delete", { listId: id, id: item.id });
+    await assert.rejects(mutate("items_put", { listId: id, id: item.id, checked: true }), { status: 409 });
+    await syncList(provider, householdId, id, bring);
+    await assert.rejects(mutate("items_put", { listId: id, id: item.id, name: "Stale rename" }), { status: 409 });
+    assert.equal((await snapshot()).find((row) => row.id === id).items.length, 0);
+    const restored = await mutate("items_post", { listId: id, name: "Milk", specification: "explicit add" });
+    assert.equal(restored.id, item.id);
+    assert.equal((await syncList(provider, householdId, id, bring)).syncStatus, "synced");
+    assert.equal((await snapshot()).find((row) => row.id === id).items[0].specification, "explicit add");
+  });
+
+  await t.test("acknowledged rename/delete history expires so legitimate Bring re-adds import again", async () => {
+    const id = await createList();
+    const remoteId = `remote-${id}`;
+    await mutate("lists_put", { id, remoteId });
+    const item = await mutate("items_post", { listId: id, name: "Old" });
+    const bring = client(remoteId);
+    await syncList(provider, householdId, id, bring);
+    await mutate("items_put", { listId: id, id: item.id, name: "New" });
+    await syncList(provider, householdId, id, bring);
+    assert.equal(sql(`select retire_at > clock_timestamp() from public.grocery_items where id = '${item.id}'`), "t");
+    bring.remote.set("Old", { name: "Old", specification: "late", checked: false });
+    assert.equal((await syncList(provider, householdId, id, bring)).syncStatus, "pending");
+    assert.equal((await snapshot()).find((row) => row.id === id).items.length, 1);
+    await syncList(provider, householdId, id, bring);
+    sql(`update public.grocery_items set retire_at = clock_timestamp() - interval '1 second' where id = '${item.id}'`);
+    bring.remote.set("Old", { name: "Old", specification: "legitimate re-add", checked: false });
+    await syncList(provider, householdId, id, bring);
+    let list = (await snapshot()).find((row) => row.id === id);
+    assert.deepEqual(list.items.map((row) => row.name).sort(), ["New", "Old"]);
+    const readded = list.items.find((row) => row.name === "Old");
+    await mutate("items_delete", { listId: id, id: readded.id });
+    await syncList(provider, householdId, id, bring);
+    const retired = sql(`select retire_at::text from public.grocery_items where id = '${readded.id}'`);
+    await mutate("items_delete", { listId: id, id: readded.id });
+    assert.equal(sql(`select retire_at::text from public.grocery_items where id = '${readded.id}'`), retired);
+    sql(`update public.grocery_items set retire_at = clock_timestamp() - interval '1 second' where id = '${readded.id}'`);
+    bring.remote.set("Old", { name: "Old", specification: "re-added again", checked: false });
+    await syncList(provider, householdId, id, bring);
+    list = (await snapshot()).find((row) => row.id === id);
+    assert.equal(list.items.find((row) => row.name === "Old").specification, "re-added again");
+  });
+
   await t.test("concurrent sync and edits are excluded; stale workers cannot renew, release or finish", async () => {
     const id = await createList();
     await mutate("lists_put", { id, remoteId: `remote-${id}` });
@@ -367,6 +465,9 @@ test("PostgreSQL grocery RPC persistence, reconciliation, fencing, and RLS", {
         for (const action of ["renewGrocerySync", "releaseGrocerySync", "finishGrocerySync"]) {
           await assert.rejects(provider[action](householdId, invalidLease, []), { status: 409 });
         }
+      }
+      for (const invalidSnapshot of [undefined, null, {}, ""]) {
+        await assert.rejects(provider.finishGrocerySync(householdId, first.lease, invalidSnapshot), { status: 400 });
       }
     }
     await assert.rejects(provider.acquireGrocerySync(householdId, id), { status: 409 });
