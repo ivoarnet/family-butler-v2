@@ -2,11 +2,12 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import AddIcon from "@mui/icons-material/Add";
 import FileDownloadOutlinedIcon from "@mui/icons-material/FileDownloadOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
+import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
 import { Alert, Box, Chip, CircularProgress, DialogTitle, MenuItem, Stack, Typography } from "@mui/material";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../../shared/ui/GlassFormDialog";
 import { createGroceryClient } from "./client";
 import { syncLabel } from "./syncLabel";
-import type { BringList, GroceryData } from "./types";
+import type { BringList, GroceryData, GroceryList } from "./types";
 import { SettingsInfo } from "../settings/components/SettingsInfo";
 
 interface Props {
@@ -21,6 +22,8 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
   const [error, setError] = useState("");
   const [editor, setEditor] = useState<{ id?: string; name: string } | null>(null);
   const [saveError, setSaveError] = useState("");
+  const [deleteList, setDeleteList] = useState<GroceryList | null>(null);
+  const [deleteError, setDeleteError] = useState("");
   const [busy, setBusy] = useState(false);
   const [bringPicker, setBringPicker] = useState<{ remoteId: string; localId?: string } | null>(null);
   const [bringLists, setBringLists] = useState<BringList[]>([]);
@@ -82,6 +85,26 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
   };
 
   const openEditor = (draft: { id?: string; name: string }) => { setSaveError(""); setEditor(draft); };
+  const remove = async () => {
+    const current = session.current;
+    if (!current || current.controller.signal.aborted || pending.current || !deleteList) return;
+    pending.current = true;
+    setBusy(true);
+    setDeleteError("");
+    try {
+      await current.api.removeList(deleteList.id);
+      if (current.controller.signal.aborted) return;
+      setDeleteList(null);
+      await reload();
+    } catch {
+      if (!current.controller.signal.aborted) setDeleteError("Could not delete the grocery list. Please retry.");
+    } finally {
+      if (!current.controller.signal.aborted) {
+        pending.current = false;
+        setBusy(false);
+      }
+    }
+  };
   const openImport = async () => {
     const current = session.current;
     if (!current || pending.current || !data?.bringConfigured) return;
@@ -144,7 +167,7 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
     <Stack sx={{ gap: 2.5 }}>
       <div className="section-toolbar">
         <span className="section-title-info"><h2 id="grocery-lists-heading">Grocery lists</h2>
-          <SettingsInfo label="Grocery list information" text="Create and rename household lists here or in the Shop & Cook workspace. Items stay unchanged. Local lists are not linked to Bring. Linked does not mean synced; status reflects the last recorded sync. Import lists here; link and sync lists in the workspace." />
+          <SettingsInfo label="Grocery list information" text="Create, rename and delete household lists here. Items stay unchanged. Local lists are not linked to Bring. Linked does not mean synced; status reflects the last recorded sync. Import lists here; link and sync lists in the workspace." />
         </span>
         <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap" }}>
           <SecondaryButton startIcon={<FileDownloadOutlinedIcon />} disabled={busy || loading || !data?.bringConfigured} onClick={() => void openImport()}>
@@ -170,6 +193,8 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
             <td className="actions-cell"><div className="icon-actions">
               <button type="button" className="icon-button compact-icon-button" aria-label={`Rename ${list.name}`} title="Rename list" disabled={busy}
                 onClick={() => openEditor({ id: list.id, name: list.name })}><EditOutlinedIcon fontSize="small" /></button>
+             <button type="button" className="icon-button compact-icon-button" aria-label={`Delete ${list.name}`} title="Delete list" disabled={busy}
+               onClick={() => { setDeleteError(""); setDeleteList(list); }}><DeleteOutlineIcon fontSize="small" /></button>
             </div></td>
           </tr>)}</tbody>
         </table>
@@ -191,6 +216,20 @@ export function GroceryListSettings({ householdId, accessToken, connectionRevisi
           <GradientButton type="submit" disabled={busy || !editor?.name.trim() || editor.name.trim().length > 160}>{busy ? "Saving…" : "Save list"}</GradientButton>
         </DialogActionsBar>
       </Box>
+    </GlassDialog>
+    <GlassDialog open={!!deleteList} onClose={() => { if (!busy) setDeleteList(null); }}
+      aria-labelledby="grocery-list-delete-title" aria-describedby="grocery-list-delete-description" maxWidth="sm" fullWidth>
+      <DialogTitle id="grocery-list-delete-title">Delete grocery list?</DialogTitle>
+      <DialogContentPanel>
+        {deleteError && <Alert severity="error">{deleteError}</Alert>}
+        <Typography id="grocery-list-delete-description">
+          “{deleteList?.name}” and its items will be removed here. Any linked Bring list and its items will NOT be deleted.
+        </Typography>
+      </DialogContentPanel>
+      <DialogActionsBar>
+        <SecondaryButton disabled={busy} onClick={() => setDeleteList(null)}>Cancel</SecondaryButton>
+        <GradientButton disabled={busy} onClick={() => void remove()}>{busy ? "Deleting…" : "Delete list"}</GradientButton>
+      </DialogActionsBar>
     </GlassDialog>
     <GlassDialog open={!!bringPicker} onClose={() => { if (!busy) setBringPicker(null); }} aria-labelledby="grocery-import-title" maxWidth="sm" fullWidth>
       <DialogTitle id="grocery-import-title">Import from Bring</DialogTitle>

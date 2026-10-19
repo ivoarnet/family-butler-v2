@@ -6,7 +6,7 @@ import type { BringConnection, GroceryData } from "../features/groceries/types";
 import { GrocerySettingsPage } from "./GrocerySettingsPage";
 
 type Options = { configured?: boolean; missingKey?: boolean; failRead?: boolean; failSave?: boolean; failTest?: boolean; delayed?: boolean; delayedSave?: boolean; forbidden?: boolean;
-  failLists?: boolean; failListSave?: boolean; failRefresh?: boolean; emptyLists?: boolean; statusMatrix?: boolean; delayedListSave?: boolean; delayedLists?: boolean; dark?: boolean };
+  failLists?: boolean; failListSave?: boolean; failListDelete?: boolean; failRefresh?: boolean; emptyLists?: boolean; statusMatrix?: boolean; delayedListSave?: boolean; delayedLists?: boolean; dark?: boolean };
 const sampleMail = "owner@example.invalid";
 const samplePassword = "storybook-example-only";
 const listWrites = fn();
@@ -33,6 +33,7 @@ function installMock(options: Options = {}) {
   const originalListIds = new Set(data.lists.map(({ id }) => id));
   let failLists = options.failLists;
   let failListSave = options.failListSave;
+  let failListDelete = options.failListDelete;
   let failRefresh = false;
   let state: BringConnection = {
     configured: options.configured ?? true,
@@ -75,12 +76,17 @@ function installMock(options: Options = {}) {
     }
     if (url.pathname.endsWith("/lists")) {
       const body = JSON.parse(String(init?.body));
-      expect(Object.keys(body).sort()).toEqual(method === "POST" ? ["name"] : ["id", ...(Object.prototype.hasOwnProperty.call(body, "remoteId") ? ["remoteId"] : ["name"])].sort());
-      expect(["POST", "PUT"]).toContain(method);
+      expect(Object.keys(body).sort()).toEqual(method === "POST" ? ["name"] : method === "DELETE" ? ["id"] : ["id", ...(Object.prototype.hasOwnProperty.call(body, "remoteId") ? ["remoteId"] : ["name"])].sort());
+      expect(["POST", "PUT", "DELETE"]).toContain(method);
       listWrites({ method, body });
       await new Promise((resolve) => setTimeout(resolve, options.delayedListSave ? 800 : 200));
       if (init?.signal?.aborted) { abortedRequests("write"); return respond({ ok: true }); }
       if (failListSave) { failListSave = false; return respond({ error: "Unavailable" }, 503); }
+      if (method === "DELETE") {
+        if (failListDelete) { failListDelete = false; return respond({ error: "Unavailable" }, 503); }
+        data.lists = data.lists.filter(({ id }) => id !== body.id);
+        return respond({ ok: true });
+      }
       if (method === "POST") {
         const id = `new-${data.lists.length}`;
         data.lists.push({ id, name: body.name, remoteId: null, syncStatus: "local", lastSyncedAt: null, items: [] });
@@ -437,7 +443,7 @@ export const SettingsInformationTooltips: Story = {
     const page = within(canvasElement.ownerDocument.body);
     await canvas.findByText("Weekly shop");
     const information = [
-      { name: "Grocery list information", text: /Create and rename household lists here/ },
+      { name: "Grocery list information", text: /Create, rename and delete household lists here/ },
       { name: "Bring connection information", text: /Connect one Bring account for this household/ },
       { name: "Bring account credential information", text: /Credentials are write-only/ },
     ];
@@ -453,6 +459,7 @@ export const SettingsInformationTooltips: Story = {
       if (name === "Grocery list information") {
         await expect(page.getByRole("tooltip")).toHaveTextContent("Items stay unchanged.");
         await expect(page.getByRole("tooltip")).toHaveTextContent("Local lists are not linked to Bring. Linked does not mean synced; status reflects the last recorded sync.");
+        await expect(page.getByRole("tooltip")).toHaveTextContent("Create, rename and delete household lists here.");
         await expect(page.getByRole("tooltip")).toHaveTextContent("Import lists here; link and sync lists in the workspace.");
       }
       await userEvent.keyboard("{Escape}");
@@ -514,6 +521,50 @@ export const CreateAndRenameLists: Story = {
     await expect(canvas.queryByText("Weekly shop")).toBeNull();
     await expect(listWrites).toHaveBeenLastCalledWith({ method: "PUT", body: { id: "weekly", name: "Weekly essentials" } });
     await expect(canvas.getByText("Synced with Bring")).toBeVisible();
+  },
+};
+
+export const DeleteListFromSettings: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByText("Weekly shop");
+    const table = within(canvas.getByRole("table", { name: "Grocery lists" }));
+    await userEvent.click(table.getByRole("button", { name: "Delete Weekly shop" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+    await expect(dialog.getByText(/and its items will be removed here/)).toHaveTextContent("Any linked Bring list and its items will NOT be deleted.");
+    await userEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(listWrites).not.toHaveBeenCalled();
+
+    await userEvent.click(table.getByRole("button", { name: "Delete Weekly shop" }));
+    const retryDialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+    await userEvent.click(retryDialog.getByRole("button", { name: "Delete list" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    const updatedTable = within(await canvas.findByRole("table", { name: "Grocery lists" }));
+    await expect(updatedTable.queryByRole("row", { name: /Weekly shop/ })).toBeNull();
+    await expect(updatedTable.getByRole("row", { name: /Weekend cooking/ })).toBeVisible();
+    await expect(listWrites).toHaveBeenCalledTimes(1);
+    await expect(listWrites).toHaveBeenCalledWith({ method: "DELETE", body: { id: "weekly" } });
+  },
+};
+
+export const DeleteFailureKeepsList: Story = {
+  parameters: { connectionMock: { failListDelete: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByText("Weekly shop");
+    const table = within(canvas.getByRole("table", { name: "Grocery lists" }));
+    await userEvent.click(table.getByRole("button", { name: "Delete Weekly shop" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Delete grocery list?" }));
+    await userEvent.click(dialog.getByRole("button", { name: "Delete list" }));
+    await expect(await dialog.findByText("Could not delete the grocery list. Please retry.")).toBeVisible();
+    await expect(dialog.getByRole("button", { name: "Delete list" })).toBeEnabled();
+    await userEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(table.getByRole("row", { name: /Weekly shop/ })).toBeVisible();
+    await expect(listWrites).toHaveBeenCalledTimes(1);
   },
 };
 

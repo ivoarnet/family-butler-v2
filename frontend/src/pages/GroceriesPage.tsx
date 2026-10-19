@@ -8,7 +8,7 @@ import SyncIcon from "@mui/icons-material/Sync";
 import { Alert, Box, Chip, CircularProgress, DialogTitle, IconButton, MenuItem, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
 import { GroceryProductIcon } from "../features/groceries/GroceryProductIcon";
-import type { BringList, GroceryData, GroceryItem, GroceryList } from "../features/groceries/types";
+import type { BringList, GroceryData, GroceryItem } from "../features/groceries/types";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 
@@ -26,8 +26,7 @@ interface GroceriesPageProps {
   moduleNavigation?: ReactNode;
 }
 
-type Editor = { kind: "list"; id?: string; name: string } |
-  { kind: "item"; id: string; name: string; specification: string };
+type Editor = { kind: "item"; id: string; name: string; specification: string };
 type BringPicker = { mode: "import" | "link"; localId?: string; remoteId: string };
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
@@ -52,7 +51,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [deleteList, setDeleteList] = useState<GroceryList | null>(null);
   const [bringPicker, setBringPicker] = useState<BringPicker | null>(null);
   const [bringLists, setBringLists] = useState<BringList[]>([]);
   const [bringLoading, setBringLoading] = useState(false);
@@ -220,10 +218,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
     if (!editor?.name.trim()) return;
     const draft = editor;
     void mutate(async (api) => {
-      if (draft.kind === "list") {
-        if (draft.id) return api.updateList(draft.id, { name: draft.name.trim() });
-        return api.createList(draft.name.trim());
-      }
       const fields = { name: draft.name.trim(), specification: draft.specification.trim() };
       return api.updateItem(selectedId, draft.id, fields);
     }, () => setEditor(null));
@@ -295,8 +289,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
                   onClick={() => void mutate((api) => api.sync(selected.id))}><SyncIcon /></IconButton>
               </>}
               {!selected.remoteId && <SecondaryButton disabled={disabled || !data.bringConfigured} onClick={() => openBring("link")}>Link Bring list</SecondaryButton>}
-              <IconButton sx={actionColors} disabled={disabled} aria-label={`Rename list ${selected.name}`} onClick={() => openEditor({ kind: "list", id: selected.id, name: selected.name })}><EditOutlinedIcon /></IconButton>
-              <IconButton sx={actionColors} disabled={disabled} aria-label={`Delete list ${selected.name}`} onClick={() => { setDialogError(null); setDeleteList(selected); }}><DeleteOutlineIcon /></IconButton>
             </Stack>
           </Stack>
           {selected.remoteId && selected.syncStatus === "pending" && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Changes are saved locally and waiting to sync with Bring.</Typography>}
@@ -348,30 +340,14 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
       </Box>
       <Box role="status" aria-live="polite">{busy ? "Saving grocery changes…" : ""}</Box>
     </Box>
-    <GlassDialog open={!!deleteList} onClose={() => { if (!busyRef.current) setDeleteList(null); }}
-      aria-labelledby="grocery-delete-title" aria-describedby="grocery-delete-description" maxWidth="sm" fullWidth>
-      <DialogTitle id="grocery-delete-title">Delete grocery list?</DialogTitle>
-      <DialogContentPanel>
-        {dialogError && <Alert severity="error">{dialogError}</Alert>}
-        <Typography id="grocery-delete-description">
-          “{deleteList?.name}” and its items will be removed here. Any linked Bring list and its items will NOT be deleted.
-        </Typography>
-      </DialogContentPanel>
-      <DialogActionsBar>
-        <SecondaryButton disabled={busy} onClick={() => { if (!busyRef.current) setDeleteList(null); }}>Cancel</SecondaryButton>
-        <GradientButton disabled={busy} onClick={() => {
-          if (deleteList) void mutate((api) => api.removeList(deleteList.id), () => setDeleteList(null));
-        }}>Delete list</GradientButton>
-      </DialogActionsBar>
-    </GlassDialog>
     <GlassDialog open={!!editor} onClose={() => { if (!busy) setEditor(null); }} aria-labelledby="grocery-editor-title" maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={(event) => { event.preventDefault(); saveEditor(); }}>
-        <DialogTitle id="grocery-editor-title">{editor?.kind === "list" ? editor.id ? "Rename list" : "New grocery list" : "Edit grocery item"}</DialogTitle>
+        <DialogTitle id="grocery-editor-title">Edit grocery item</DialogTitle>
         <DialogContentPanel>
           {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          <FormField autoFocus label={editor?.kind === "list" ? "List name" : "Item name"} required fullWidth disabled={busy} value={editor?.name ?? ""} slotProps={{ htmlInput: { maxLength: 160 } }}
+          <FormField autoFocus label="Item name" required fullWidth disabled={busy} value={editor?.name ?? ""} slotProps={{ htmlInput: { maxLength: 160 } }}
             onChange={(event) => setEditor((current) => current ? { ...current, name: event.target.value } : null)} />
-          {editor?.kind === "item" && <FormField label="Quantity or details" fullWidth disabled={busy} value={editor.specification} slotProps={{ htmlInput: { maxLength: 500 } }}
+          {editor && <FormField label="Quantity or details" fullWidth disabled={busy} value={editor.specification} slotProps={{ htmlInput: { maxLength: 500 } }}
             placeholder="e.g. 2 cartons, oat milk" onChange={(event) => setEditor((current) => current?.kind === "item" ? { ...current, specification: event.target.value } : current)} />}
         </DialogContentPanel>
         <DialogActionsBar>
