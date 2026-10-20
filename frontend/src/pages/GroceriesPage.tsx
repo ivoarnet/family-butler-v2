@@ -8,8 +8,7 @@ import SyncIcon from "@mui/icons-material/Sync";
 import { Alert, Box, Chip, CircularProgress, DialogTitle, IconButton, MenuItem, Stack, Typography } from "@mui/material";
 import { createGroceryClient } from "../features/groceries/client";
 import { GroceryProductIcon } from "../features/groceries/GroceryProductIcon";
-import { syncLabel } from "../features/groceries/syncLabel";
-import type { BringList, GroceryData, GroceryItem, GroceryList } from "../features/groceries/types";
+import type { BringList, GroceryData, GroceryItem } from "../features/groceries/types";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 
@@ -27,8 +26,7 @@ interface GroceriesPageProps {
   moduleNavigation?: ReactNode;
 }
 
-type Editor = { kind: "list"; id?: string; name: string } |
-  { kind: "item"; id: string; name: string; specification: string };
+type Editor = { kind: "item"; id: string; name: string; specification: string };
 type BringPicker = { mode: "import" | "link"; localId?: string; remoteId: string };
 
 const errorMessage = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
@@ -53,7 +51,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [editor, setEditor] = useState<Editor | null>(null);
-  const [deleteList, setDeleteList] = useState<GroceryList | null>(null);
   const [bringPicker, setBringPicker] = useState<BringPicker | null>(null);
   const [bringLists, setBringLists] = useState<BringList[]>([]);
   const [bringLoading, setBringLoading] = useState(false);
@@ -221,10 +218,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
     if (!editor?.name.trim()) return;
     const draft = editor;
     void mutate(async (api) => {
-      if (draft.kind === "list") {
-        if (draft.id) return api.updateList(draft.id, { name: draft.name.trim() });
-        return api.createList(draft.name.trim());
-      }
       const fields = { name: draft.name.trim(), specification: draft.specification.trim() };
       return api.updateItem(selectedId, draft.id, fields);
     }, () => setEditor(null));
@@ -243,8 +236,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
   };
 
   const lastSynced = selected?.lastSyncedAt ? new Date(selected.lastSyncedAt) : null;
-  const remaining = selected?.items.filter(({ checked }) => !checked).length ?? 0;
-
   return <div className="dashboard-page settings-page">
     <header className="dashboard-header grocery-header" role="banner">
       <div className="header-branding">
@@ -270,16 +261,6 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
       </div>
     </header>
     <Box component="main" className="settings-main" sx={{ gap: 3 }}>
-      <section className="settings-card">
-        <Stack direction={{ xs: "column", sm: "row" }} sx={{ justifyContent: "space-between", gap: 2 }}>
-          <Box><Typography variant="h5" component="h2" sx={{ fontWeight: 700 }}>Groceries, together</Typography>
-            <Typography color="text.secondary">Keep household shopping in one place. Link an existing Bring list when you’re ready.</Typography></Box>
-          <Stack direction="row" sx={{ gap: 1, flexWrap: "wrap", alignItems: "center" }}>
-            <SecondaryButton disabled={disabled || !data.bringConfigured} onClick={() => openBring("import")}>Import from Bring</SecondaryButton>
-            <GradientButton startIcon={<AddIcon />} disabled={disabled} onClick={() => openEditor({ kind: "list", name: "" })}>New list</GradientButton>
-          </Stack>
-        </Stack>
-      </section>
       {error && <Alert severity="error" action={<SecondaryButton disabled={disabled} onClick={() => void reload()}>Retry</SecondaryButton>}>{error}</Alert>}
       {loading && <Stack direction="row" sx={{ gap: 1, alignItems: "center" }} role="status"><CircularProgress size={22} />Loading grocery lists…</Stack>}
       {!loading && !data.bringConfigured && <Alert severity="info">Bring is unavailable. You can still create and manage local grocery lists.</Alert>}
@@ -299,21 +280,17 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
           <Stack direction="row" sx={{ justifyContent: "space-between", alignItems: "start", gap: 1 }}>
             <Box sx={{ minWidth: 0 }}>
               <Typography component="h2" variant="h5" sx={{ fontWeight: 700, overflowWrap: "anywhere" }}>{selected.name}</Typography>
-              <Typography color="text.secondary">{remaining} to buy · {selected.items.length - remaining} checked</Typography>
             </Box>
-            <Stack direction="row">
-              <IconButton sx={actionColors} disabled={disabled} aria-label={`Rename list ${selected.name}`} onClick={() => openEditor({ kind: "list", id: selected.id, name: selected.name })}><EditOutlinedIcon /></IconButton>
-              <IconButton sx={actionColors} disabled={disabled} aria-label={`Delete list ${selected.name}`} onClick={() => { setDialogError(null); setDeleteList(selected); }}><DeleteOutlineIcon /></IconButton>
+            <Stack direction="row" sx={{ alignItems: "center", gap: 0.5 }}>
+              {selected.remoteId && <>
+                {lastSynced && !Number.isNaN(lastSynced.getTime()) &&
+                  <Typography variant="caption" color="text.secondary">Last synced: {lastSynced.toLocaleString()}</Typography>}
+                <IconButton sx={actionColors} disabled={disabled || !data.bringConfigured} title="Sync now" aria-label="Sync now"
+                  onClick={() => void mutate((api) => api.sync(selected.id))}><SyncIcon /></IconButton>
+              </>}
+              {!selected.remoteId && <SecondaryButton disabled={disabled || !data.bringConfigured} onClick={() => openBring("link")}>Link Bring list</SecondaryButton>}
             </Stack>
           </Stack>
-          <Stack direction="row" sx={{ flexWrap: "wrap", gap: 1, alignItems: "center", mt: 2 }}>
-            <Chip label={syncLabel(selected, data.bringConfigured)} size="small" sx={chipColors} />
-            {selected.remoteId ? <>
-              <SecondaryButton startIcon={<SyncIcon />} disabled={disabled || !data.bringConfigured} onClick={() => void mutate((api) => api.sync(selected.id))}>Sync now</SecondaryButton>
-              <SecondaryButton disabled={disabled} onClick={() => void mutate((api) => api.updateList(selected.id, { remoteId: null }))}>Disconnect Bring</SecondaryButton>
-            </> : <SecondaryButton disabled={disabled || !data.bringConfigured} onClick={() => openBring("link")}>Link Bring list</SecondaryButton>}
-          </Stack>
-          {lastSynced && !Number.isNaN(lastSynced.getTime()) && <Typography variant="caption" color="text.secondary">Last synced: {lastSynced.toLocaleString()}</Typography>}
           {selected.remoteId && selected.syncStatus === "pending" && <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>Changes are saved locally and waiting to sync with Bring.</Typography>}
           <Box component="form" aria-label="Add grocery item" sx={{ my: 3 }}
             onSubmit={(event) => { event.preventDefault(); addItem(); }}>
@@ -358,35 +335,19 @@ function GrocerySession({ householdId, householdName, accessToken, onOpenSetting
         </Box> : !loading && <Box className="settings-card" sx={{ textAlign: "center", py: 6 }}>
           <ShoppingBasketOutlinedIcon sx={{ fontSize: 52, color: "text.secondary" }} />
           <Typography component="h2" variant="h5">A little less “what did we forget?”</Typography>
-          <Typography color="text.secondary" sx={{ mt: 1 }}>Create a household list or import an existing Bring list.</Typography>
+          <Typography color="text.secondary" sx={{ mt: 1 }}>Create or import a grocery list in Shop &amp; Cook settings.</Typography>
         </Box>}
       </Box>
       <Box role="status" aria-live="polite">{busy ? "Saving grocery changes…" : ""}</Box>
     </Box>
-    <GlassDialog open={!!deleteList} onClose={() => { if (!busyRef.current) setDeleteList(null); }}
-      aria-labelledby="grocery-delete-title" aria-describedby="grocery-delete-description" maxWidth="sm" fullWidth>
-      <DialogTitle id="grocery-delete-title">Delete grocery list?</DialogTitle>
-      <DialogContentPanel>
-        {dialogError && <Alert severity="error">{dialogError}</Alert>}
-        <Typography id="grocery-delete-description">
-          “{deleteList?.name}” and its items will be removed here. Any linked Bring list and its items will NOT be deleted.
-        </Typography>
-      </DialogContentPanel>
-      <DialogActionsBar>
-        <SecondaryButton disabled={busy} onClick={() => { if (!busyRef.current) setDeleteList(null); }}>Cancel</SecondaryButton>
-        <GradientButton disabled={busy} onClick={() => {
-          if (deleteList) void mutate((api) => api.removeList(deleteList.id), () => setDeleteList(null));
-        }}>Delete list</GradientButton>
-      </DialogActionsBar>
-    </GlassDialog>
     <GlassDialog open={!!editor} onClose={() => { if (!busy) setEditor(null); }} aria-labelledby="grocery-editor-title" maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={(event) => { event.preventDefault(); saveEditor(); }}>
-        <DialogTitle id="grocery-editor-title">{editor?.kind === "list" ? editor.id ? "Rename list" : "New grocery list" : "Edit grocery item"}</DialogTitle>
+        <DialogTitle id="grocery-editor-title">Edit grocery item</DialogTitle>
         <DialogContentPanel>
           {dialogError && <Alert severity="error">{dialogError}</Alert>}
-          <FormField autoFocus label={editor?.kind === "list" ? "List name" : "Item name"} required fullWidth disabled={busy} value={editor?.name ?? ""} slotProps={{ htmlInput: { maxLength: 160 } }}
+          <FormField autoFocus label="Item name" required fullWidth disabled={busy} value={editor?.name ?? ""} slotProps={{ htmlInput: { maxLength: 160 } }}
             onChange={(event) => setEditor((current) => current ? { ...current, name: event.target.value } : null)} />
-          {editor?.kind === "item" && <FormField label="Quantity or details" fullWidth disabled={busy} value={editor.specification} slotProps={{ htmlInput: { maxLength: 500 } }}
+          {editor && <FormField label="Quantity or details" fullWidth disabled={busy} value={editor.specification} slotProps={{ htmlInput: { maxLength: 500 } }}
             placeholder="e.g. 2 cartons, oat milk" onChange={(event) => setEditor((current) => current?.kind === "item" ? { ...current, specification: event.target.value } : current)} />}
         </DialogContentPanel>
         <DialogActionsBar>
