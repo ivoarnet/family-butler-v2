@@ -4,7 +4,6 @@ const {
   cleanString,
   normalizeTime24Hour,
   isIsoDate,
-  isUuid,
   isFiveMinuteStepTime,
   toEventTypesContext,
   toEventMembersContext,
@@ -86,7 +85,6 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
             type: "object",
             additionalProperties: false,
             properties: {
-              id: { type: "string" },
               title: { type: "string" },
               date: { type: "string" },
               endDate: { type: ["string", "null"] },
@@ -184,9 +182,8 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
         throw toClientError("eventTypeId is not part of this household");
       }
 
-      const requestedId = cleanString(input.id);
       const event = {
-        id: isUuid(requestedId) ? requestedId : randomUUID(),
+        id: randomUUID(),
         title,
         date,
         endDate,

@@ -480,32 +480,8 @@ module.exports = function createSupabaseProvider() {
     },
 
     async replaceEvents(householdId, events) {
-      const eventIds = events.map((event) => event.id);
-
-      if (eventIds.length > 0) {
-        await request(TABLES.events, {
-          method: "DELETE",
-          params: {
-            household_id: `eq.${householdId}`,
-            id: `not.in.${formatInList(eventIds)}`,
-          },
-        });
-      } else {
-        await request(TABLES.events, {
-          method: "DELETE",
-          params: {
-            household_id: `eq.${householdId}`,
-          },
-        });
-      }
-
-      if (eventIds.length === 0) {
-        return;
-      }
-
       const payload = events.map((event) => ({
         id: event.id,
-        household_id: householdId,
         title: event.title,
         event_date: event.date,
         end_date: event.endDate ?? null,
@@ -519,13 +495,9 @@ module.exports = function createSupabaseProvider() {
         notes: event.notes,
       }));
 
-      await request(TABLES.events, {
+      await request("rpc/replace_household_events", {
         method: "POST",
-        params: { on_conflict: "id" },
-        headers: {
-          Prefer: "resolution=merge-duplicates,return=minimal",
-        },
-        body: payload,
+        body: { p_household_id: householdId, p_events: payload },
       });
     },
 
