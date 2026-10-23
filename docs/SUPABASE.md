@@ -57,6 +57,8 @@ Set app settings:
 
 ## 4) Create tables in Supabase (SQL Editor)
 
+Tasks is not implemented, and the API does not expose a `/api/tasks` endpoint. Earlier setup instructions may have created a global `public.tasks` table; disabling the endpoint does not delete or migrate that table or its rows. They remain untouched and are not available through the API. Do not expose or reuse those records as household data; a future Tasks release must migrate to household-scoped storage and authorization before enabling task access.
+
 Run:
 
 ```sql
@@ -98,12 +100,6 @@ create table if not exists public.contacts (
   birth_year smallint,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
-);
-
-create table if not exists public.tasks (
-  id uuid primary key default gen_random_uuid(),
-  title text not null,
-  created_at timestamptz not null default now()
 );
 
 create table if not exists public.event_types (
