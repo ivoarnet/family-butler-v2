@@ -232,10 +232,12 @@ const parseIncomingEventTypes = (eventTypes) => {
     });
 };
 
-const parseIncomingEvents = (events) => {
+const parseIncomingEvents = (events, existingEvents = []) => {
   if (!Array.isArray(events)) {
     return [];
   }
+
+  const existingIds = new Map(existingEvents.map((event) => [event.id.toLowerCase(), event.id]));
 
   return events
     .filter((event) => event && typeof event === "object")
@@ -274,7 +276,7 @@ const parseIncomingEvents = (events) => {
         throw new Error("event time range is invalid");
       }
 
-      const requestedId = typeof event.id === "string" && event.id ? event.id : null;
+      const requestedId = typeof event.id === "string" && event.id ? existingIds.get(event.id.toLowerCase()) : null;
       const memberIds = Array.isArray(event.memberIds)
         ? [...new Set(event.memberIds.filter((memberId) => typeof memberId === "string" && memberId))]
         : [];
@@ -487,7 +489,7 @@ module.exports = async function households(context, req) {
       const members = parseIncomingMembers(httpRequest.body?.familyMembers, existingHousehold.members);
       const contacts = parseIncomingContacts(httpRequest.body?.contacts);
       const eventTypes = parseIncomingEventTypes(httpRequest.body?.eventTypes);
-      const events = parseIncomingEvents(httpRequest.body?.events);
+      const events = parseIncomingEvents(httpRequest.body?.events, existingHousehold.events);
       const dayConfigurations = parseIncomingDayConfigurations(httpRequest.body?.dayConfigurations);
       await assertMemberIdsAuthorized(householdId, existingMemberIds, members);
       await assertContactIdsAuthorized(householdId, existingContactIds, contacts);
