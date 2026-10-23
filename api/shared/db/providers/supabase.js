@@ -10,7 +10,6 @@ const TABLES = {
   eventTypes: "event_types",
   events: "events",
   dayConfigurations: "day_configurations",
-  tasks: "tasks",
 };
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
@@ -52,12 +51,6 @@ const mapContact = (row) => ({
   birthYear: row.birth_year,
   email: row.email,
   mobilePhone: row.mobile_phone,
-});
-
-const mapTask = (row) => ({
-  id: row.id,
-  title: row.title,
-  createdAt: row.created_at,
 });
 
 const mapEventType = (row) => ({
@@ -542,36 +535,6 @@ module.exports = function createSupabaseProvider() {
         },
         body: payload,
       });
-    },
-
-    async listTasks() {
-      const data = await request(TABLES.tasks, {
-        params: {
-          select: "id,title,created_at",
-          order: "created_at.desc",
-        },
-      });
-      return Array.isArray(data) ? data.map(mapTask) : [];
-    },
-
-    async createTask(title) {
-      const data = await request(TABLES.tasks, {
-        method: "POST",
-        params: {
-          select: "id,title,created_at",
-        },
-        headers: {
-          Prefer: "return=representation",
-        },
-        body: { title },
-      });
-
-      const row = Array.isArray(data) ? data[0] : null;
-      if (!row) {
-        throw new Error("Failed to create task");
-      }
-
-      return mapTask(row);
     },
 
     async checkConnection() {
