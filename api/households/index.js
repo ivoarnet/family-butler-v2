@@ -2,8 +2,8 @@ const { randomUUID } = require("crypto");
 const db = require("../shared/db");
 const { getAuthenticatedUserId } = require("../shared/auth");
 
-const DEFAULT_HOUSEHOLD_NAME = "Family Butler";
 const DEFAULT_HOLIDAY_REGION = process.env.DEFAULT_HOLIDAY_REGION || "CH";
+const UUID_PATTERN = /^[\da-f]{8}-[\da-f]{4}-[\da-f]{4}-[\da-f]{4}-[\da-f]{12}$/i;
 
 const normalizeMember = (member) => ({
   id: member.id,
@@ -60,9 +60,10 @@ const normalizeDayConfiguration = (dayConfiguration) => ({
   label: dayConfiguration.label ?? undefined,
 });
 
-const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [], dayConfigurations = [] }) => ({
+const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [], dayConfigurations = [], revision = 0 }) => ({
   householdId: household.id,
   householdName: household.name,
+  revision,
   familyMembers: members
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -391,6 +392,89 @@ const assertDayConfigurationIdsAuthorized = async (householdId, existingDayConfi
   });
 };
 
+const parseEntityMutation = async (householdId, existingHousehold, body) => {
+  const entityType = body?.entityType;
+  const operation = body?.operation;
+  const entityId = body?.entityId;
+  if (!["householdName", "familyMember", "contact", "eventType", "event", "dayConfiguration"].includes(entityType)) {
+    throw new Error("entity type is invalid");
+  }
+  if (!["upsert", "delete"].includes(operation)) {
+    throw new Error("entity operation is invalid");
+  }
+  if (typeof entityId !== "string" || !UUID_PATTERN.test(entityId)) {
+    throw new Error("entity id is invalid");
+  }
+  if (entityType === "householdName") {
+    if (operation !== "upsert" || entityId !== householdId) {
+      throw new Error("household name mutation is invalid");
+    }
+    const householdName = cleanOptionalText(body.entity?.householdName);
+    if (!householdName) {
+      throw new Error("household name is required");
+    }
+    return { entityType, operation, entityId, entity: { householdName } };
+  }
+  if (operation === "delete") {
+    return { entityType, operation, entityId, entity: null };
+  }
+  if (!body.entity || typeof body.entity !== "object" || Array.isArray(body.entity) || body.entity.id !== entityId) {
+    throw new Error("entity payload is invalid");
+  }
+
+  let entity;
+  if (entityType === "familyMember") {
+    entity = parseIncomingMembers([body.entity], existingHousehold.members)[0];
+    if (body.entity.order !== undefined) {
+      const order = Number(body.entity.order);
+      if (!Number.isInteger(order) || order < 0 || order > 1000000) throw new Error("member order is invalid");
+      entity.sortOrder = order;
+    }
+    entity.order = entity.sortOrder;
+    delete entity.sortOrder;
+    await assertMemberIdsAuthorized(householdId, new Set(existingHousehold.members.map((member) => member.id)), [entity]);
+  } else if (entityType === "contact") {
+    entity = parseIncomingContacts([body.entity])[0];
+    await assertContactIdsAuthorized(householdId, new Set(existingHousehold.contacts.map((contact) => contact.id)), [entity]);
+  } else if (entityType === "eventType") {
+    entity = parseIncomingEventTypes([body.entity])[0];
+    if (body.entity.sortOrder !== undefined) {
+      const sortOrder = Number(body.entity.sortOrder);
+      if (!Number.isInteger(sortOrder) || sortOrder < 0 || sortOrder > 1000000) throw new Error("event type sortOrder is invalid");
+      entity.sortOrder = sortOrder;
+    }
+    await assertEventTypeIdsAuthorized(
+      householdId,
+      new Set((existingHousehold.eventTypes ?? []).map((eventType) => eventType.id)),
+      [entity]
+    );
+  } else if (entityType === "event") {
+    entity = parseIncomingEvents([body.entity], existingHousehold.events)[0];
+    entity.id = entityId;
+    const eventOwner = await db.getEventHouseholdId(entityId);
+    if (eventOwner && eventOwner !== householdId) {
+      throw new Error(`event id is not authorized for this household: ${entityId}`);
+    }
+    const memberIds = new Set(existingHousehold.members.map((member) => member.id));
+    entity.memberIds.forEach((memberId) => {
+      if (!memberIds.has(memberId)) throw new Error(`event member id is not authorized for this household: ${memberId}`);
+    });
+    if (entity.eventTypeId && !(existingHousehold.eventTypes ?? []).some((eventType) => eventType.id === entity.eventTypeId)) {
+      throw new Error(`event type id is not part of this household: ${entity.eventTypeId}`);
+    }
+  } else {
+    entity = parseIncomingDayConfigurations([body.entity])[0];
+    await assertDayConfigurationIdsAuthorized(
+      householdId,
+      new Set((existingHousehold.dayConfigurations ?? []).map((item) => item.id)),
+      [entity]
+    );
+  }
+
+  entity.id = entityId;
+  return { entityType, operation, entityId, entity };
+};
+
 module.exports = async function households(context, req) {
   const httpRequest = req ?? context.req;
   const householdId = httpRequest?.params?.householdId ?? context.bindingData?.householdId;
@@ -470,7 +554,7 @@ module.exports = async function households(context, req) {
       return;
     }
 
-    if (method === "PUT") {
+    if (method === "PATCH") {
       if (!householdId) {
         context.res = {
           status: 400,
@@ -478,49 +562,24 @@ module.exports = async function households(context, req) {
         };
         return;
       }
-
       const existingHousehold = await getHouseholdOrThrow(householdId, authenticatedUserId);
-      const requestedName = cleanOptionalText(httpRequest.body?.householdName);
-      const householdName = requestedName || existingHousehold.household.name || DEFAULT_HOUSEHOLD_NAME;
-      const existingMemberIds = new Set(existingHousehold.members.map((member) => member.id));
-      const existingContactIds = new Set(existingHousehold.contacts.map((contact) => contact.id));
-      const existingEventTypeIds = new Set((existingHousehold.eventTypes ?? []).map((eventType) => eventType.id));
-      const existingDayConfigurationIds = new Set((existingHousehold.dayConfigurations ?? []).map((dayConfiguration) => dayConfiguration.id));
-      const members = parseIncomingMembers(httpRequest.body?.familyMembers, existingHousehold.members);
-      const contacts = parseIncomingContacts(httpRequest.body?.contacts);
-      const eventTypes = parseIncomingEventTypes(httpRequest.body?.eventTypes);
-      const events = parseIncomingEvents(httpRequest.body?.events, existingHousehold.events);
-      const dayConfigurations = parseIncomingDayConfigurations(httpRequest.body?.dayConfigurations);
-      await assertMemberIdsAuthorized(householdId, existingMemberIds, members);
-      await assertContactIdsAuthorized(householdId, existingContactIds, contacts);
-      await assertEventTypeIdsAuthorized(householdId, existingEventTypeIds, eventTypes);
-      await assertDayConfigurationIdsAuthorized(householdId, existingDayConfigurationIds, dayConfigurations);
-
-      const requestedMemberIds = new Set(members.map((member) => member.id));
-      const requestedEventTypeIds = new Set(eventTypes.map((eventType) => eventType.id));
-      events.forEach((event) => {
-        event.memberIds.forEach((memberId) => {
-          if (!requestedMemberIds.has(memberId)) {
-            throw new Error(`event member id is not authorized for this household: ${memberId}`);
-          }
-        });
-        if (event.eventTypeId && !requestedEventTypeIds.has(event.eventTypeId)) {
-          throw new Error(`event type id is not part of this household: ${event.eventTypeId}`);
-        }
-      });
-
-      await db.ensureHousehold(householdId, householdName, DEFAULT_HOLIDAY_REGION, authenticatedUserId);
-      await db.replaceMembers(householdId, members);
-      await db.replaceContacts(householdId, contacts);
-      await db.replaceEventTypes(householdId, eventTypes);
-      await db.replaceEvents(householdId, events);
-      await db.replaceDayConfigurations(householdId, dayConfigurations);
-
-      const household = await getHouseholdOrThrow(householdId, authenticatedUserId);
-
+      const expectedRevision = httpRequest.body?.expectedRevision;
+      if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
+        context.res = { status: 400, body: { error: "expectedRevision is required" } };
+        return;
+      }
+      const command = await parseEntityMutation(householdId, existingHousehold, httpRequest.body);
+      const revision = await db.mutateHouseholdEntity(
+        householdId,
+        expectedRevision,
+        command.entityType,
+        command.operation,
+        command.entityId,
+        command.entity
+      );
       context.res = {
         status: 200,
-        body: normalizeHouseholdData(household),
+        body: { revision },
       };
       return;
     }
@@ -532,7 +591,9 @@ module.exports = async function households(context, req) {
   } catch (error) {
     context.log.error("households handler failed", error);
     const message = error instanceof Error ? error.message : "Internal server error";
-    const status = message.includes("required")
+    const status = error?.status === 409 || message.includes("stale household revision")
+      ? 409
+      : message.includes("required")
       || message.includes("invalid")
       || message.includes("must be on or after")
       ? 400
@@ -545,7 +606,7 @@ module.exports = async function households(context, req) {
       : 500;
     context.res = {
       status,
-      body: { error: message },
+      body: status === 409 ? { error: "Household changed since it was loaded. Refresh and reapply your edit.", conflict: true } : { error: message },
     };
   }
 };

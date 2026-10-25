@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { Dispatch, SetStateAction, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Session, SupabaseClient, User } from "@supabase/supabase-js";
 import { AuthScreen } from "./features/auth/components/AuthScreen";
 import { HouseholdData, HouseholdSummary, NavigationTarget, SettingsSection, ThemeMode } from "./features/app/types";
@@ -19,6 +19,7 @@ const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, ""
 const defaultHouseholdData: HouseholdData = {
   householdId: "",
   householdName: "",
+  revision: 0,
   familyMembers: [],
   contacts: [],
   eventTypes: [],
@@ -122,6 +123,7 @@ const toHouseholdData = (payload: Partial<HouseholdData>, householdId: string): 
   return {
     householdId,
     householdName: typeof payload.householdName === "string" && payload.householdName.trim() ? payload.householdName : fallback.householdName || "Unnamed household",
+    revision: Number.isSafeInteger(payload.revision) && (payload.revision ?? 0) >= 0 ? payload.revision : 0,
     familyMembers: Array.isArray(payload.familyMembers)
       ? normalizeFamilyMembers(payload.familyMembers.filter(Boolean) as FamilyMember[])
       : fallback.familyMembers,
@@ -201,25 +203,98 @@ const createHousehold = async (accessToken: string, householdName: string): Prom
   return toHouseholdData(payload, payload.householdId);
 };
 
-const writeHousehold = async (accessToken: string, household: HouseholdData): Promise<HouseholdData> => {
-  const response = await fetch(`${API_BASE_URL}/api/households/${household.householdId}`, {
-    method: "PUT",
+type CoreEntityType = "householdName" | "familyMember" | "contact" | "eventType" | "event" | "dayConfiguration";
+type CoreEntityMutation = {
+  entityType: CoreEntityType;
+  entityId: string;
+  operation: "upsert" | "delete";
+  entity: Record<string, unknown> | null;
+};
+
+const createEntityMutations = (previous: HouseholdData, next: HouseholdData): CoreEntityMutation[] => {
+  const mutations: CoreEntityMutation[] = [];
+  if (previous.householdName !== next.householdName) {
+    mutations.push({
+      entityType: "householdName",
+      entityId: next.householdId,
+      operation: "upsert",
+      entity: { householdName: next.householdName },
+    });
+  }
+
+  const collections = [
+    ["familyMember", "familyMembers"],
+    ["contact", "contacts"],
+    ["eventType", "eventTypes"],
+    ["event", "events"],
+    ["dayConfiguration", "dayConfigurations"],
+  ] as const;
+  for (const [entityType, collectionName] of collections) {
+    const before = previous[collectionName] as Array<{ id: string }>;
+    const after = next[collectionName] as Array<{ id: string }>;
+    const beforeById = new Map(before.map((entity) => [entity.id, entity]));
+    const afterById = new Map(after.map((entity) => [entity.id, entity]));
+    for (const [id] of beforeById) {
+      if (!afterById.has(id)) mutations.push({ entityType, entityId: id, operation: "delete", entity: null });
+    }
+    for (const [id, entity] of afterById) {
+      if (JSON.stringify(beforeById.get(id)) !== JSON.stringify(entity)) {
+        mutations.push({
+          entityType,
+          entityId: id,
+          operation: "upsert",
+          entity: entity as unknown as Record<string, unknown>,
+        });
+      }
+    }
+  }
+  return mutations;
+};
+
+const applyEntityMutation = (household: HouseholdData, mutation: CoreEntityMutation, revision: number): HouseholdData => {
+  if (mutation.entityType === "householdName") {
+    return { ...household, householdName: String(mutation.entity?.householdName ?? household.householdName), revision };
+  }
+
+  const collectionName = {
+    familyMember: "familyMembers",
+    contact: "contacts",
+    eventType: "eventTypes",
+    event: "events",
+    dayConfiguration: "dayConfigurations",
+  }[mutation.entityType] as "familyMembers" | "contacts" | "eventTypes" | "events" | "dayConfigurations";
+  const current = household[collectionName] as Array<{ id: string }>;
+  const updated = mutation.operation === "delete"
+    ? current.filter((entity) => entity.id !== mutation.entityId)
+    : [
+        ...current.filter((entity) => entity.id !== mutation.entityId),
+        mutation.entity as unknown as { id: string },
+      ];
+  return { ...household, [collectionName]: updated, revision } as HouseholdData;
+};
+
+const writeEntityMutation = async (
+  accessToken: string,
+  householdId: string,
+  expectedRevision: number,
+  mutation: CoreEntityMutation
+): Promise<number> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`, {
+    method: "PATCH",
     headers: createRequestHeaders(accessToken, true),
-    body: JSON.stringify({
-      householdName: household.householdName,
-      familyMembers: normalizeFamilyMembers(household.familyMembers),
-      contacts: household.contacts,
-      eventTypes: normalizeEventTypes(household.eventTypes),
-      events: normalizeEvents(household.events),
-      dayConfigurations: normalizeDayConfigurations(household.dayConfigurations),
-    }),
+    body: JSON.stringify({ expectedRevision, ...mutation }),
   });
 
   if (!response.ok) {
-    throw new Error(await parseResponseError(response, "Failed to save household data"));
+    const error = new Error(await parseResponseError(response, "Failed to save household change"));
+    if (response.status === 409) Object.assign(error, { conflict: true });
+    throw error;
   }
-
-  return toHouseholdData((await response.json()) as Partial<HouseholdData>, household.householdId);
+  const payload = (await response.json()) as { revision?: unknown };
+  if (!Number.isSafeInteger(payload.revision) || Number(payload.revision) <= expectedRevision) {
+    throw new Error("Household change response did not include a valid revision");
+  }
+  return Number(payload.revision);
 };
 
 const readRuntimeAuthConfig = async (): Promise<{ supabaseUrl: string; supabasePublishableKey: string } | null> => {
@@ -288,13 +363,15 @@ export function App() {
   const [theme, setTheme] = useState<ThemeMode>(getInitialTheme);
   const [authClient, setAuthClient] = useState<SupabaseClient | null>(null);
   const [authSession, setAuthSession] = useState<Session | null>(null);
+  const authTokenRef = useRef<string | null>(null);
+  authTokenRef.current = authSession?.access_token ?? null;
   const [authReady, setAuthReady] = useState(false);
   const [authPending, setAuthPending] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
   const [authInfo, setAuthInfo] = useState<string | null>(null);
   const [households, setHouseholds] = useState<HouseholdSummary[]>([]);
   const [activeHouseholdId, setActiveHouseholdId] = useState<string | null>(null);
-  const [householdData, setHouseholdData] = useState<HouseholdData>(getInitialHouseholdData);
+  const [householdData, setHouseholdDataState] = useState<HouseholdData>(getInitialHouseholdData);
   const [pathname, setPathname] = useState(() => window.location.pathname);
   const [initialLoadComplete, setInitialLoadComplete] = useState(false);
   const [dataError, setDataError] = useState<string | null>(null);
@@ -306,6 +383,14 @@ export function App() {
   const [profileFirstName, setProfileFirstName] = useState("");
   const [profileLastName, setProfileLastName] = useState("");
   const [isProfileSaving, setIsProfileSaving] = useState(false);
+  const [dirtyRevision, setDirtyRevision] = useState(0);
+  const persistedHouseholdsRef = useRef(new Map<string, { data: HouseholdData; revision: number }>());
+  const mutationQueueRef = useRef<Promise<void>>(Promise.resolve());
+  const blockedHouseholdsRef = useRef(new Set<string>());
+  const setHouseholdData: Dispatch<SetStateAction<HouseholdData>> = useCallback((action) => {
+    setHouseholdDataState(action);
+    setDirtyRevision((current) => current + 1);
+  }, []);
 
   const childcareRequest = useCallback(async (path: string, init: RequestInit = {}): Promise<unknown> => {
     if (!authClient) throw new Error("Sign in to manage childcare.");
@@ -402,6 +487,7 @@ export function App() {
 
     const loadInitialHouseholdContext = async () => {
       try {
+        await mutationQueueRef.current;
         setIsContextLoading(true);
         const loadedHouseholds = await readHouseholds(accessToken);
         if (cancelled) {
@@ -412,7 +498,7 @@ export function App() {
 
         if (loadedHouseholds.length === 0) {
           setActiveHouseholdId(null);
-          setHouseholdData(getInitialHouseholdData());
+          setHouseholdDataState(getInitialHouseholdData());
           setDataError(null);
           setFailedAction(null);
           return;
@@ -428,7 +514,12 @@ export function App() {
           return;
         }
 
-        setHouseholdData(loadedHousehold);
+        persistedHouseholdsRef.current.set(preferredHouseholdId, {
+          data: loadedHousehold,
+          revision: loadedHousehold.revision ?? 0,
+        });
+        blockedHouseholdsRef.current.delete(preferredHouseholdId);
+        setHouseholdDataState(loadedHousehold);
         setActiveHouseholdId(preferredHouseholdId);
         window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, preferredHouseholdId);
         setDataError(null);
@@ -451,51 +542,47 @@ export function App() {
     return () => {
       cancelled = true;
     };
-  }, [authSession?.user?.id, authSession?.access_token]);
+  }, [authSession?.user?.id]);
 
   useEffect(() => {
-    if (!initialLoadComplete || !activeHouseholdId || isContextLoading) {
+    if (!initialLoadComplete || !activeHouseholdId || isContextLoading || householdData.householdId !== activeHouseholdId) {
       return;
     }
-
-    let cancelled = false;
-
-    const persistHouseholdData = async () => {
+    const householdId = activeHouseholdId;
+    const snapshot = householdData;
+    const queued = mutationQueueRef.current.then(async () => {
+      if (blockedHouseholdsRef.current.has(householdId)) return;
+      const saved = persistedHouseholdsRef.current.get(householdId);
+      if (!saved) return;
+      const mutations = createEntityMutations(saved.data, snapshot);
+      if (mutations.length === 0) return;
+      const accessToken = authTokenRef.current;
+      if (!accessToken) {
+        setDataError("You need to sign in again.");
+        return;
+      }
+      setIsSaving(true);
+      let current = saved;
       try {
-        if (!authSession?.access_token) {
-          throw new Error("You need to sign in again.");
+        for (const mutation of mutations) {
+          const revision = await writeEntityMutation(accessToken, householdId, current.revision, mutation);
+          const data = applyEntityMutation(current.data, mutation, revision);
+          current = { data, revision };
+          persistedHouseholdsRef.current.set(householdId, current);
+          setHouseholdDataState((value) =>
+            value.householdId === householdId ? { ...value, revision } : value
+          );
         }
-        setIsSaving(true);
-        const persisted = await writeHousehold(authSession.access_token, householdData);
-        if (cancelled) {
-          return;
-        }
-        setHouseholdData((current) =>
-          JSON.stringify(current) === JSON.stringify(persisted)
-            ? current
-            : {
-                ...persisted,
-                familyMembers: normalizeFamilyMembers(persisted.familyMembers),
-              }
-        );
         setDataError(null);
       } catch (error) {
-        if (!cancelled) {
-          setDataError(error instanceof Error ? error.message : "Could not save household data to the server.");
-        }
+        if ((error as Error & { conflict?: boolean }).conflict) blockedHouseholdsRef.current.add(householdId);
+        setDataError(error instanceof Error ? error.message : "Could not save household change.");
       } finally {
-        if (!cancelled) {
-          setIsSaving(false);
-        }
+        setIsSaving(false);
       }
-    };
-
-    persistHouseholdData();
-
-    return () => {
-      cancelled = true;
-    };
-  }, [activeHouseholdId, authSession?.access_token, householdData, initialLoadComplete, isContextLoading]);
+    });
+    mutationQueueRef.current = queued.catch(() => undefined);
+  }, [activeHouseholdId, dirtyRevision, householdData, initialLoadComplete, isContextLoading]);
 
   useEffect(() => {
     const handlePopState = () => setPathname(window.location.pathname);
@@ -512,9 +599,12 @@ export function App() {
       if (!authSession?.access_token) {
         throw new Error("You need to sign in again.");
       }
+      await mutationQueueRef.current;
       setIsContextLoading(true);
       const loaded = await readHousehold(authSession.access_token, householdId);
-      setHouseholdData(loaded);
+      persistedHouseholdsRef.current.set(householdId, { data: loaded, revision: loaded.revision ?? 0 });
+      blockedHouseholdsRef.current.delete(householdId);
+      setHouseholdDataState(loaded);
       setActiveHouseholdId(householdId);
       window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, householdId);
       setDataError(null);
@@ -535,7 +625,8 @@ export function App() {
       setIsCreatingHousehold(true);
       const created = await createHousehold(authSession.access_token, householdName);
       setHouseholds((current) => [...current, { id: created.householdId, name: created.householdName }]);
-      setHouseholdData(created);
+      persistedHouseholdsRef.current.set(created.householdId, { data: created, revision: created.revision ?? 0 });
+      setHouseholdDataState(created);
       setActiveHouseholdId(created.householdId);
       window.localStorage.setItem(ACTIVE_HOUSEHOLD_STORAGE_KEY, created.householdId);
       setDataError(null);
@@ -557,20 +648,40 @@ export function App() {
         throw new Error("You need to sign in again.");
       }
       setIsCreatingHousehold(true);
-      const sourceHousehold =
-        householdData.householdId === householdId ? householdData : await readHousehold(authSession.access_token, householdId);
-      const persisted = await writeHousehold(authSession.access_token, { ...sourceHousehold, householdName });
+      const saveName = mutationQueueRef.current.then(async () => {
+        const accessToken = authTokenRef.current;
+        if (!accessToken) throw new Error("You need to sign in again.");
+        let source = persistedHouseholdsRef.current.get(householdId);
+        if (!source) {
+          const loaded = await readHousehold(accessToken, householdId);
+          source = { data: loaded, revision: loaded.revision ?? 0 };
+          persistedHouseholdsRef.current.set(householdId, source);
+        }
+        const mutation: CoreEntityMutation = {
+          entityType: "householdName",
+          entityId: householdId,
+          operation: "upsert",
+          entity: { householdName },
+        };
+        const revision = await writeEntityMutation(accessToken, householdId, source.revision, mutation);
+        const persisted = applyEntityMutation(source.data, mutation, revision);
+        persistedHouseholdsRef.current.set(householdId, { data: persisted, revision });
+        return persisted;
+      });
+      mutationQueueRef.current = saveName.then(() => undefined, () => undefined);
+      const persisted = await saveName;
       setHouseholds((current) =>
         current.map((household) => (household.id === householdId ? { ...household, name: persisted.householdName } : household))
       );
       if (activeHouseholdId === householdId) {
-        setHouseholdData(persisted);
+        setHouseholdDataState(persisted);
       }
       setDataError(null);
       setFailedAction(null);
       return { ok: true };
     } catch (error) {
       const message = error instanceof Error ? error.message : "Could not update household.";
+      if ((error as Error & { conflict?: boolean }).conflict) blockedHouseholdsRef.current.add(householdId);
       setDataError(message);
       return { ok: false, error: message };
     } finally {
@@ -596,14 +707,17 @@ export function App() {
     window.location.reload();
   };
 
-  const refreshActiveHouseholdContext = async () => {
-    if (!authSession?.access_token || !activeHouseholdId) {
+  const refreshActiveHouseholdContext = async (force = false) => {
+    if (!authSession?.access_token || !activeHouseholdId || (!force && blockedHouseholdsRef.current.has(activeHouseholdId))) {
       return;
     }
 
     try {
+      await mutationQueueRef.current;
       const loaded = await readHousehold(authSession.access_token, activeHouseholdId);
-      setHouseholdData(loaded);
+      persistedHouseholdsRef.current.set(activeHouseholdId, { data: loaded, revision: loaded.revision ?? 0 });
+      blockedHouseholdsRef.current.delete(activeHouseholdId);
+      setHouseholdDataState(loaded);
       setDataError(null);
     } catch (error) {
       setDataError(error instanceof Error ? error.message : "Could not refresh household data.");
@@ -626,6 +740,9 @@ export function App() {
     typeof currentUser?.user_metadata?.avatar_url === "string" && currentUser.user_metadata.avatar_url.trim()
       ? currentUser.user_metadata.avatar_url.trim()
       : null;
+  const conflictAction = dataError?.startsWith("Household changed since it was loaded") ? (
+    <button type="button" onClick={() => void refreshActiveHouseholdContext(true)}>Reload household to reapply changes</button>
+  ) : null;
 
   useEffect(() => {
     if (!currentUser) {
@@ -809,6 +926,7 @@ export function App() {
     return (
       <>
         {dataError ? <div role="alert">{dataError}</div> : null}
+        {conflictAction}
         <div className="dashboard-page">
           <main className="dashboard-main">
             <section className="calendar-card">
@@ -827,6 +945,7 @@ export function App() {
     return (
       <>
         {dataError ? <div role="alert">{dataError}</div> : null}
+        {conflictAction}
         <div className="dashboard-page">
           <main className="dashboard-main">
             <section className="calendar-card">
@@ -852,6 +971,8 @@ export function App() {
 
   return pathname === "/profile" ? (
     <>
+      {dataError ? <div role="alert">{dataError}</div> : null}
+      {conflictAction}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       <ProfilePage
         moduleNavigation={activeHouseholdId ? moduleNavigation : undefined}
@@ -882,6 +1003,7 @@ export function App() {
   ) : pathname === "/settings" ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
+      {conflictAction}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <SettingsPage
@@ -924,6 +1046,7 @@ export function App() {
   ) : pathname === "/reports" ? (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
+      {conflictAction}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <ReportsPage householdName={householdData.householdName} onGoHome={() => navigateTo("/")} moduleNavigation={moduleNavigation} />
@@ -931,6 +1054,7 @@ export function App() {
   ) : (
     <>
       {dataError ? <div role="alert">{dataError}</div> : null}
+      {conflictAction}
       {isSaving ? <div aria-live="polite">Saving…</div> : null}
       {isContextLoading ? <div aria-live="polite">Loading selected household…</div> : null}
       <DashboardPage

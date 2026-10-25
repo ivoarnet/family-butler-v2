@@ -39,6 +39,10 @@ Recommended architecture:
 - Azure Functions use Supabase server-side with `SUPABASE_SECRET_KEY`.
 - Do **not** expose `SUPABASE_SECRET_KEY` to the browser.
 
+### Revision-checked household edits
+
+After creating the core household tables and applying `docs/sql/core-access-policy.sql`, run `docs/sql/core-entity-mutations.sql` before deploying the updated API and frontend. Core calendar edits use entity-scoped `PATCH` commands with an expected household revision. The database checks and increments that revision atomically with each entity write; stale clients receive a recoverable conflict instead of replacing a household snapshot. UI saves are serialized, and agent tools use the same revision contract.
+
 ## 3) Configure environment variables
 
 ### Azure Static Web Apps (API runtime)

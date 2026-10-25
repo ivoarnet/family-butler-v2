@@ -246,6 +246,19 @@ module.exports = function createSupabaseProvider() {
       return row && typeof row.household_id === "string" ? row.household_id : null;
     },
 
+    async getEventHouseholdId(eventId) {
+      const rows = await request(TABLES.events, {
+        params: {
+          select: "household_id",
+          id: `eq.${eventId}`,
+          limit: 1,
+        },
+      });
+
+      const row = Array.isArray(rows) ? rows[0] : null;
+      return row && typeof row.household_id === "string" ? row.household_id : null;
+    },
+
     async getDayConfigurationHouseholdId(dayConfigurationId) {
       const rows = await request(TABLES.dayConfigurations, {
         params: {
@@ -276,7 +289,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async getHouseholdWithRelations(householdId, userId) {
-      const [households, members, contacts, eventTypes, events, dayConfigurations] = await Promise.all([
+      const [households, members, contacts, eventTypes, events, dayConfigurations, revisions] = await Promise.all([
         request(TABLES.households, {
           params: {
             select: "id,name,holiday_region",
@@ -318,6 +331,13 @@ module.exports = function createSupabaseProvider() {
             order: "start_date.asc",
           },
         }),
+        request("household_revisions", {
+          params: {
+            select: "revision",
+            household_id: `eq.${householdId}`,
+            limit: 1,
+          },
+        }),
       ]);
 
       const household = Array.isArray(households) ? households[0] : null;
@@ -327,12 +347,32 @@ module.exports = function createSupabaseProvider() {
 
       return {
         household: mapHousehold(household),
+        revision: Number(Array.isArray(revisions) ? revisions[0]?.revision ?? 0 : 0),
         members: Array.isArray(members) ? members.map(mapMember) : [],
         contacts: Array.isArray(contacts) ? contacts.map(mapContact) : [],
         eventTypes: Array.isArray(eventTypes) ? eventTypes.map(mapEventType) : [],
         events: Array.isArray(events) ? events.map(mapEvent) : [],
         dayConfigurations: Array.isArray(dayConfigurations) ? dayConfigurations.map(mapDayConfiguration) : [],
       };
+    },
+
+    async mutateHouseholdEntity(householdId, expectedRevision, entityType, operation, entityId, entity) {
+      const revision = await request("rpc/mutate_household_entity", {
+        method: "POST",
+        body: {
+          p_household_id: householdId,
+          p_expected_revision: expectedRevision,
+          p_entity_type: entityType,
+          p_operation: operation,
+          p_entity_id: entityId,
+          p_entity: entity,
+        },
+      });
+      const nextRevision = Number(Array.isArray(revision) ? revision[0] : revision);
+      if (!Number.isSafeInteger(nextRevision) || nextRevision <= expectedRevision) {
+        throw new Error("Core entity mutation did not return a valid revision");
+      }
+      return nextRevision;
     },
 
     async replaceMembers(householdId, members) {

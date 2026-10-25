@@ -5,6 +5,7 @@ export type ThemeMode = "light" | "dark";
 export interface HouseholdData {
   householdId: string;
   householdName: string;
+  revision?: number;
   familyMembers: FamilyMember[];
   contacts: Contact[];
   eventTypes: EventType[];

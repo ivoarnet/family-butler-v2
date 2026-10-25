@@ -4,6 +4,7 @@ const { execFile, execFileSync } = require("node:child_process");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
 const households = require("./households");
+const db = require("./shared/db");
 const createSupabaseProvider = require("./shared/db/providers/supabase");
 const createAddEventTool = require("./shared/agent/tools/addEventTool");
 const createUpdateEventDetailsTool = require("./shared/agent/tools/updateEventDetailsTool");
@@ -29,86 +30,89 @@ const saveEnvironment = (t) => {
   });
 };
 
-const eventRow = (id) => ({
-  id,
-  household_id: householdId,
-  title: "Existing event",
-  event_date: "2026-10-20",
-  end_date: null,
-  member_ids: [memberId],
-  all_day: true,
-  start_time: null,
-  end_time: null,
-  event_type_id: null,
-  repeat_rule: null,
-  location: null,
-  notes: null,
-});
-
-const invokeHouseholdPut = async (existingEvents, incomingEvents) => {
-  let replacement;
-  global.fetch = async (url, options) => {
-    const parsed = new URL(url);
-    if (parsed.pathname === "/auth/v1/user") return Response.json({ id: userId });
-    if (parsed.pathname.endsWith("/rpc/replace_household_events")) {
-      replacement = JSON.parse(options.body);
-      return new Response(null, { status: 204 });
-    }
-    const table = parsed.pathname.split("/").pop();
-    if (options.method !== "GET") return new Response(null, { status: 204 });
-    if (table === "households") {
-      return Response.json(parsed.searchParams.get("created_by_user_id") === `eq.${userId}`
-        ? [{ id: householdId, name: "Family", holiday_region: "CH" }] : []);
-    }
-    if (table === "household_members") {
-      return Response.json(parsed.searchParams.has("id")
-        ? [{ household_id: householdId }]
-        : [{
-            id: memberId, household_id: householdId, first_name: "Robin", role: null,
-            is_child: false, hatch_parenting_away: false, school_building: null, school_class: null,
-            avatar_color: "#3b82f6", visible_in_calendar: true, sort_order: 0,
-          }]);
-    }
-    if (table === "events") return Response.json(existingEvents);
-    return Response.json([]);
-  };
-
+const invokeHouseholdMutation = async (entity) => {
+  global.fetch = async (url) => String(url).endsWith("/auth/v1/user") ? Response.json({ id: userId }) : Response.json([]);
   const context = { log: { error() {} } };
   await households(context, {
-    method: "PUT",
+    method: "PATCH",
     params: { householdId },
     headers: { "x-supabase-auth-token": "test-token" },
-    body: {
-      familyMembers: [{ id: memberId, firstName: "Robin" }],
-      events: incomingEvents,
-    },
+    body: { expectedRevision: 4, entityType: "event", operation: "upsert", entityId: entity.id, entity },
   });
-  return { response: context.res, replacement };
+  return context.res;
 };
 
-test("HTTP event creates replace unknown client IDs and preserve IDs owned by this household", async (t) => {
+test("HTTP event commands mutate only the requested entity and reject foreign IDs", async (t) => {
   saveEnvironment(t);
-  const create = await invokeHouseholdPut([], [{
-    id: foreignEventId, title: "New event", date: "2026-10-21", memberIds: [memberId],
-  }]);
-  assert.equal(create.response.status, 200);
-  assert.equal(create.replacement.p_household_id, householdId);
-  assert.match(create.replacement.p_events[0].id, /^[0-9a-f-]{36}$/i);
-  assert.notEqual(create.replacement.p_events[0].id, foreignEventId);
+  const oldGetHousehold = db.getHouseholdWithRelations;
+  const oldGetEventHouseholdId = db.getEventHouseholdId;
+  const oldMutate = db.mutateHouseholdEntity;
+  const mutation = [];
+  db.getHouseholdWithRelations = async (_id, ownerId) => ownerId === userId ? ({
+    household: { id: householdId, name: "Family", holidayRegion: "CH" },
+    revision: 4,
+    members: [{ id: memberId, firstName: "Robin", sortOrder: 0 }],
+    contacts: [],
+    eventTypes: [],
+    events: [],
+    dayConfigurations: [],
+  }) : null;
+  db.getEventHouseholdId = async (id) => id === foreignEventId ? "00000000-0000-0000-0000-000000000099" : null;
+  db.mutateHouseholdEntity = async (...args) => {
+    mutation.push(args);
+    return 5;
+  };
+  t.after(() => {
+    db.getHouseholdWithRelations = oldGetHousehold;
+    db.getEventHouseholdId = oldGetEventHouseholdId;
+    db.mutateHouseholdEntity = oldMutate;
+  });
+  const newEvent = { id: ownEventId, title: "New event", date: "2026-10-21", memberIds: [memberId] };
+  const create = await invokeHouseholdMutation(newEvent);
+  assert.equal(create.status, 200);
+  assert.deepEqual(mutation[0].slice(0, 5), [householdId, 4, "event", "upsert", ownEventId]);
+  assert.equal(mutation[0][5].title, "New event");
 
-  const update = await invokeHouseholdPut([eventRow(ownEventId)], [{
-    id: ownEventId, title: "Updated event", date: "2026-10-22", memberIds: [memberId],
-  }]);
-  assert.equal(update.response.status, 200);
-  assert.equal(update.replacement.p_events[0].id, ownEventId);
+  db.getHouseholdWithRelations = async () => ({
+    household: { id: householdId, name: "Family", holidayRegion: "CH" },
+    revision: 4,
+    members: [{ id: memberId, firstName: "Robin", sortOrder: 0 }],
+    contacts: [],
+    eventTypes: [],
+    events: [{
+    id: ownEventId, title: "Existing event", date: "2026-10-20", memberIds: [memberId], allDay: true,
+    }],
+    dayConfigurations: [],
+  });
+  const update = await invokeHouseholdMutation({ id: ownEventId, title: "Updated event", date: "2026-10-22", memberIds: [memberId] });
+  assert.equal(update.status, 200);
+  assert.equal(mutation[1][5].id, ownEventId);
+
+  const denied = await invokeHouseholdMutation({
+    id: foreignEventId, title: "Not authorized", date: "2026-10-22", memberIds: [memberId],
+  });
+  assert.equal(denied.status, 403);
+  assert.equal(mutation.length, 2);
 });
 
 test("agent add_event ignores supplied IDs and generates an event ID", async () => {
-  let savedEvents;
+  let mutation;
+  const householdState = {
+    revision: 0,
+    members: [{ id: memberId, firstName: "Robin" }],
+    contacts: [],
+    eventTypes: [],
+    events: [],
+  };
   const tool = createAddEventTool({
-    db: { replaceEvents: async (id, events) => { assert.equal(id, householdId); savedEvents = events; } },
+    db: {
+      mutateHouseholdEntity: async (...args) => {
+        mutation = args;
+        return args[1] + 1;
+      },
+    },
     householdId,
-    householdState: { members: [{ id: memberId, firstName: "Robin" }], contacts: [], eventTypes: [], events: [] },
+    householdState,
     toClientError: (message) => new Error(message),
   });
   assert.equal("id" in tool.definition.parameters.properties.event.properties, false);
@@ -118,18 +122,46 @@ test("agent add_event ignores supplied IDs and generates an event ID", async () 
     repeatRule: "RRULE:FREQ=WEEKLY;UNTIL=20261231",
   } });
   assert.equal(result.ok, true);
-  assert.match(savedEvents[0].id, /^[0-9a-f-]{36}$/i);
-  assert.notEqual(savedEvents[0].id, foreignEventId);
-  assert.equal(savedEvents[0].repeatRule, "RRULE:FREQ=WEEKLY;UNTIL=20261231");
+  assert.match(mutation[4], /^[0-9a-f-]{36}$/i);
+  assert.notEqual(mutation[4], foreignEventId);
+  assert.equal(mutation[5].repeatRule, "RRULE:FREQ=WEEKLY;UNTIL=20261231");
+  assert.equal(householdState.revision, 1);
+});
+
+test("agent stale entity writes surface a recoverable conflict without updating local state", async () => {
+  const householdState = {
+    revision: 3,
+    members: [{ id: memberId, firstName: "Robin" }],
+    contacts: [],
+    eventTypes: [],
+    events: [],
+  };
+  const tool = createAddEventTool({
+    db: {
+      mutateHouseholdEntity: async () => {
+        throw new Error("stale household revision");
+      },
+    },
+    householdId,
+    householdState,
+    toClientError: (message) => new Error(message),
+  });
+  await assert.rejects(
+    tool.execute({ event: { title: "Concurrent event", date: "2026-10-21", memberIds: [memberId] } }),
+    (error) => error.statusCode === 409
+  );
+  assert.equal(householdState.revision, 3);
+  assert.equal(householdState.events.length, 0);
 });
 
 test("agent event updates cannot select IDs outside the household state", async () => {
   let writes = 0;
   const tool = createUpdateEventDetailsTool({
-    db: { replaceEvents: async () => { writes++; } },
+    db: { mutateHouseholdEntity: async () => { writes++; return 1; } },
     householdId,
     householdState: {
       members: [{ id: memberId, firstName: "Robin" }],
+      revision: 0,
       contacts: [],
       eventTypes: [],
       events: [{
@@ -172,6 +204,44 @@ test("Supabase event replacement uses one scoped database command", async (t) =>
       all_day: true,
     }],
   });
+});
+
+test("Supabase core entity mutation sends its expected revision to one RPC", async (t) => {
+  saveEnvironment(t);
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url: String(url), options });
+    return Response.json(9);
+  };
+  const provider = createSupabaseProvider();
+  const revision = await provider.mutateHouseholdEntity(
+    householdId,
+    8,
+    "event",
+    "upsert",
+    ownEventId,
+    { id: ownEventId, title: "Updated", date: "2026-10-22", memberIds: [memberId], allDay: true }
+  );
+  assert.equal(revision, 9);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/rpc\/mutate_household_entity$/);
+  assert.deepEqual(JSON.parse(requests[0].options.body), {
+    p_household_id: householdId,
+    p_expected_revision: 8,
+    p_entity_type: "event",
+    p_operation: "upsert",
+    p_entity_id: ownEventId,
+    p_entity: { id: ownEventId, title: "Updated", date: "2026-10-22", memberIds: [memberId], allDay: true },
+  });
+});
+
+test("core entity mutation SQL compares a locked revision before changing one entity", () => {
+  const sql = readFileSync(path.join(__dirname, "..", "docs", "sql", "core-entity-mutations.sql"), "utf8");
+  assert.match(sql, /for update/i);
+  assert.match(sql, /v_revision <> p_expected_revision/);
+  assert.match(sql, /stale household revision/);
+  assert.match(sql, /insert into public\.events as existing/i);
+  assert.doesNotMatch(sql, /delete from public\.events where household_id = p_household_id/i);
 });
 
 test("PostgreSQL event replacement is atomic and prevents cross-household transfers", {

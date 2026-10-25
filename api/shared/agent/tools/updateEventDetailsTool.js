@@ -10,6 +10,7 @@ const {
   toEventOutput,
   buildEventDuplicateKey,
 } = require("./eventModel");
+const persistHouseholdEntity = require("./persistHouseholdEntity");
 
 const normalizeForMatch = (value) => cleanString(value).toLowerCase();
 
@@ -255,7 +256,9 @@ module.exports = function createUpdateEventDetailsTool({ db, householdId, househ
       }
 
       const updatedEvents = events.map((event) => (event.id === currentEvent.id ? updatedEvent : event));
-      await db.replaceEvents(householdId, updatedEvents);
+      await persistHouseholdEntity({
+        db, householdId, householdState, entityType: "event", operation: "upsert", entityId: updatedEvent.id, entity: updatedEvent,
+      });
       householdState.events = updatedEvents;
 
       return {

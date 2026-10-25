@@ -1,5 +1,6 @@
 const { randomUUID } = require("crypto");
 const { CONTACT_MODEL_DESCRIPTION } = require("./contactModel");
+const persistHouseholdEntity = require("./persistHouseholdEntity");
 
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 const normalizeName = (value) => cleanString(value).toLowerCase();
@@ -109,7 +110,9 @@ module.exports = function createAddContactTool({ db, householdId, householdState
         };
       }
 
-      await db.replaceContacts(householdId, [...existingContacts, newContact]);
+      await persistHouseholdEntity({
+        db, householdId, householdState, entityType: "contact", operation: "upsert", entityId: newContact.id, entity: newContact,
+      });
       householdState.contacts = [...existingContacts, newContact];
 
       return {

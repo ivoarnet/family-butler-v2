@@ -6,6 +6,7 @@ const {
 } = require("./shared/childcare");
 const createChildcareProvider = require("./shared/db/providers/childcare");
 const createGetChildcareCoverageTool = require("./shared/agent/tools/getChildcareCoverageTool");
+const db = require("./shared/db");
 
 const householdId = "00000000-0000-0000-0000-000000000001";
 const providerId = "00000000-0000-0000-0000-000000000002";
@@ -154,7 +155,7 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     households: [{ id: householdId, name: "Test household", created_by_user_id: childId, household_members: [{ id: childId }, { id: secondChildId }] }],
     household_members: [{ id: childId, household_id: householdId, first_name: "Child", sort_order: 0 }],
     contacts: [], event_types: [], events: [], day_configurations: [],
-    childcare_providers: [], childcare_arrangements: [], childcare_overrides: [],
+    childcare_providers: [], childcare_arrangements: [], childcare_overrides: [], household_revisions: [],
   };
   const calls = [];
   global.fetch = async (url, options) => {
@@ -321,16 +322,18 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     assert.equal(householdContext.res.status, 200);
     assert.equal(householdContext.res.body.familyMembers[0].id, childId);
     assert.deepEqual(householdContext.res.body.events, []);
-    const originalReplaceMembers = db.replaceMembers;
-    db.replaceMembers = async () => { throw new Error("member participates in a childcare arrangement"); };
+    const originalMutateHouseholdEntity = db.mutateHouseholdEntity;
+    db.mutateHouseholdEntity = async () => { throw new Error("member participates in a childcare arrangement"); };
     try {
       await require("./households")(householdContext, {
-        method: "PUT", params: { householdId }, body: { familyMembers: [] },
+        method: "PATCH",
+        params: { householdId },
+        body: { expectedRevision: 0, entityType: "familyMember", operation: "delete", entityId: childId },
         headers: { authorization: ["Bearer", "test-only"].join(" ") },
       });
       assert.equal(householdContext.res.status, 409);
     } finally {
-      db.replaceMembers = originalReplaceMembers;
+      db.mutateHouseholdEntity = originalMutateHouseholdEntity;
     }
   } finally {
     global.fetch = originalFetch;

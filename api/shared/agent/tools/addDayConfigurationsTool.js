@@ -1,5 +1,6 @@
 const { randomUUID } = require("crypto");
 const { DAY_CONFIGURATION_CATEGORIES, DAY_CONFIGURATION_MODEL_DESCRIPTION } = require("./dayConfigurationModel");
+const persistHouseholdEntity = require("./persistHouseholdEntity");
 
 const DAY_CONFIGURATION_CATEGORY_SET = new Set(DAY_CONFIGURATION_CATEGORIES);
 
@@ -114,9 +115,18 @@ module.exports = function createAddDayConfigurationsTool({ db, householdId, hous
       }
 
       if (additions.length > 0) {
-        const updated = [...existingDayConfigurations, ...additions];
-        await db.replaceDayConfigurations(householdId, updated);
-        householdState.dayConfigurations = updated;
+        for (const configuration of additions) {
+          await persistHouseholdEntity({
+            db,
+            householdId,
+            householdState,
+            entityType: "dayConfiguration",
+            operation: "upsert",
+            entityId: configuration.id,
+            entity: configuration,
+          });
+          householdState.dayConfigurations = [...(householdState.dayConfigurations ?? []), configuration];
+        }
       }
 
       return {
