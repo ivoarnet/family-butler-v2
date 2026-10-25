@@ -41,7 +41,7 @@ Recommended architecture:
 
 ### Revision-checked household edits
 
-After creating the core household tables and applying `docs/sql/core-access-policy.sql`, run `docs/sql/core-entity-mutations.sql` before deploying the updated API and frontend. Core calendar edits use entity-scoped `PATCH` commands with an expected household revision. The database checks and increments that revision atomically with each entity write; stale clients receive a recoverable conflict instead of replacing a household snapshot. UI saves are serialized, and agent tools use the same revision contract.
+After creating the core household tables and applying `docs/sql/core-access-policy.sql`, run `docs/sql/core-entity-mutations.sql` before deploying the updated API and frontend. Core calendar edits use entity-scoped `PATCH` commands with an expected household revision. UI changes are sent as one command batch; the database checks and increments the revision and commits every entity write in that batch atomically. Agent tools use the same revision-checked command contract. Stale clients receive a recoverable conflict instead of replacing a household snapshot. Deletions require an explicit entity ID and `operation: "delete"`; omitted collections are never interpreted as deletions. Event writes validate member and event-type references inside the transaction, and deleting a member removes its reference from that household's events.
 
 ## 3) Configure environment variables
 
@@ -89,7 +89,7 @@ create table if not exists public.household_members (
   sort_order integer not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (household_id, sort_order)
+  unique (household_id, sort_order) deferrable initially deferred
 );
 
 create table if not exists public.contacts (
@@ -115,7 +115,7 @@ create table if not exists public.event_types (
   sort_order integer not null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now(),
-  unique (household_id, sort_order)
+  unique (household_id, sort_order) deferrable initially deferred
 );
 
 create table if not exists public.events (
@@ -264,8 +264,8 @@ on conflict (id) do nothing;
    - `GET /api/households`
    - `POST /api/households`
    - `GET /api/households/{householdId}`
-   - `PUT /api/households/{householdId}`
-   - Verify event and event type data persists through `PUT /api/households/{householdId}` payloads
+   - `PATCH /api/households/{householdId}` with a revision-checked entity command
+   - Verify event and event type changes persist through revision-checked entity commands
 
 ## 7) Production cutover checklist
 

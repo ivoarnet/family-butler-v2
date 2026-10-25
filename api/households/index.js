@@ -278,11 +278,13 @@ const parseIncomingEvents = (events, existingEvents = []) => {
       }
 
       const requestedId = typeof event.id === "string" && event.id ? existingIds.get(event.id.toLowerCase()) : null;
-      const memberIds = Array.isArray(event.memberIds)
-        ? [...new Set(event.memberIds.filter((memberId) => typeof memberId === "string" && memberId))]
-        : [];
-      if (memberIds.length === 0) {
-        throw new Error("event memberIds are required");
+      if (!Array.isArray(event.memberIds) || event.memberIds.length === 0
+        || event.memberIds.some((memberId) => typeof memberId !== "string" || !UUID_PATTERN.test(memberId))) {
+        throw new Error("event memberIds are invalid; provide one or more member IDs");
+      }
+      const memberIds = event.memberIds;
+      if (new Set(memberIds).size !== memberIds.length) {
+        throw new Error("event memberIds are invalid; IDs must be unique");
       }
 
       return {
@@ -475,6 +477,50 @@ const parseEntityMutation = async (householdId, existingHousehold, body) => {
   return { entityType, operation, entityId, entity };
 };
 
+const parseEntityMutationBatch = async (householdId, existingHousehold, mutations) => {
+  if (!Array.isArray(mutations) || mutations.length === 0 || mutations.length > 100) {
+    throw new Error("entity mutation batch is invalid");
+  }
+
+  const entityCollections = {
+    familyMember: "members",
+    contact: "contacts",
+    eventType: "eventTypes",
+    event: "events",
+    dayConfiguration: "dayConfigurations",
+  };
+  const validationHousehold = { ...existingHousehold };
+  Object.entries(entityCollections).forEach(([entityType, collectionName]) => {
+    const entities = new Map((existingHousehold[collectionName] ?? []).map((entity) => [entity.id, entity]));
+    mutations.forEach((mutation) => {
+      if (mutation?.entityType !== entityType || typeof mutation.entityId !== "string") return;
+      if (mutation.operation === "delete") {
+        entities.delete(mutation.entityId);
+      } else if (mutation.operation === "upsert" && mutation.entity && typeof mutation.entity === "object") {
+        entities.set(mutation.entityId, {
+          ...entities.get(mutation.entityId),
+          ...mutation.entity,
+          id: mutation.entityId,
+        });
+      }
+    });
+    validationHousehold[collectionName] = [...entities.values()];
+  });
+
+  const commands = [];
+  const identities = new Set();
+  for (const mutation of mutations) {
+    const command = await parseEntityMutation(householdId, validationHousehold, mutation);
+    const identity = `${command.entityType}:${command.entityId.toLowerCase()}`;
+    if (identities.has(identity)) {
+      throw new Error("entity mutation batch is invalid; entity IDs must be unique");
+    }
+    identities.add(identity);
+    commands.push(command);
+  }
+  return commands;
+};
+
 module.exports = async function households(context, req) {
   const httpRequest = req ?? context.req;
   const householdId = httpRequest?.params?.householdId ?? context.bindingData?.householdId;
@@ -568,15 +614,24 @@ module.exports = async function households(context, req) {
         context.res = { status: 400, body: { error: "expectedRevision is required" } };
         return;
       }
-      const command = await parseEntityMutation(householdId, existingHousehold, httpRequest.body);
-      const revision = await db.mutateHouseholdEntity(
-        householdId,
-        expectedRevision,
-        command.entityType,
-        command.operation,
-        command.entityId,
-        command.entity
-      );
+      let revision;
+      if (Array.isArray(httpRequest.body?.mutations)) {
+        revision = await db.mutateHouseholdEntities(
+          householdId,
+          expectedRevision,
+          await parseEntityMutationBatch(householdId, existingHousehold, httpRequest.body.mutations)
+        );
+      } else {
+        const command = await parseEntityMutation(householdId, existingHousehold, httpRequest.body);
+        revision = await db.mutateHouseholdEntity(
+          householdId,
+          expectedRevision,
+          command.entityType,
+          command.operation,
+          command.entityId,
+          command.entity
+        );
+      }
       context.res = {
         status: 200,
         body: { revision },

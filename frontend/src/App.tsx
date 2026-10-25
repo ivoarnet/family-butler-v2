@@ -270,7 +270,18 @@ const applyEntityMutation = (household: HouseholdData, mutation: CoreEntityMutat
         ...current.filter((entity) => entity.id !== mutation.entityId),
         mutation.entity as unknown as { id: string },
       ];
-  return { ...household, [collectionName]: updated, revision } as HouseholdData;
+  const next = { ...household, [collectionName]: updated, revision } as HouseholdData;
+  if (mutation.operation === "delete" && mutation.entityType === "familyMember") {
+    next.events = next.events.map((event) => ({
+      ...event,
+      memberIds: event.memberIds.filter((memberId) => memberId !== mutation.entityId),
+    }));
+  } else if (mutation.operation === "delete" && mutation.entityType === "eventType") {
+    next.events = next.events.map((event) => (
+      event.eventTypeId === mutation.entityId ? { ...event, eventTypeId: undefined } : event
+    ));
+  }
+  return next;
 };
 
 const writeEntityMutation = async (
@@ -287,6 +298,30 @@ const writeEntityMutation = async (
 
   if (!response.ok) {
     const error = new Error(await parseResponseError(response, "Failed to save household change"));
+    if (response.status === 409) Object.assign(error, { conflict: true });
+    throw error;
+  }
+  const payload = (await response.json()) as { revision?: unknown };
+  if (!Number.isSafeInteger(payload.revision) || Number(payload.revision) <= expectedRevision) {
+    throw new Error("Household change response did not include a valid revision");
+  }
+  return Number(payload.revision);
+};
+
+const writeEntityMutations = async (
+  accessToken: string,
+  householdId: string,
+  expectedRevision: number,
+  mutations: CoreEntityMutation[]
+): Promise<number> => {
+  const response = await fetch(`${API_BASE_URL}/api/households/${householdId}`, {
+    method: "PATCH",
+    headers: createRequestHeaders(accessToken, true),
+    body: JSON.stringify({ expectedRevision, mutations }),
+  });
+
+  if (!response.ok) {
+    const error = new Error(await parseResponseError(response, "Failed to save household changes"));
     if (response.status === 409) Object.assign(error, { conflict: true });
     throw error;
   }
@@ -562,17 +597,16 @@ export function App() {
         return;
       }
       setIsSaving(true);
-      let current = saved;
       try {
-        for (const mutation of mutations) {
-          const revision = await writeEntityMutation(accessToken, householdId, current.revision, mutation);
-          const data = applyEntityMutation(current.data, mutation, revision);
-          current = { data, revision };
-          persistedHouseholdsRef.current.set(householdId, current);
-          setHouseholdDataState((value) =>
-            value.householdId === householdId ? { ...value, revision } : value
-          );
-        }
+        const revision = await writeEntityMutations(accessToken, householdId, saved.revision, mutations);
+        let data = saved.data;
+        mutations.forEach((mutation) => {
+          data = applyEntityMutation(data, mutation, revision);
+        });
+        persistedHouseholdsRef.current.set(householdId, { data, revision });
+        setHouseholdDataState((value) =>
+          value.householdId === householdId ? { ...value, revision } : value
+        );
         setDataError(null);
       } catch (error) {
         if ((error as Error & { conflict?: boolean }).conflict) blockedHouseholdsRef.current.add(householdId);

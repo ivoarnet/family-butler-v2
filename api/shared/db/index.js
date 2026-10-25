@@ -46,6 +46,7 @@ module.exports = {
   ensureHousehold: (...args) => getProvider().ensureHousehold(...args),
   getHouseholdWithRelations: (...args) => getProvider().getHouseholdWithRelations(...args),
   mutateHouseholdEntity: (...args) => getProvider().mutateHouseholdEntity(...args),
+  mutateHouseholdEntities: (...args) => getProvider().mutateHouseholdEntities(...args),
   replaceMembers: (...args) => getProvider().replaceMembers(...args),
   replaceContacts: (...args) => getProvider().replaceContacts(...args),
   replaceEventTypes: (...args) => getProvider().replaceEventTypes(...args),

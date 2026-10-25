@@ -147,6 +147,23 @@ test("core entity commands validate fields, require revisions, and return stale-
     operation: "upsert",
     entity: { ...member, isChild: "true" },
   })).status, 400);
+  const implicitDelete = await invoke("PATCH", {
+    expectedRevision: 7,
+    entityType: "familyMember",
+    entityId: memberId,
+    entity: null,
+  });
+  assert.equal(implicitDelete.status, 400);
+  const explicitDelete = await invoke("PATCH", {
+    expectedRevision: 7,
+    entityType: "familyMember",
+    entityId: memberId,
+    operation: "delete",
+  });
+  assert.equal(explicitDelete.status, 200);
+  assert.deepEqual(writes.at(-1), [householdId, 7, "familyMember", "delete", memberId, null]);
+  assert.equal((await invoke("PUT", { contacts: undefined })).status, 405);
+  assert.equal((await invoke("PUT", { contacts: "not-a-collection" })).status, 405);
   for (const fields of [
     { isChild: 1 }, { isChild: null }, { hatchParentingAway: "true" },
     { schoolBuilding: 1 }, { schoolClass: [] }, { schoolBuilding: "x".repeat(101) }, { schoolClass: "x".repeat(51) },
@@ -173,9 +190,93 @@ test("core entity commands validate fields, require revisions, and return stale-
     operation: "upsert",
     entity: updatedMember,
   }, "non-owner")).status, 404);
-  assert.equal((await invoke("PUT", { familyMembers: [] })).status, 405);
   assert.equal((await invoke("PATCH", {}, null)).status, 401);
-  assert.equal(writes.length, writeCount);
+  assert.equal(writes.length, writeCount + 1);
+});
+
+test("household mutation batches validate final references and reach one transactional command", async (t) => {
+  const oldFetch = global.fetch;
+  const oldUrl = process.env.SUPABASE_URL;
+  const oldKey = process.env.SUPABASE_SECRET_KEY;
+  const oldGetHousehold = db.getHouseholdWithRelations;
+  const oldGetMemberHouseholdId = db.getMemberHouseholdId;
+  const oldGetContactHouseholdId = db.getContactHouseholdId;
+  const oldGetEventHouseholdId = db.getEventHouseholdId;
+  const oldMutateBatch = db.mutateHouseholdEntities;
+  const newMemberId = "00000000-0000-0000-0000-000000000a05";
+  const eventId = "00000000-0000-0000-0000-000000000a06";
+  process.env.SUPABASE_URL = "https://supabase.example.invalid";
+  process.env.SUPABASE_SECRET_KEY = "test-only";
+  db.getHouseholdWithRelations = async (id, ownerId) => id === householdId && ownerId === userId
+    ? {
+        household: { id, name: "Family", holidayRegion: "CH" },
+        revision: 7,
+        members: [{ id: memberId, firstName: "Robin", sortOrder: 0 }],
+        contacts: [],
+        eventTypes: [],
+        events: [],
+        dayConfigurations: [],
+      }
+    : null;
+  db.getMemberHouseholdId = async () => null;
+  db.getContactHouseholdId = async () => null;
+  db.getEventHouseholdId = async () => null;
+  const batches = [];
+  db.mutateHouseholdEntities = async (...args) => {
+    batches.push(args);
+    return 9;
+  };
+  global.fetch = async (url) => String(url).endsWith("/auth/v1/user")
+    ? Response.json({ id: userId })
+    : Response.json([]);
+  t.after(() => {
+    global.fetch = oldFetch;
+    if (oldUrl === undefined) delete process.env.SUPABASE_URL;
+    else process.env.SUPABASE_URL = oldUrl;
+    if (oldKey === undefined) delete process.env.SUPABASE_SECRET_KEY;
+    else process.env.SUPABASE_SECRET_KEY = oldKey;
+    db.getHouseholdWithRelations = oldGetHousehold;
+    db.getMemberHouseholdId = oldGetMemberHouseholdId;
+    db.getContactHouseholdId = oldGetContactHouseholdId;
+    db.getEventHouseholdId = oldGetEventHouseholdId;
+    db.mutateHouseholdEntities = oldMutateBatch;
+  });
+
+  const mutations = [
+    {
+      entityType: "familyMember", entityId: newMemberId, operation: "upsert",
+      entity: { id: newMemberId, firstName: "New member", order: 1 },
+    },
+    {
+      entityType: "event", entityId: eventId, operation: "upsert",
+      entity: { id: eventId, title: "New event", date: "2026-10-21", memberIds: [newMemberId] },
+    },
+  ];
+  const context = { log: { error() {} } };
+  await handler(context, {
+    method: "PATCH",
+    params: { householdId },
+    body: { expectedRevision: 7, mutations },
+    headers: { "x-supabase-auth-token": "owner" },
+  });
+  assert.deepEqual(context.res, { status: 200, body: { revision: 9 } });
+  assert.equal(batches.length, 1);
+  assert.equal(batches[0][1], 7);
+  assert.deepEqual(batches[0][2].map(({ entityType, entityId }) => [entityType, entityId]), [
+    ["familyMember", newMemberId], ["event", eventId],
+  ]);
+  assert.deepEqual(batches[0][2][1].entity.memberIds, [newMemberId]);
+
+  const duplicate = { entityType: "contact", entityId: foreignId, operation: "delete" };
+  const invalidContext = { log: { error() {} } };
+  await handler(invalidContext, {
+    method: "PATCH",
+    params: { householdId },
+    body: { expectedRevision: 7, mutations: [duplicate, duplicate] },
+    headers: { "x-supabase-auth-token": "owner" },
+  });
+  assert.equal(invalidContext.res.status, 400);
+  assert.equal(batches.length, 1);
 });
 
 test("health checks retain working Supabase connectivity through the provider", async (t) => {

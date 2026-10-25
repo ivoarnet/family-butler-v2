@@ -37,6 +37,9 @@ declare
   v_written_count bigint;
   v_previous_sort_order integer;
   v_target_sort_order integer;
+  v_requested_member_ids uuid[];
+  v_member_count bigint;
+  v_unique_member_count bigint;
 begin
   if p_household_id is null
      or p_expected_revision is null
@@ -141,13 +144,41 @@ begin
       sort_order = excluded.sort_order, updated_at = now()
     where existing.household_id = p_household_id;
   elsif p_entity_type = 'event' and p_operation = 'upsert' then
+    if jsonb_typeof(p_entity -> 'memberIds') is distinct from 'array' then
+      raise exception using errcode = '22023', message = 'event member IDs must be present and unique';
+    end if;
+
+    select coalesce(array_agg(member.value::uuid), '{}'::uuid[]), count(*), count(distinct member.value::uuid)
+      into v_requested_member_ids, v_member_count, v_unique_member_count
+      from jsonb_array_elements_text(p_entity -> 'memberIds') as member(value);
+
+    if v_member_count = 0 or v_member_count <> v_unique_member_count then
+      raise exception using errcode = '22023', message = 'event member IDs must be present and unique';
+    end if;
+    if exists (
+      select 1
+        from unnest(v_requested_member_ids) as requested(member_id)
+        where not exists (
+          select 1 from public.household_members
+            where id = requested.member_id and household_id = p_household_id
+        )
+    ) then
+      raise exception using errcode = '22023', message = 'event member id is not part of this household';
+    end if;
+    if p_entity ->> 'eventTypeId' is not null and not exists (
+      select 1 from public.event_types
+        where id = (p_entity ->> 'eventTypeId')::uuid and household_id = p_household_id
+    ) then
+      raise exception using errcode = '22023', message = 'event type id is not part of this household';
+    end if;
+
     insert into public.events as existing (
       id, household_id, title, event_date, end_date, member_ids, all_day, start_time, end_time,
       event_type_id, repeat_rule, location, notes
     ) values (
       p_entity_id, p_household_id, p_entity ->> 'title', (p_entity ->> 'date')::date,
       (p_entity ->> 'endDate')::date,
-      array(select jsonb_array_elements_text(p_entity -> 'memberIds')::uuid),
+      v_requested_member_ids,
       coalesce((p_entity ->> 'allDay')::boolean, true), (p_entity ->> 'startTime')::time,
       (p_entity ->> 'endTime')::time, (p_entity ->> 'eventTypeId')::uuid,
       p_entity ->> 'repeatRule', p_entity ->> 'location', p_entity ->> 'notes'
@@ -174,6 +205,9 @@ begin
       select sort_order into v_previous_sort_order
         from public.household_members where id = p_entity_id and household_id = p_household_id;
       if found then
+        update public.events
+          set member_ids = array_remove(member_ids, p_entity_id), updated_at = now()
+          where household_id = p_household_id and p_entity_id = any(member_ids);
         update public.household_members set sort_order = sort_order - 1
           where household_id = p_household_id and sort_order > v_previous_sort_order;
       end if;
@@ -215,5 +249,68 @@ $$;
 
 revoke all on function public.mutate_household_entity(uuid, bigint, text, text, uuid, jsonb) from public, anon, authenticated;
 grant execute on function public.mutate_household_entity(uuid, bigint, text, text, uuid, jsonb) to service_role;
+
+create or replace function public.mutate_household_entities(
+  p_household_id uuid,
+  p_expected_revision bigint,
+  p_mutations jsonb
+)
+returns bigint
+language plpgsql
+security definer
+set search_path = pg_catalog
+as $$
+declare
+  v_revision bigint;
+  v_command jsonb;
+  v_ordinality bigint;
+  v_command_count integer;
+begin
+  if p_household_id is null or p_expected_revision is null or p_expected_revision < 0
+     or jsonb_typeof(p_mutations) is distinct from 'array' then
+    raise exception using errcode = '22023', message = 'entity mutation batch is invalid';
+  end if;
+
+  v_command_count := jsonb_array_length(p_mutations);
+  if v_command_count = 0 or v_command_count > 100 then
+    raise exception using errcode = '22023', message = 'entity mutation batch size is invalid';
+  end if;
+
+  if exists (
+    select 1 from jsonb_array_elements(p_mutations) as command(value)
+      where jsonb_typeof(command.value) is distinct from 'object'
+        or command.value ->> 'entityType' is null
+        or command.value ->> 'entityId' is null
+        or command.value ->> 'operation' is null
+  ) or exists (
+    select 1
+      from jsonb_array_elements(p_mutations) as command(value)
+      group by lower(command.value ->> 'entityType'), lower(command.value ->> 'entityId')
+      having count(*) > 1
+  ) then
+    raise exception using errcode = '22023', message = 'entity mutation batch commands must be unique and complete';
+  end if;
+
+  for v_command, v_ordinality in
+    select command.value, command.ordinality
+      from jsonb_array_elements(p_mutations) with ordinality as command(value, ordinality)
+      order by command.ordinality
+  loop
+    v_revision := public.mutate_household_entity(
+      p_household_id,
+      p_expected_revision + v_ordinality - 1,
+      v_command ->> 'entityType',
+      v_command ->> 'operation',
+      (v_command ->> 'entityId')::uuid,
+      v_command -> 'entity'
+    );
+  end loop;
+
+  return v_revision;
+end;
+$$;
+
+revoke all on function public.mutate_household_entities(uuid, bigint, jsonb) from public, anon, authenticated;
+grant execute on function public.mutate_household_entities(uuid, bigint, jsonb) to service_role;
 
 commit;
