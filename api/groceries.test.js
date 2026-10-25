@@ -305,6 +305,9 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
   const workflow = readFileSync(path.join(root,
     ".github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml"), "utf8");
   assert.match(workflow, /needs:\s*\n\s+- validate/);
+  assert.match(workflow, /GROCERY_TEST_PG_SOCKET: 127\.0\.0\.1/);
+  assert.match(workflow, /test -n "\$GROCERY_TEST_PG_SOCKET"/);
+  assert.match(workflow, /numPassedTests < 1/);
   assert.doesNotMatch(workflow, /package-lock=false/);
   const apiPackage = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
   const apiLock = JSON.parse(readFileSync(path.join(__dirname, "package-lock.json"), "utf8"));

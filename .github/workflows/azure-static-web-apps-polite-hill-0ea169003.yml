@@ -9,11 +9,15 @@ on:
     branches:
       - main
 
+permissions: {}
+
 jobs:
   validate:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
     name: Validate and package
+    permissions:
+      contents: read
     services:
       postgres:
         image: postgres:16
@@ -66,7 +70,17 @@ jobs:
           find deploy-artifacts/api -type f -name '*.test.js' -delete
           rm deploy-artifacts/api/build.js
           npm ci --omit=dev --prefix deploy-artifacts/api --workspaces=false
-          node -e "require('./deploy-artifacts/api/node_modules/bring-shopping')"
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const api = path.resolve("deploy-artifacts/api");
+          require(path.join(api, "node_modules/bring-shopping"));
+          for (const entry of fs.readdirSync(api, { withFileTypes: true })) {
+            if (entry.isDirectory() && fs.existsSync(path.join(api, entry.name, "function.json"))) {
+              require(path.join(api, entry.name, "index.js"));
+            }
+          }
+          NODE
           npm run build:grocery-worker
           npm ci --omit=dev --prefix workers/grocery-sync-package --workspaces=false
           node -e "require('./workers/grocery-sync-package/node_modules/bring-shopping'); require('./workers/grocery-sync-package/grocery-sync')"
@@ -122,6 +136,7 @@ jobs:
     if: github.event_name == 'pull_request' && github.event.action == 'closed'
     runs-on: ubuntu-latest
     name: Close Pull Request Job
+    permissions: {}
     steps:
       - name: Close Pull Request
         id: closepullrequest
