@@ -170,6 +170,36 @@ module.exports = function createSupabaseProvider() {
     ...createChildcareProvider(request),
     ...createParentingTimeProvider(request),
     ...createGroceriesProvider(request),
+    async reserveAgentExecution({
+      executionId,
+      userId,
+      householdId,
+      userDailyLimit,
+      householdDailyLimit,
+      userConcurrencyLimit,
+      householdConcurrencyLimit,
+      reservationTimeoutSeconds,
+    }) {
+      return (await request("rpc/reserve_agent_execution", {
+        method: "POST",
+        body: {
+          p_user_id: userId,
+          p_household_id: householdId,
+          p_execution_id: executionId,
+          p_user_daily_limit: userDailyLimit,
+          p_household_daily_limit: householdDailyLimit,
+          p_user_concurrency_limit: userConcurrencyLimit,
+          p_household_concurrency_limit: householdConcurrencyLimit,
+          p_reservation_timeout_seconds: reservationTimeoutSeconds,
+        },
+      })) === true;
+    },
+    async finishAgentExecution(executionId) {
+      await request("rpc/finish_agent_execution", {
+        method: "POST",
+        body: { p_execution_id: executionId },
+      });
+    },
     async listHouseholds(userId) {
       const households = await request(TABLES.households, {
         params: {
