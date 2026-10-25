@@ -1,4 +1,5 @@
 const { randomUUID } = require("crypto");
+const persistHouseholdEntity = require("./persistHouseholdEntity");
 const {
   EVENT_MODEL_DESCRIPTION,
   cleanString,
@@ -235,7 +236,9 @@ module.exports = function createAddEventTool({ db, householdId, householdState, 
       }
 
       const updatedEvents = [...existingEvents, event];
-      await db.replaceEvents(householdId, updatedEvents);
+      await persistHouseholdEntity({
+        db, householdId, householdState, entityType: "event", operation: "upsert", entityId: event.id, entity: event,
+      });
       householdState.events = updatedEvents;
 
       return {
