@@ -163,23 +163,31 @@ module.exports = function createOpenAiProvider() {
           throw new Error("Tool call requested but no tool executor is configured");
         }
 
-        pendingInput = await Promise.all(
-          functionCalls.map(async (call) => {
-            let parsedArguments = {};
-            try {
-              parsedArguments = call.arguments ? JSON.parse(call.arguments) : {};
-            } catch (_error) {
-              parsedArguments = {};
-            }
+        pendingInput = [];
+        for (const call of functionCalls) {
+          let parsedArguments = {};
+          try {
+            parsedArguments = call.arguments ? JSON.parse(call.arguments) : {};
+          } catch (_error) {
+            parsedArguments = {};
+          }
 
-            const result = await executeTool(call.name, parsedArguments);
-            return {
-              type: "function_call_output",
-              call_id: call.call_id,
-              output: JSON.stringify(result ?? { ok: true }),
+          let result;
+          try {
+            result = await executeTool(call.name, parsedArguments);
+          } catch (error) {
+            result = {
+              ok: false,
+              error: error instanceof Error && error.message ? error.message : "Tool execution failed",
             };
-          })
-        );
+          }
+
+          pendingInput.push({
+            type: "function_call_output",
+            call_id: call.call_id,
+            output: JSON.stringify(result ?? { ok: true }),
+          });
+        }
       }
 
       const reply = readTextFromOutput(payload);
