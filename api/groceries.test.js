@@ -309,10 +309,15 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
   assert.match(workflow, /test -n "\$GROCERY_TEST_PG_SOCKET"/);
   assert.match(workflow, /numPassedTests < 1/);
   assert.doesNotMatch(workflow, /package-lock=false/);
+  assert.doesNotMatch(workflow, /skip_api_build:\s*true/);
+  assert.match(workflow, /api_build_command:\s*"npm ci --omit=dev --workspaces=false --ignore-scripts"/);
   const apiPackage = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
   const apiLock = JSON.parse(readFileSync(path.join(__dirname, "package-lock.json"), "utf8"));
   const rootLock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
+  assert.deepEqual(apiPackage.engines, { node: "20.x" });
   assert.deepEqual(apiLock.packages[""].dependencies, apiPackage.dependencies);
+  assert.deepEqual(apiLock.packages[""].engines, apiPackage.engines);
+  assert.deepEqual(rootLock.packages.api.engines, apiPackage.engines);
   for (const [packagePath, details] of Object.entries(apiLock.packages)) {
     if (packagePath) assert.deepEqual(rootLock.packages[packagePath], details);
   }

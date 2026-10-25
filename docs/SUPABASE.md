@@ -19,7 +19,7 @@ The community Bring! SDK requires Node 18+. Its API/terms can change; deployment
 
 ### Bring settings fails to load after migrations
 
-The SWA deployment must include `bring-shopping` inside the API artifact, not only in the repository's root workspace `node_modules`. Oryx's default workspace install can hoist the SDK out of `/api` even when deployment succeeds. The workflow installs the API artifact from its standalone `api/package-lock.json` and deploys that validated artifact without resolving dependencies during upload. Redeploy the updated workflow; rerunning SQL alone cannot repair an incomplete API artifact.
+The SWA deployment must include `bring-shopping` inside the API artifact, not only in the repository's root workspace `node_modules`. Oryx's default workspace install can hoist the SDK out of `/api` even when deployment succeeds. The workflow deploys the validated API source and asks Oryx to identify the Node 20 Functions runtime and install production dependencies with `npm ci` from the standalone `api/package-lock.json`. This preserves locked resolution while allowing Azure to prepare the Functions runtime. Redeploy the updated workflow; rerunning SQL alone cannot repair an incomplete API artifact.
 
 Metadata/settings and local-list handlers defer SDK loading, so an optional client-loading failure does not prevent them starting. If settings still fail after redeployment, inspect the status/body of the `/api/households/…/groceries/connection` request and API host logs. Do not share authorization headers, credentials, or encrypted payloads. A missing/invalid encryption key disables credential editing but does not itself fail the settings read.
 
