@@ -8,6 +8,13 @@ const config: StorybookConfig = {
     "@storybook/addon-vitest"
   ],
   framework: "@storybook/react-vite",
+  async viteFinal(config) {
+    config.optimizeDeps ??= {};
+    config.optimizeDeps.include = [
+      ...new Set([...(config.optimizeDeps.include ?? []), "react/jsx-dev-runtime"]),
+    ];
+    return config;
+  },
 };
 
 export default config;
