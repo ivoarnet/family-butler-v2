@@ -112,12 +112,15 @@ test("agent add_event ignores supplied IDs and generates an event ID", async () 
     toClientError: (message) => new Error(message),
   });
   assert.equal("id" in tool.definition.parameters.properties.event.properties, false);
+  assert.match(tool.definition.description, /UNTIL=YYYYMMDD/);
   const result = await tool.execute({ event: {
     id: foreignEventId, title: "New event", date: "2026-10-21", memberIds: [memberId],
+    repeatRule: "RRULE:FREQ=WEEKLY;UNTIL=20261231",
   } });
   assert.equal(result.ok, true);
   assert.match(savedEvents[0].id, /^[0-9a-f-]{36}$/i);
   assert.notEqual(savedEvents[0].id, foreignEventId);
+  assert.equal(savedEvents[0].repeatRule, "RRULE:FREQ=WEEKLY;UNTIL=20261231");
 });
 
 test("agent event updates cannot select IDs outside the household state", async () => {
