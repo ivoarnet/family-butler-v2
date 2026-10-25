@@ -188,17 +188,30 @@ test("Supabase event replacement uses one scoped database command", async (t) =>
   const requests = [];
   global.fetch = async (url, options) => {
     requests.push({ url: String(url), options });
-    return new Response(null, { status: 204 });
+    const parsed = new URL(url);
+    const table = parsed.pathname.split("/").at(-1);
+    if (table === "household_revisions") return Response.json([{ revision: 0 }]);
+    if (table === "households") return Response.json([{
+      id: householdId, name: "Family", holiday_region: "CH",
+    }]);
+    if (table === "events") return Response.json([{
+      id: ownEventId, household_id: householdId, title: "Existing event",
+      event_date: "2026-10-22", end_date: null, member_ids: [memberId], all_day: true,
+    }], { headers: { "Content-Range": "0-0/1" } });
+    if (options.method === "POST" && table === "replace_household_events") {
+      return new Response(null, { status: 204 });
+    }
+    return Response.json([], { headers: { "Content-Range": "*/0" } });
   };
   const provider = createSupabaseProvider();
-  await provider.replaceEvents(householdId, [{
-    id: ownEventId, title: "Updated event", date: "2026-10-22", memberIds: [memberId], allDay: true,
-  }]);
+  const snapshot = await provider.getHouseholdWithRelations(householdId, userId);
+  snapshot.events[0].title = "Updated event";
+  await provider.replaceEvents(householdId, snapshot.events);
 
-  assert.equal(requests.length, 1);
-  assert.match(requests[0].url, /\/rpc\/replace_household_events$/);
-  assert.equal(requests[0].options.method, "POST");
-  assert.deepEqual(JSON.parse(requests[0].options.body), {
+  const replacement = requests.filter(({ url }) => url.endsWith("/rpc/replace_household_events"));
+  assert.equal(replacement.length, 1);
+  assert.equal(replacement[0].options.method, "POST");
+  assert.deepEqual(JSON.parse(replacement[0].options.body), {
     p_household_id: householdId,
     p_events: [{
       id: ownEventId,

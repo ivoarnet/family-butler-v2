@@ -60,10 +60,11 @@ const normalizeDayConfiguration = (dayConfiguration) => ({
   label: dayConfiguration.label ?? undefined,
 });
 
-const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [], dayConfigurations = [], revision = 0 }) => ({
+const normalizeHouseholdData = ({ household, members, contacts, eventTypes = [], events = [], dayConfigurations = [], revision = 0, completeness }) => ({
   householdId: household.id,
   householdName: household.name,
   revision,
+  ...(completeness ? { completeness } : {}),
   familyMembers: members
     .slice()
     .sort((a, b) => a.sortOrder - b.sortOrder)
@@ -88,6 +89,12 @@ const getHouseholdOrThrow = async (householdId, userId) => {
     throw new Error("household not found");
   }
   return household;
+};
+
+const parseDateOnly = (value) => {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return null;
+  const date = new Date(`${value}T00:00:00.000Z`);
+  return Number.isNaN(date.getTime()) || date.toISOString().slice(0, 10) !== value ? null : value;
 };
 
 const cleanOptionalText = (value) => {
@@ -553,7 +560,20 @@ module.exports = async function households(context, req) {
         return;
       }
 
-      const household = await getHouseholdOrThrow(householdId, authenticatedUserId);
+      const query = httpRequest.query ?? {};
+      const requestedStartDate = query.startDate;
+      const requestedEndDate = query.endDate;
+      let eventWindow;
+      if (requestedStartDate !== undefined || requestedEndDate !== undefined) {
+        const startDate = parseDateOnly(requestedStartDate);
+        const endDate = parseDateOnly(requestedEndDate);
+        if (!startDate || !endDate || startDate > endDate) {
+          throw new Error("calendar startDate and endDate are invalid");
+        }
+        eventWindow = { startDate, endDate };
+      }
+      const household = await db.getHouseholdWithRelations(householdId, authenticatedUserId, eventWindow);
+      if (!household) throw new Error("household not found");
 
       context.res = {
         status: 200,
@@ -608,7 +628,20 @@ module.exports = async function households(context, req) {
         };
         return;
       }
-      const existingHousehold = await getHouseholdOrThrow(householdId, authenticatedUserId);
+      const mutationTypes = new Set((Array.isArray(httpRequest.body?.mutations)
+        ? httpRequest.body.mutations
+        : [httpRequest.body])
+        .map((mutation) => mutation?.entityType));
+      const existingHousehold = await db.getHouseholdWithRelations(
+        householdId,
+        authenticatedUserId,
+        {
+          mutationContext: true,
+          includeMembers: mutationTypes.has("familyMember") || mutationTypes.has("event"),
+          includeEventTypes: mutationTypes.has("eventType") || mutationTypes.has("event"),
+        }
+      );
+      if (!existingHousehold) throw new Error("household not found");
       const expectedRevision = httpRequest.body?.expectedRevision;
       if (!Number.isSafeInteger(expectedRevision) || expectedRevision < 0) {
         context.res = { status: 400, body: { error: "expectedRevision is required" } };

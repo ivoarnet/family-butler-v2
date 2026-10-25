@@ -12,6 +12,9 @@ const TABLES = {
   dayConfigurations: "day_configurations",
 };
 
+const CORE_PAGE_SIZE = 500;
+const COMPLETE_COLLECTIONS = new WeakMap();
+
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
 
 const formatInList = (values) => `(${values.join(",")})`;
@@ -125,7 +128,7 @@ module.exports = function createSupabaseProvider() {
   const restBaseUrl = `${supabaseUrl.replace(/\/$/, "")}/rest/v1`;
   const authorizationHeader = ["Bearer", supabaseSecretKey].join(" ");
 
-  const request = async (table, { method = "GET", params, body, headers } = {}) => {
+  const request = async (table, { method = "GET", params, body, headers, includeMetadata = false } = {}) => {
     const url = new URL(`${restBaseUrl}/${table}`);
     if (params) {
       Object.entries(params).forEach(([key, value]) => {
@@ -150,19 +153,106 @@ module.exports = function createSupabaseProvider() {
       throw new Error(await parseErrorMessage(response));
     }
 
-    if (response.status === 204) {
-      return null;
-    }
+    if (response.status === 204) return includeMetadata
+      ? { data: null, contentRange: response.headers.get("content-range") }
+      : null;
 
     const text = await response.text();
-    if (!text) {
-      return null;
-    }
+    if (!text) return includeMetadata
+      ? { data: null, contentRange: response.headers.get("content-range") }
+      : null;
 
+    let data;
     try {
-      return JSON.parse(text);
+      data = JSON.parse(text);
     } catch (_error) {
-      return null;
+      data = null;
+    }
+    return includeMetadata
+      ? { data, contentRange: response.headers.get("content-range") }
+      : data;
+  };
+
+  const readRevision = async (householdId) => {
+    const rows = await request("household_revisions", {
+      params: { select: "revision", household_id: `eq.${householdId}`, limit: 1 },
+    });
+    const revision = Number(Array.isArray(rows) ? rows[0]?.revision ?? 0 : NaN);
+    if (!Number.isSafeInteger(revision) || revision < 0) {
+      throw new Error("Household revision read was incomplete");
+    }
+    return revision;
+  };
+
+  const readCompleteCollection = async (table, householdId, select, order, filters = {}) => {
+    const rows = [];
+    let expectedCount = null;
+    for (let offset = 0; ; ) {
+      const page = await request(table, {
+        params: {
+          select,
+          household_id: `eq.${householdId}`,
+          ...filters,
+          order,
+          limit: CORE_PAGE_SIZE,
+          offset,
+        },
+        headers: { Prefer: "count=exact" },
+        includeMetadata: true,
+      });
+      if (!Array.isArray(page.data)) {
+        throw new Error(`Core ${table} read was incomplete`);
+      }
+
+      const range = typeof page.contentRange === "string"
+        ? page.contentRange.match(/^(?:(\d+)-(\d+)|\*)\/(\d+)$/)
+        : null;
+      if (!range) throw new Error(`Core ${table} read completeness could not be verified`);
+      const total = Number(range[3]);
+      if (!Number.isSafeInteger(total)) throw new Error(`Core ${table} read completeness could not be verified`);
+      if (expectedCount !== null && total !== expectedCount) {
+        throw new Error(`Core ${table} changed during read`);
+      }
+      expectedCount = total;
+
+      if (range[1] === undefined) {
+        if (total === 0 && offset === 0 && page.data.length === 0) return rows;
+        throw new Error(`Core ${table} read returned an incomplete page`);
+      }
+
+      const first = Number(range[1]);
+      const last = Number(range[2]);
+      if (first !== offset || last - first + 1 !== page.data.length || page.data.length === 0
+        || page.data.length > total - offset) {
+        throw new Error(`Core ${table} read returned an incomplete page`);
+      }
+
+      rows.push(...page.data);
+      offset += page.data.length;
+      if (offset === total) return rows;
+      if (offset > total) throw new Error(`Core ${table} read returned an incomplete page`);
+    }
+  };
+
+  const registerCompleteCollection = (householdId, revision, collection) => {
+    COMPLETE_COLLECTIONS.set(collection, {
+      householdId,
+      revision,
+      ids: collection.map((entity) => entity.id).sort(),
+    });
+    return collection;
+  };
+
+  const assertCompleteCollection = async (householdId, name, collection) => {
+    const snapshot = COMPLETE_COLLECTIONS.get(collection);
+    const currentIds = Array.isArray(collection) ? collection.map((entity) => entity.id).sort() : [];
+    if (!snapshot || snapshot.householdId !== householdId
+      || snapshot.ids.length !== currentIds.length
+      || snapshot.ids.some((id, index) => id !== currentIds[index])) {
+      throw new Error(`Cannot replace ${name} from an incomplete household snapshot`);
+    }
+    if (await readRevision(householdId) !== snapshot.revision) {
+      throw new Error(`Cannot replace ${name} from a stale household snapshot`);
     }
   };
 
@@ -318,71 +408,72 @@ module.exports = function createSupabaseProvider() {
       });
     },
 
-    async getHouseholdWithRelations(householdId, userId) {
-      const [households, members, contacts, eventTypes, events, dayConfigurations, revisions] = await Promise.all([
-        request(TABLES.households, {
-          params: {
-            select: "id,name,holiday_region",
-            id: `eq.${householdId}`,
-            created_by_user_id: `eq.${userId}`,
-          },
-        }),
-        request(TABLES.members, {
-          params: {
-            select: "id,household_id,first_name,role,is_child,hatch_parenting_away,school_building,school_class,avatar_color,visible_in_calendar,sort_order",
-            household_id: `eq.${householdId}`,
-            order: "sort_order.asc",
-          },
-        }),
-        request(TABLES.contacts, {
-          params: {
-            select: "id,household_id,first_name,last_name,birth_day,birth_month,birth_year,email,mobile_phone",
-            household_id: `eq.${householdId}`,
-          },
-        }),
-        request(TABLES.eventTypes, {
-          params: {
-            select: "id,household_id,name,icon,color,sort_order",
-            household_id: `eq.${householdId}`,
-            order: "sort_order.asc",
-          },
-        }),
-        request(TABLES.events, {
-          params: {
-            select: "id,household_id,title,event_date,end_date,member_ids,all_day,start_time,end_time,event_type_id,repeat_rule,location,notes",
-            household_id: `eq.${householdId}`,
-            order: "event_date.asc",
-          },
-        }),
-        request(TABLES.dayConfigurations, {
-          params: {
-            select: "id,household_id,category,start_date,end_date,label",
-            household_id: `eq.${householdId}`,
-            order: "start_date.asc",
-          },
-        }),
-        request("household_revisions", {
-          params: {
-            select: "revision",
-            household_id: `eq.${householdId}`,
-            limit: 1,
-          },
-        }),
-      ]);
-
+    async getHouseholdWithRelations(householdId, userId, {
+      startDate,
+      endDate,
+      mutationContext = false,
+      includeMembers = true,
+      includeEventTypes = true,
+    } = {}) {
+      const initialRevision = await readRevision(householdId);
+      const households = await request(TABLES.households, {
+        params: {
+          select: "id,name,holiday_region",
+          id: `eq.${householdId}`,
+          created_by_user_id: `eq.${userId}`,
+        },
+      });
       const household = Array.isArray(households) ? households[0] : null;
       if (!household) {
         return null;
       }
 
+      const eventFilters = startDate && endDate ? {
+        or: `(and(event_date.gte.${startDate},event_date.lte.${endDate}),and(event_date.lte.${endDate},end_date.gte.${startDate}),repeat_rule.not.is.null)`,
+      } : {};
+      const [memberRows, contactRows, eventTypeRows, eventRows, dayConfigurationRows] = await Promise.all([
+        !mutationContext || includeMembers ? readCompleteCollection(TABLES.members, householdId,
+          "id,household_id,first_name,role,is_child,hatch_parenting_away,school_building,school_class,avatar_color,visible_in_calendar,sort_order",
+          "sort_order.asc,id.asc") : [],
+        mutationContext ? [] : readCompleteCollection(TABLES.contacts, householdId,
+          "id,household_id,first_name,last_name,birth_day,birth_month,birth_year,email,mobile_phone", "id.asc"),
+        !mutationContext || includeEventTypes ? readCompleteCollection(TABLES.eventTypes, householdId,
+          "id,household_id,name,icon,color,sort_order", "sort_order.asc,id.asc") : [],
+        mutationContext ? [] : readCompleteCollection(TABLES.events, householdId,
+          "id,household_id,title,event_date,end_date,member_ids,all_day,start_time,end_time,event_type_id,repeat_rule,location,notes",
+          "event_date.asc,id.asc", eventFilters),
+        mutationContext ? [] : readCompleteCollection(TABLES.dayConfigurations, householdId,
+          "id,household_id,category,start_date,end_date,label", "start_date.asc,id.asc"),
+      ]);
+      const revision = await readRevision(householdId);
+      if (revision !== initialRevision) throw new Error("Household changed during read");
+
+      const members = memberRows.map(mapMember);
+      const contacts = contactRows.map(mapContact);
+      const eventTypes = eventTypeRows.map(mapEventType);
+      const events = eventRows.map(mapEvent);
+      const dayConfigurations = dayConfigurationRows.map(mapDayConfiguration);
+      if (!mutationContext || includeMembers) registerCompleteCollection(householdId, revision, members);
+      if (!mutationContext) registerCompleteCollection(householdId, revision, contacts);
+      if (!mutationContext || includeEventTypes) registerCompleteCollection(householdId, revision, eventTypes);
+      if (!mutationContext && (!startDate || !endDate)) registerCompleteCollection(householdId, revision, events);
+      if (!mutationContext) registerCompleteCollection(householdId, revision, dayConfigurations);
+
       return {
         household: mapHousehold(household),
-        revision: Number(Array.isArray(revisions) ? revisions[0]?.revision ?? 0 : 0),
-        members: Array.isArray(members) ? members.map(mapMember) : [],
-        contacts: Array.isArray(contacts) ? contacts.map(mapContact) : [],
-        eventTypes: Array.isArray(eventTypes) ? eventTypes.map(mapEventType) : [],
-        events: Array.isArray(events) ? events.map(mapEvent) : [],
-        dayConfigurations: Array.isArray(dayConfigurations) ? dayConfigurations.map(mapDayConfiguration) : [],
+        revision,
+        completeness: {
+          members: !mutationContext || includeMembers,
+          contacts: !mutationContext,
+          eventTypes: !mutationContext || includeEventTypes,
+          events: !mutationContext && (!startDate || !endDate),
+          dayConfigurations: !mutationContext,
+        },
+        members,
+        contacts,
+        eventTypes,
+        events,
+        dayConfigurations,
       };
     },
 
@@ -422,6 +513,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async replaceMembers(householdId, members) {
+      await assertCompleteCollection(householdId, "members", members);
       const memberIds = members.map((member) => member.id);
 
       if (memberIds.length > 0) {
@@ -470,6 +562,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async replaceContacts(householdId, contacts) {
+      await assertCompleteCollection(householdId, "contacts", contacts);
       const contactIds = contacts.map((contact) => contact.id);
 
       if (contactIds.length > 0) {
@@ -516,6 +609,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async replaceEventTypes(householdId, eventTypes) {
+      await assertCompleteCollection(householdId, "event types", eventTypes);
       const eventTypeIds = eventTypes.map((eventType) => eventType.id);
 
       if (eventTypeIds.length > 0) {
@@ -559,6 +653,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async replaceEvents(householdId, events) {
+      await assertCompleteCollection(householdId, "events", events);
       const payload = events.map((event) => ({
         id: event.id,
         title: event.title,
@@ -581,6 +676,7 @@ module.exports = function createSupabaseProvider() {
     },
 
     async replaceDayConfigurations(householdId, dayConfigurations) {
+      await assertCompleteCollection(householdId, "day configurations", dayConfigurations);
       const dayConfigurationIds = dayConfigurations.map((dayConfiguration) => dayConfiguration.id);
 
       if (dayConfigurationIds.length > 0) {
