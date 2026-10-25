@@ -179,7 +179,8 @@ test("authenticated API persists childcare, reloads it, resolves overrides, and 
     if (options.method === "PATCH") {
       rows.forEach((row) => Object.assign(row, JSON.parse(options.body)));
     }
-    return Response.json(rows);
+    const contentRange = rows.length ? `0-${rows.length - 1}/${rows.length}` : "*/0";
+    return Response.json(rows, { headers: { "Content-Range": contentRange } });
   };
   try {
     const handler = require("./childcare");

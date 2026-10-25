@@ -408,7 +408,13 @@ module.exports = function createSupabaseProvider() {
       });
     },
 
-    async getHouseholdWithRelations(householdId, userId, { startDate, endDate, mutationContext = false } = {}) {
+    async getHouseholdWithRelations(householdId, userId, {
+      startDate,
+      endDate,
+      mutationContext = false,
+      includeMembers = true,
+      includeEventTypes = true,
+    } = {}) {
       const initialRevision = await readRevision(householdId);
       const households = await request(TABLES.households, {
         params: {
@@ -426,13 +432,13 @@ module.exports = function createSupabaseProvider() {
         or: `(and(event_date.gte.${startDate},event_date.lte.${endDate}),and(event_date.lte.${endDate},end_date.gte.${startDate}),repeat_rule.not.is.null)`,
       } : {};
       const [memberRows, contactRows, eventTypeRows, eventRows, dayConfigurationRows] = await Promise.all([
-        readCompleteCollection(TABLES.members, householdId,
+        !mutationContext || includeMembers ? readCompleteCollection(TABLES.members, householdId,
           "id,household_id,first_name,role,is_child,hatch_parenting_away,school_building,school_class,avatar_color,visible_in_calendar,sort_order",
-          "sort_order.asc,id.asc"),
+          "sort_order.asc,id.asc") : [],
         mutationContext ? [] : readCompleteCollection(TABLES.contacts, householdId,
           "id,household_id,first_name,last_name,birth_day,birth_month,birth_year,email,mobile_phone", "id.asc"),
-        readCompleteCollection(TABLES.eventTypes, householdId,
-          "id,household_id,name,icon,color,sort_order", "sort_order.asc,id.asc"),
+        !mutationContext || includeEventTypes ? readCompleteCollection(TABLES.eventTypes, householdId,
+          "id,household_id,name,icon,color,sort_order", "sort_order.asc,id.asc") : [],
         mutationContext ? [] : readCompleteCollection(TABLES.events, householdId,
           "id,household_id,title,event_date,end_date,member_ids,all_day,start_time,end_time,event_type_id,repeat_rule,location,notes",
           "event_date.asc,id.asc", eventFilters),
@@ -447,9 +453,9 @@ module.exports = function createSupabaseProvider() {
       const eventTypes = eventTypeRows.map(mapEventType);
       const events = eventRows.map(mapEvent);
       const dayConfigurations = dayConfigurationRows.map(mapDayConfiguration);
-      registerCompleteCollection(householdId, revision, members);
+      if (!mutationContext || includeMembers) registerCompleteCollection(householdId, revision, members);
       if (!mutationContext) registerCompleteCollection(householdId, revision, contacts);
-      registerCompleteCollection(householdId, revision, eventTypes);
+      if (!mutationContext || includeEventTypes) registerCompleteCollection(householdId, revision, eventTypes);
       if (!mutationContext && (!startDate || !endDate)) registerCompleteCollection(householdId, revision, events);
       if (!mutationContext) registerCompleteCollection(householdId, revision, dayConfigurations);
 
@@ -457,9 +463,9 @@ module.exports = function createSupabaseProvider() {
         household: mapHousehold(household),
         revision,
         completeness: {
-          members: true,
+          members: !mutationContext || includeMembers,
           contacts: !mutationContext,
-          eventTypes: true,
+          eventTypes: !mutationContext || includeEventTypes,
           events: !mutationContext && (!startDate || !endDate),
           dayConfigurations: !mutationContext,
         },

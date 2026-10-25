@@ -628,10 +628,18 @@ module.exports = async function households(context, req) {
         };
         return;
       }
+      const mutationTypes = new Set((Array.isArray(httpRequest.body?.mutations)
+        ? httpRequest.body.mutations
+        : [httpRequest.body])
+        .map((mutation) => mutation?.entityType));
       const existingHousehold = await db.getHouseholdWithRelations(
         householdId,
         authenticatedUserId,
-        { mutationContext: true }
+        {
+          mutationContext: true,
+          includeMembers: mutationTypes.has("familyMember") || mutationTypes.has("event"),
+          includeEventTypes: mutationTypes.has("eventType") || mutationTypes.has("event"),
+        }
       );
       if (!existingHousehold) throw new Error("household not found");
       const expectedRevision = httpRequest.body?.expectedRevision;

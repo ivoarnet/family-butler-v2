@@ -27,6 +27,7 @@ const jsonResponse = (rows, contentRange) => Response.json(rows, {
 test("core reads paginate beyond a smaller REST row cap and verify complete ranges", async (t) => {
   saveEnvironment(t);
   const pageSize = 100;
+  let revision = 7;
   const members = Array.from({ length: 523 }, (_, index) => ({
     id: `00000000-0000-0000-0000-${String(index + 100).padStart(12, "0")}`,
     household_id: householdId,
@@ -38,7 +39,7 @@ test("core reads paginate beyond a smaller REST row cap and verify complete rang
     const parsed = new URL(url);
     const table = parsed.pathname.split("/").at(-1);
     requests.push({ table, url: parsed });
-    if (table === "household_revisions") return jsonResponse([{ revision: 7 }]);
+    if (table === "household_revisions") return jsonResponse([{ revision }]);
     if (table === "households") return jsonResponse([{
       id: householdId,
       name: "Family",
@@ -61,12 +62,41 @@ test("core reads paginate beyond a smaller REST row cap and verify complete rang
   assert.equal(requests.filter(({ table }) => table === "household_members").length, 6);
   assert.equal(requests.find(({ table }) => table === "household_members").url.searchParams.get("order"), "sort_order.asc,id.asc");
 
+  revision = 8;
+  await assert.rejects(
+    provider.replaceMembers(householdId, snapshot.members),
+    /stale household snapshot/
+  );
   snapshot.members.pop();
   await assert.rejects(
     provider.replaceMembers(householdId, snapshot.members),
     /incomplete household snapshot/
   );
   assert.equal(requests.filter(({ table }) => table === "household_members").length, 6);
+});
+
+test("entity mutation reads skip collections not needed by the command", async (t) => {
+  saveEnvironment(t);
+  const tables = [];
+  global.fetch = async (url) => {
+    const table = new URL(url).pathname.split("/").at(-1);
+    tables.push(table);
+    if (table === "household_revisions") return jsonResponse([{ revision: 2 }]);
+    if (table === "households") return jsonResponse([{ id: householdId, name: "Family", holiday_region: "CH" }]);
+    return jsonResponse([], "*/0");
+  };
+
+  const context = await createSupabaseProvider().getHouseholdWithRelations(householdId, userId, {
+    mutationContext: true,
+    includeMembers: false,
+    includeEventTypes: false,
+  });
+  assert.deepEqual(tables.sort(), ["household_revisions", "household_revisions", "households"]);
+  assert.deepEqual(context.members, []);
+  assert.deepEqual(context.eventTypes, []);
+  assert.equal(context.completeness.members, false);
+  assert.equal(context.completeness.contacts, false);
+  assert.equal(context.completeness.events, false);
 });
 
 test("core reads fail closed when Supabase omits completeness metadata", async (t) => {
