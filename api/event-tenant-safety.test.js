@@ -88,6 +88,11 @@ test("HTTP event commands mutate only the requested entity and reject foreign ID
   assert.equal(update.status, 200);
   assert.equal(mutation[1][5].id, ownEventId);
 
+  const duplicateMembers = await invokeHouseholdMutation({
+    id: ownEventId, title: "Invalid event", date: "2026-10-22", memberIds: [memberId, memberId],
+  });
+  assert.equal(duplicateMembers.status, 400);
+
   const denied = await invokeHouseholdMutation({
     id: foreignEventId, title: "Not authorized", date: "2026-10-22", memberIds: [memberId],
   });
@@ -235,19 +240,176 @@ test("Supabase core entity mutation sends its expected revision to one RPC", asy
   });
 });
 
+test("Supabase household mutation batches use one revision-checked RPC", async (t) => {
+  saveEnvironment(t);
+  const requests = [];
+  global.fetch = async (url, options) => {
+    requests.push({ url: String(url), options });
+    return Response.json(10);
+  };
+  const provider = createSupabaseProvider();
+  const mutations = [{
+    entityType: "contact",
+    operation: "delete",
+    entityId: ownEventId,
+    entity: null,
+  }];
+  const revision = await provider.mutateHouseholdEntities(householdId, 9, mutations);
+  assert.equal(revision, 10);
+  assert.equal(requests.length, 1);
+  assert.match(requests[0].url, /\/rpc\/mutate_household_entities$/);
+  assert.deepEqual(JSON.parse(requests[0].options.body), {
+    p_household_id: householdId,
+    p_expected_revision: 9,
+    p_mutations: mutations,
+  });
+});
+
 test("core entity mutation SQL compares a locked revision before changing one entity", () => {
   const sql = readFileSync(path.join(__dirname, "..", "docs", "sql", "core-entity-mutations.sql"), "utf8");
   assert.match(sql, /for update/i);
   assert.match(sql, /v_revision <> p_expected_revision/);
   assert.match(sql, /stale household revision/);
+  assert.match(sql, /unique \(household_id, sort_order\) deferrable initially deferred/i);
+  assert.match(sql, /event member id is not part of this household/);
+  assert.match(sql, /array_remove\(member_ids, p_entity_id\)/);
   assert.match(sql, /insert into public\.events as existing/i);
   assert.doesNotMatch(sql, /delete from public\.events where household_id = p_household_id/i);
+});
+
+test("PostgreSQL core entity commands roll back failures and preserve valid references", {
+  skip: !process.env.GROCERY_TEST_PG_SOCKET,
+}, async (t) => {
+  const database = `core_mutation_test_${process.pid}`;
+  const args = ["-h", process.env.GROCERY_TEST_PG_SOCKET, "-p", process.env.GROCERY_TEST_PG_PORT || "55439",
+    "-X", "-A", "-t", "-q", "-v", "ON_ERROR_STOP=1"];
+  const sql = (statement, db = database) => execFileSync("psql", [...args, "-d", db, "-c", statement],
+    { encoding: "utf8", stdio: ["pipe", "pipe", "pipe"] }).trim();
+  const quote = (value) => `'${String(value).replaceAll("'", "''")}'`;
+  const memberB = "00000000-0000-0000-0000-000000000006";
+  const typeA = "00000000-0000-0000-0000-000000000007";
+  const typeB = "00000000-0000-0000-0000-000000000008";
+  const contactId = "00000000-0000-0000-0000-000000000010";
+  const missingMember = "00000000-0000-0000-0000-000000000099";
+  const rpc = (revision, entityType, operation, id, entity) =>
+    `select public.mutate_household_entity('${householdId}'::uuid, ${revision}, ${quote(entityType)}, ` +
+    `${quote(operation)}, '${id}'::uuid, ${quote(JSON.stringify(entity))}::jsonb)`;
+
+  sql(`create database ${database}`, "postgres");
+  t.after(() => sql(`drop database ${database}`, "postgres"));
+  sql(`
+    do $$ begin
+      if not exists (select 1 from pg_roles where rolname = 'anon') then create role anon; end if;
+      if not exists (select 1 from pg_roles where rolname = 'authenticated') then create role authenticated; end if;
+      if not exists (select 1 from pg_roles where rolname = 'service_role') then create role service_role; end if;
+    end $$;
+    create table public.households(id uuid primary key, name text not null, updated_at timestamptz not null default now());
+    create table public.household_members(
+      id uuid primary key, household_id uuid not null references public.households(id), first_name text not null,
+      role text, is_child boolean not null default false, hatch_parenting_away boolean not null default false,
+      school_building text, school_class text, avatar_color text not null default '#3b82f6',
+      visible_in_calendar boolean not null default true, sort_order integer not null, updated_at timestamptz not null default now(),
+      unique (household_id, sort_order)
+    );
+    create table public.contacts(
+      id uuid primary key, household_id uuid not null references public.households(id), first_name text not null,
+      last_name text, birth_day smallint, birth_month smallint, birth_year smallint, email text, mobile_phone text,
+      updated_at timestamptz not null default now()
+    );
+    create table public.event_types(
+      id uuid primary key, household_id uuid not null references public.households(id), name text not null,
+      icon text, color text, sort_order integer not null, updated_at timestamptz not null default now(),
+      unique (household_id, sort_order)
+    );
+    create table public.events(
+      id uuid primary key, household_id uuid not null references public.households(id), title text not null,
+      event_date date not null, end_date date, member_ids uuid[] not null default '{}', all_day boolean not null default true,
+      start_time time, end_time time, event_type_id uuid references public.event_types(id) on delete set null,
+      repeat_rule text, location text, notes text, updated_at timestamptz not null default now()
+    );
+    create table public.day_configurations(
+      id uuid primary key, household_id uuid not null references public.households(id), category text not null,
+      start_date date not null, end_date date not null, label text, updated_at timestamptz not null default now()
+    );
+    insert into public.households(id, name) values ('${householdId}', 'Family');
+  `);
+  const migration = readFileSync(path.join(__dirname, "../docs/sql/core-entity-mutations.sql"), "utf8");
+  execFileSync("psql", [...args, "-d", database], { input: migration, stdio: ["pipe", "pipe", "pipe"] });
+  sql(`
+    insert into public.household_members(id, household_id, first_name, sort_order)
+      values ('${memberId}', '${householdId}', 'Robin', 0), ('${memberB}', '${householdId}', 'Sam', 1);
+    insert into public.event_types(id, household_id, name, sort_order)
+      values ('${typeA}', '${householdId}', 'School', 0), ('${typeB}', '${householdId}', 'Family', 1);
+    insert into public.contacts(id, household_id, first_name)
+      values ('${contactId}', '${householdId}', 'Original');
+  `);
+
+  const batch = [
+    {
+      entityType: "contact", operation: "upsert", entityId: contactId,
+      entity: { id: contactId, firstName: "Should roll back" },
+    },
+    {
+      entityType: "event", operation: "upsert", entityId: ownEventId,
+      entity: { id: ownEventId, title: "Invalid reference", date: "2026-10-21", memberIds: [missingMember] },
+    },
+  ];
+  assert.throws(() => sql(`select public.mutate_household_entities(
+    '${householdId}'::uuid, 0, ${quote(JSON.stringify(batch))}::jsonb)`));
+  assert.equal(sql(`select first_name from public.contacts where id = '${contactId}'`), "Original");
+  assert.equal(sql("select coalesce(max(revision), 0) from public.household_revisions"), "0");
+
+  sql(`create function public.reject_test_member() returns trigger language plpgsql as $$
+    begin
+      if new.first_name = 'Injected failure' then raise exception 'injected member write failure'; end if;
+      return new;
+    end $$;
+    create trigger reject_test_member before insert or update on public.household_members
+      for each row execute function public.reject_test_member();`);
+  assert.throws(() => sql(rpc(0, "familyMember", "upsert", memberId, {
+    id: memberId, firstName: "Injected failure", order: 1,
+  })));
+  assert.equal(sql(`select first_name || ':' || sort_order from public.household_members where id = '${memberId}'`), "Robin:0");
+  assert.equal(sql(`select sort_order from public.household_members where id = '${memberB}'`), "1");
+  assert.equal(sql("select coalesce(max(revision), 0) from public.household_revisions"), "0");
+  sql("drop trigger reject_test_member on public.household_members; drop function public.reject_test_member()");
+
+  const invalidEvent = { id: ownEventId, title: "Invalid reference", date: "2026-10-21", memberIds: [missingMember] };
+  assert.throws(() => sql(rpc(0, "event", "upsert", ownEventId, invalidEvent)));
+  assert.throws(() => sql(rpc(0, "event", "upsert", ownEventId, {
+    ...invalidEvent, memberIds: [memberId, memberId],
+  })));
+  assert.equal(sql("select coalesce(max(revision), 0) from public.household_revisions"), "0");
+
+  const event = {
+    id: ownEventId, title: "Keep references", date: "2026-10-21", memberIds: [memberId, memberB], eventTypeId: typeA,
+  };
+  assert.equal(sql(rpc(0, "event", "upsert", ownEventId, event)), "1");
+  assert.throws(() => sql(rpc(1, "event", "upsert", ownEventId, { ...event, date: "2026-02-31" })));
+  assert.equal(sql("select revision from public.household_revisions"), "1");
+
+  assert.equal(sql(rpc(1, "familyMember", "upsert", memberId, {
+    id: memberId, firstName: "Robin", order: 1,
+  })), "2");
+  assert.equal(sql(`select string_agg(first_name, ',' order by sort_order) from public.household_members`), "Sam,Robin");
+  assert.equal(sql(rpc(2, "eventType", "upsert", typeA, {
+    id: typeA, name: "School", sortOrder: 1,
+  })), "3");
+  assert.equal(sql(`select string_agg(name, ',' order by sort_order) from public.event_types`), "Family,School");
+
+  assert.equal(sql(rpc(3, "familyMember", "delete", memberId, null)), "4");
+  assert.equal(sql(`select array_to_string(member_ids, ',') from public.events where id = '${ownEventId}'`), memberB);
+  assert.equal(sql(rpc(4, "eventType", "delete", typeA, null)), "5");
+  assert.equal(sql(`select event_type_id is null from public.events where id = '${ownEventId}'`), "t");
+  assert.throws(() => sql(rpc(4, "event", "upsert", ownEventId, event)), /stale household revision/);
+  assert.equal(sql("select revision from public.household_revisions"), "5");
 });
 
 test("PostgreSQL event replacement is atomic and prevents cross-household transfers", {
   skip: !process.env.GROCERY_TEST_PG_SOCKET,
 }, async (t) => {
   const database = `event_test_${process.pid}`;
+  const foreignId = "00000000-0000-0000-0000-000000000099";
   const args = ["-h", process.env.GROCERY_TEST_PG_SOCKET, "-p", process.env.GROCERY_TEST_PG_PORT || "55439",
     "-X", "-A", "-t", "-q", "-v", "ON_ERROR_STOP=1"];
   const sql = (statement, db = database) => execFileSync("psql", [...args, "-d", db, "-c", statement],

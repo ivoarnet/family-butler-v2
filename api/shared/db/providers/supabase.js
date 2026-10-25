@@ -375,6 +375,22 @@ module.exports = function createSupabaseProvider() {
       return nextRevision;
     },
 
+    async mutateHouseholdEntities(householdId, expectedRevision, mutations) {
+      const revision = await request("rpc/mutate_household_entities", {
+        method: "POST",
+        body: {
+          p_household_id: householdId,
+          p_expected_revision: expectedRevision,
+          p_mutations: mutations,
+        },
+      });
+      const nextRevision = Number(Array.isArray(revision) ? revision[0] : revision);
+      if (!Number.isSafeInteger(nextRevision) || nextRevision <= expectedRevision) {
+        throw new Error("Core entity mutation batch did not return a valid revision");
+      }
+      return nextRevision;
+    },
+
     async replaceMembers(householdId, members) {
       const memberIds = members.map((member) => member.id);
 
