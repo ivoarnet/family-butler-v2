@@ -188,6 +188,30 @@ alter table public.events
   add column if not exists end_date date;
 ```
 
+### Core-table access policy
+
+After creating the core tables and completing the `created_by_user_id` backfill above, run `docs/sql/core-access-policy.sql` on both fresh and upgraded projects, before applying feature migrations. It is repeatable. Anonymous and authenticated roles cannot write core data or read household details directly; authenticated owners receive only the household and member identifiers needed by the childcare, Parenting Time, and grocery owner policies and validation triggers. Legacy `tasks` tables, if present, remain inaccessible to browser roles. The API's server-side service role retains core-table access; API handlers must continue to verify household ownership before using that key.
+
+The migration protects tables in the `public` schema but does not inspect live project grants, manually added policies, or which schemas are exposed by the Supabase Data API. Verify those settings in a controlled nonproduction project before rollout. The following query checks effective table privileges and RLS status for the core tables:
+
+```sql
+select t.tablename,
+       c.relrowsecurity as rls_enabled,
+       has_table_privilege('anon', format('public.%I', t.tablename), 'select') as anon_table_select,
+       has_table_privilege('authenticated', format('public.%I', t.tablename), 'select') as authenticated_table_select,
+       has_table_privilege('service_role', format('public.%I', t.tablename), 'select') as service_role_select
+from pg_tables t
+join pg_class c on c.oid = format('public.%I', t.tablename)::regclass
+where t.schemaname = 'public'
+  and t.tablename = any (array[
+    'households', 'household_members', 'contacts', 'event_types',
+    'events', 'day_configurations', 'tasks'
+  ])
+order by t.tablename;
+```
+
+`authenticated_table_select` should be false for these tables because the only authenticated grants are column-level identifier lookups on `households` and `household_members`; `anon_table_select` should be false and `rls_enabled` true. Also verify that only intended schemas are exposed under **Project Settings → API → Exposed schemas**, then exercise direct REST reads as anonymous, the household owner, and a different authenticated user. Anonymous and cross-owner requests must not return core data; owner identifier lookups are the only supported direct core-table reads. Do not treat this schema-level verification as proof of the live project's current settings until an operator has run it there.
+
 ### Childcare migration
 
 After creating the core tables above, run `docs/sql/childcare.sql` in the Supabase SQL Editor before using the childcare endpoints. **Existing installations must rerun it before deploying childcare added-day support** to allow the new `add` override action. The repeatable migration creates separate provider, weekly arrangement, and occurrence override tables, same-household constraints, child-reference validation, and owner-scoped RLS policies. It does not create generic events or Azure resources.
