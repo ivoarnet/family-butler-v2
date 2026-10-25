@@ -16,9 +16,11 @@ const setupProvider = (calls, onNextRequest) => {
   process.env.OPENAI_API_KEY = "test-key";
 
   let requestCount = 0;
+  const requests = [];
   global.fetch = async (_url, options) => {
     requestCount += 1;
     const request = JSON.parse(options.body);
+    requests.push(request);
     const payload =
       requestCount === 1
         ? { id: "response-1", output: calls }
@@ -31,6 +33,7 @@ const setupProvider = (calls, onNextRequest) => {
 
   return {
     provider: createOpenAiProvider(),
+    requests,
     restore() {
       if (previousApiKey === undefined) {
         delete process.env.OPENAI_API_KEY;
@@ -48,6 +51,81 @@ const sendMessage = (provider, executeTool) =>
     attachments: [],
     executeTool,
   });
+
+test("caps output tokens and declines excessive calls before executing tools", async () => {
+  const previousOutputLimit = process.env.AGENT_MAX_OUTPUT_TOKENS;
+  const previousCallLimit = process.env.AGENT_MAX_TOOL_CALLS_PER_RESPONSE;
+  process.env.AGENT_MAX_OUTPUT_TOKENS = "7";
+  process.env.AGENT_MAX_TOOL_CALLS_PER_RESPONSE = "1";
+  const setup = setupProvider(
+    [
+      functionCall("call-1", "add_event", { title: "First" }),
+      functionCall("call-2", "add_event", { title: "Second" }),
+    ],
+    () => ({ id: "response-2", output_text: "Not expected" })
+  );
+  let executedToolCalls = 0;
+
+  try {
+    const result = await sendMessage(setup.provider, async () => {
+      executedToolCalls += 1;
+      return { ok: true };
+    });
+    assert.equal(setup.requests.length, 1);
+    assert.equal(setup.requests[0].max_output_tokens, 7);
+    assert.equal(executedToolCalls, 0);
+    assert.match(result.reply, /execution budget/);
+  } finally {
+    setup.restore();
+    if (previousOutputLimit === undefined) delete process.env.AGENT_MAX_OUTPUT_TOKENS;
+    else process.env.AGENT_MAX_OUTPUT_TOKENS = previousOutputLimit;
+    if (previousCallLimit === undefined) delete process.env.AGENT_MAX_TOOL_CALLS_PER_RESPONSE;
+    else process.env.AGENT_MAX_TOOL_CALLS_PER_RESPONSE = previousCallLimit;
+  }
+});
+
+test("returns a bounded reply when the execution deadline is already exhausted", async () => {
+  const setup = setupProvider([], () => ({ id: "unused", output_text: "unused" }));
+  const signal = AbortSignal.abort();
+
+  try {
+    const result = await setup.provider.sendMessage({
+      message: "Please update the household.",
+      attachments: [],
+      executeTool: async () => ({ ok: true }),
+      signal,
+    });
+    assert.equal(setup.requests.length, 0);
+    assert.match(result.reply, /execution budget/);
+  } finally {
+    setup.restore();
+  }
+});
+
+test("bounds tool output passed back into the model context", async () => {
+  const previousResultLimit = process.env.AGENT_MAX_TOOL_RESULT_CHARS;
+  process.env.AGENT_MAX_TOOL_RESULT_CHARS = "20";
+  let toolOutputs;
+  const setup = setupProvider(
+    [functionCall("call-1", "get_events", {})],
+    (request) => {
+      toolOutputs = request.input;
+      return { id: "response-2", output_text: "Done." };
+    }
+  );
+
+  try {
+    await sendMessage(setup.provider, async () => ({ data: "x".repeat(100) }));
+    assert.deepEqual(JSON.parse(toolOutputs[0].output), {
+      ok: false,
+      error: "Tool result exceeded the output limit",
+    });
+  } finally {
+    setup.restore();
+    if (previousResultLimit === undefined) delete process.env.AGENT_MAX_TOOL_RESULT_CHARS;
+    else process.env.AGENT_MAX_TOOL_RESULT_CHARS = previousResultLimit;
+  }
+});
 
 test("executes same-turn writes sequentially before dependent reads", async () => {
   const nextRequest = { id: "response-2", output_text: "Both events were saved." };

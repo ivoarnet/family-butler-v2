@@ -1,4 +1,10 @@
 const cleanString = (value) => (typeof value === "string" ? value.trim() : "");
+const TOOL_BUDGET_REPLY = "I couldn’t complete that request within the available execution budget. Please try a smaller request.";
+
+const parsePositiveInt = (value, fallback) => {
+  const parsed = Number.parseInt(String(value), 10);
+  return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+};
 
 const parseProviderError = async (response) => {
   try {
@@ -88,6 +94,10 @@ module.exports = function createOpenAiProvider() {
 
   const chatModel = cleanString(process.env.OPENAI_MODEL_CHAT) || "gpt-4.1-mini";
   const visionModel = cleanString(process.env.OPENAI_MODEL_VISION) || chatModel;
+  const maxOutputTokens = parsePositiveInt(process.env.AGENT_MAX_OUTPUT_TOKENS, 1200);
+  const maxToolCallsPerResponse = parsePositiveInt(process.env.AGENT_MAX_TOOL_CALLS_PER_RESPONSE, 8);
+  const maxToolCallsPerTurn = parsePositiveInt(process.env.AGENT_MAX_TOOL_CALLS_PER_TURN, 16);
+  const maxToolResultChars = parsePositiveInt(process.env.AGENT_MAX_TOOL_RESULT_CHARS, 16000);
 
   return {
     supportsVision() {
@@ -98,7 +108,7 @@ module.exports = function createOpenAiProvider() {
       return true;
     },
 
-    async sendMessage({ message, history = [], attachments, tools = [], executeTool, instruction }) {
+    async sendMessage({ message, history = [], attachments, tools = [], executeTool, instruction, signal }) {
       const hasImage = attachments.some((attachment) => attachment.kind === "image");
       const model = hasImage ? visionModel : chatModel;
 
@@ -124,6 +134,7 @@ module.exports = function createOpenAiProvider() {
 
       let payload;
       let previousResponseId;
+      let totalToolCalls = 0;
       let pendingInput = [
         {
           role: "user",
@@ -132,26 +143,47 @@ module.exports = function createOpenAiProvider() {
       ];
 
       for (let iteration = 0; iteration < 4; iteration += 1) {
-        const response = await fetch("https://api.openai.com/v1/responses", {
-          method: "POST",
-          headers: {
-            Authorization: ["Bearer", apiKey].join(" "),
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            model,
-            input: pendingInput,
-            tools: tools.length > 0 ? toOpenAiTools(tools) : undefined,
-            instructions: cleanString(instruction) || undefined,
-            previous_response_id: previousResponseId,
-          }),
-        });
+        if (signal?.aborted) {
+          return { reply: TOOL_BUDGET_REPLY, model };
+        }
+
+        let response;
+        try {
+          response = await fetch("https://api.openai.com/v1/responses", {
+            method: "POST",
+            headers: {
+              Authorization: ["Bearer", apiKey].join(" "),
+              "Content-Type": "application/json",
+            },
+            body: JSON.stringify({
+              model,
+              input: pendingInput,
+              tools: tools.length > 0 ? toOpenAiTools(tools) : undefined,
+              instructions: cleanString(instruction) || undefined,
+              previous_response_id: previousResponseId,
+              max_output_tokens: maxOutputTokens,
+            }),
+            signal,
+          });
+        } catch (error) {
+          if (signal?.aborted) {
+            return { reply: TOOL_BUDGET_REPLY, model };
+          }
+          throw error;
+        }
 
         if (!response.ok) {
           throw new Error(await parseProviderError(response));
         }
 
-        payload = await response.json();
+        try {
+          payload = await response.json();
+        } catch (error) {
+          if (signal?.aborted) {
+            return { reply: TOOL_BUDGET_REPLY, model };
+          }
+          throw error;
+        }
         previousResponseId = typeof payload?.id === "string" ? payload.id : previousResponseId;
 
         const functionCalls = readFunctionCallsFromOutput(payload);
@@ -159,12 +191,32 @@ module.exports = function createOpenAiProvider() {
           break;
         }
 
+        if (
+          functionCalls.length > maxToolCallsPerResponse ||
+          totalToolCalls + functionCalls.length > maxToolCallsPerTurn
+        ) {
+          return { reply: TOOL_BUDGET_REPLY, model };
+        }
+
+        if (iteration === 3) {
+          return { reply: TOOL_BUDGET_REPLY, model };
+        }
+
         if (typeof executeTool !== "function") {
           throw new Error("Tool call requested but no tool executor is configured");
         }
 
+        totalToolCalls += functionCalls.length;
         pendingInput = [];
         for (const call of functionCalls) {
+          if (signal?.aborted) {
+            return { reply: TOOL_BUDGET_REPLY, model };
+          }
+
+          if (typeof call.arguments === "string" && call.arguments.length > 8000) {
+            return { reply: TOOL_BUDGET_REPLY, model };
+          }
+
           let parsedArguments = {};
           try {
             parsedArguments = call.arguments ? JSON.parse(call.arguments) : {};
@@ -176,16 +228,22 @@ module.exports = function createOpenAiProvider() {
           try {
             result = await executeTool(call.name, parsedArguments);
           } catch (error) {
+            if (signal?.aborted) {
+              return { reply: TOOL_BUDGET_REPLY, model };
+            }
             result = {
               ok: false,
               error: error instanceof Error && error.message ? error.message : "Tool execution failed",
             };
           }
 
+          const output = JSON.stringify(result ?? { ok: true });
           pendingInput.push({
             type: "function_call_output",
             call_id: call.call_id,
-            output: JSON.stringify(result ?? { ok: true }),
+            output: output.length > maxToolResultChars
+              ? JSON.stringify({ ok: false, error: "Tool result exceeded the output limit" })
+              : output,
           });
         }
       }

@@ -22,6 +22,10 @@ Add these in Azure Static Web Apps **Application settings** (not in source contr
 - `OPENAI_MODEL_VISION=<model name>`
 - `AGENT_MAX_FILE_BYTES=<numeric limit>`
 - `AGENT_MAX_FILES_PER_MESSAGE=<numeric limit>`
+- `AGENT_MAX_REQUEST_BYTES` (30 MiB), `AGENT_MAX_TOTAL_FILE_BYTES` (20 MiB), and text/history limits
+- `AGENT_MAX_TOOL_CALLS_PER_RESPONSE`, `AGENT_MAX_TOOL_CALLS_PER_TURN`, `AGENT_MAX_TOOL_RESULT_CHARS`, `AGENT_MAX_OUTPUT_TOKENS`, and `AGENT_MAX_EXECUTION_MS`
+- `AGENT_USER_DAILY_LIMIT`, `AGENT_HOUSEHOLD_DAILY_LIMIT`, `AGENT_USER_CONCURRENCY_LIMIT`, and `AGENT_HOUSEHOLD_CONCURRENCY_LIMIT`
+- `AGENT_RESERVATION_TIMEOUT_SECONDS` (stale-execution cleanup window)
 
 Keep existing Supabase variables:
 
@@ -42,6 +46,12 @@ Minimum controls:
 - MIME + extension validation
 - max-size enforcement before provider call
 - metadata persistence in DB for auditability
+
+The chat function enforces the raw body size when exposed by the runtime and the request-size header when present, plus decoded and aggregate attachment sizes, canonical base64, supported file signatures, attachment count, and bounded message/history lengths. Azure Functions may parse HTTP request bodies before invoking the JavaScript handler, so the handler cannot reject by body size before that host-level parse; configure the hosting ingress limit as well. Defaults permit up to four 5 MiB files (20 MiB decoded total) and a 30 MiB request.
+
+## Agent usage budget
+
+Apply `/docs/sql/agent-execution-budget.sql` to the Supabase database before enabling the updated chat function. Its security-definer RPCs reserve and release executions atomically across API instances. Reservations count toward rolling 24-hour per-user and per-household request limits; unfinished reservations stop counting toward concurrency after the configured stale-reservation timeout. Keep the RPCs restricted to `service_role` and configure the limits in server-side Azure application settings.
 
 ## Operational safeguards
 
