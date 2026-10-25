@@ -17,6 +17,8 @@ import {
   SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../../../shared/ui/PickerFields";
+import { buildRepeatRule, getRepeatFrequency, getRepeatUntil } from "../../../shared/calendar/eventRecurrence";
+import type { RepeatFrequency } from "../../../shared/calendar/eventRecurrence";
 import { EventType, FamilyMember } from "../../../types/family";
 
 const EventDetailsSection = styled(Box)(({ theme }) => ({
@@ -136,6 +138,8 @@ export function EventDialog({
   const fullScreen = useMediaQuery(theme.breakpoints.down("sm"));
   const titleId = "event-dialog-title";
   const descriptionId = "event-dialog-description";
+  const repeatFrequency = getRepeatFrequency(formState.repeatRule);
+  const repeatUntil = getRepeatUntil(formState.repeatRule) ?? "";
   return (
       <GlassDialog open={open} onClose={onClose} aria-labelledby={titleId} aria-describedby={descriptionId} fullScreen={fullScreen}>
         <Box component="form" onSubmit={onSubmit} noValidate>
@@ -243,17 +247,34 @@ export function EventDialog({
               </TimeControlsSection>
               <FormControl>
                 <FormSelect
-                  value={formState.repeatRule}
-                  onChange={(event) => onFormStateChange((current) => ({ ...current, repeatRule: String(event.target.value) }))}
+                  value={repeatFrequency ?? ""}
+                  onChange={(event) => onFormStateChange((current) => {
+                    const frequency = String(event.target.value) as RepeatFrequency | "";
+                    return {
+                      ...current,
+                      repeatRule: buildRepeatRule(frequency || null, getRepeatUntil(current.repeatRule)),
+                    };
+                  })}
                   inputProps={{ "aria-label": "Repeat rule" }}
                 >
                   <MenuItem value="">Does not repeat</MenuItem>
-                  <MenuItem value="RRULE:FREQ=DAILY">Daily</MenuItem>
-                  <MenuItem value="RRULE:FREQ=WEEKLY">Weekly</MenuItem>
-                  <MenuItem value="RRULE:FREQ=MONTHLY">Monthly</MenuItem>
-                  <MenuItem value="RRULE:FREQ=YEARLY">Yearly</MenuItem>
+                  <MenuItem value="DAILY">Daily</MenuItem>
+                  <MenuItem value="WEEKLY">Weekly</MenuItem>
+                  <MenuItem value="MONTHLY">Monthly</MenuItem>
+                  <MenuItem value="YEARLY">Yearly</MenuItem>
                 </FormSelect>
               </FormControl>
+              {repeatFrequency ? (
+                <DateField
+                  label="Repeat until"
+                  value={repeatUntil}
+                  helperText="Leave blank for an ongoing recurring event."
+                  onChange={(date) => onFormStateChange((current) => ({
+                    ...current,
+                    repeatRule: buildRepeatRule(getRepeatFrequency(current.repeatRule), date || null),
+                  }))}
+                />
+              ) : null}
             </EventDetailsSection>
           </GlassPanel>
 

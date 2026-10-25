@@ -11,7 +11,7 @@ const EVENT_MODEL_DESCRIPTION = [
   "- endTime: string | null (HH:MM; either time may be omitted for multi-day events)",
   "- Multi-day events use an inclusive endDate; omit both times for whole-day spans.",
   "- eventTypeId: string | null (should reference one available event type when possible)",
-  "- repeatRule: string | null",
+  "- repeatRule: string | null (recurrence as RRULE:FREQ=DAILY|WEEKLY|MONTHLY|YEARLY; optionally append ;UNTIL=YYYYMMDD for the last occurrence; this is separate from endDate, which is only for multi-day event spans)",
   "- location: string | null",
   "- notes: string | null",
 ].join("\n");

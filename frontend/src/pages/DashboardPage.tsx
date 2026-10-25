@@ -18,6 +18,7 @@ import { ParentingResponsibilityWarning } from "../features/dashboard/components
 import { ParentingAwayBackground } from "../features/dashboard/components/ParentingAwayBackground";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { DAY_CONFIGURATION_META } from "../shared/calendar/dayConfigurations";
+import { getRepeatFrequency, getRepeatUntil } from "../shared/calendar/eventRecurrence";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../shared/ui/PickerFields";
 import { HouseholdData, NavigationTarget } from "../features/app/types";
@@ -318,17 +319,6 @@ const parseDateOnly = (value: string): Date | null => {
   return Number.isNaN(parsed.getTime()) ? null : parsed;
 };
 
-const getRepeatFrequency = (repeatRule: string | undefined): "DAILY" | "WEEKLY" | "MONTHLY" | "YEARLY" | null => {
-  if (!repeatRule) {
-    return null;
-  }
-  const match = repeatRule.match(/FREQ=(DAILY|WEEKLY|MONTHLY|YEARLY)/);
-  const frequency = match?.[1];
-  return frequency === "DAILY" || frequency === "WEEKLY" || frequency === "MONTHLY" || frequency === "YEARLY"
-    ? frequency
-    : null;
-};
-
 const eventOccursOnDay = (event: HouseholdEvent, day: Date): boolean => {
   const eventDate = parseDateOnly(event.date);
   if (!eventDate) {
@@ -344,6 +334,10 @@ const eventOccursOnDay = (event: HouseholdEvent, day: Date): boolean => {
   const repeatFrequency = getRepeatFrequency(event.repeatRule);
   if (!repeatFrequency) {
     return dayIso >= event.date && dayIso <= (event.endDate || event.date);
+  }
+  const repeatUntil = getRepeatUntil(event.repeatRule);
+  if (repeatUntil && dayIso > repeatUntil) {
+    return false;
   }
 
   const diffDays = Math.floor((dayStart.getTime() - eventStart.getTime()) / (24 * 60 * 60 * 1000));
