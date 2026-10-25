@@ -304,8 +304,23 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
   const root = path.join(__dirname, "..");
   const workflow = readFileSync(path.join(root,
     ".github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml"), "utf8");
-  assert.match(workflow,
-    /api_build_command: "npm install --omit=dev --workspaces=false --package-lock=false --ignore-scripts"/);
+  assert.match(workflow, /needs:\s*\n\s+- validate/);
+  assert.match(workflow, /GROCERY_TEST_PG_SOCKET: 127\.0\.0\.1/);
+  assert.match(workflow, /test -n "\$GROCERY_TEST_PG_SOCKET"/);
+  assert.match(workflow, /numPassedTests < 1/);
+  assert.doesNotMatch(workflow, /package-lock=false/);
+  assert.doesNotMatch(workflow, /skip_api_build:\s*true/);
+  assert.match(workflow, /api_build_command:\s*"npm ci --omit=dev --workspaces=false --ignore-scripts"/);
+  const apiPackage = JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8"));
+  const apiLock = JSON.parse(readFileSync(path.join(__dirname, "package-lock.json"), "utf8"));
+  const rootLock = JSON.parse(readFileSync(path.join(root, "package-lock.json"), "utf8"));
+  assert.deepEqual(apiPackage.engines, { node: "20.x" });
+  assert.deepEqual(apiLock.packages[""].dependencies, apiPackage.dependencies);
+  assert.deepEqual(apiLock.packages[""].engines, apiPackage.engines);
+  assert.deepEqual(rootLock.packages.api.engines, apiPackage.engines);
+  for (const [packagePath, details] of Object.entries(apiLock.packages)) {
+    if (packagePath) assert.deepEqual(rootLock.packages[packagePath], details);
+  }
   const output = path.join(root, "workers/grocery-sync-package");
   try {
     execFileSync(process.execPath, ["workers/build-grocery-sync.js"], { cwd: root });
@@ -315,7 +330,14 @@ test("SWA API remains HTTP-only and the optional timer package contains its shar
     assert.ok(existsSync(path.join(output, "shared/bring-credentials.js")));
     assert.ok(existsSync(path.join(output, "shared/bring-metadata.js")));
     const packaged = JSON.parse(readFileSync(path.join(output, "package.json"), "utf8"));
-    assert.deepEqual(packaged.dependencies, JSON.parse(readFileSync(path.join(__dirname, "package.json"), "utf8")).dependencies);
+    assert.deepEqual(packaged.dependencies, apiPackage.dependencies);
+    const lock = JSON.parse(readFileSync(path.join(output, "package-lock.json"), "utf8"));
+    assert.deepEqual(lock.packages[""].dependencies, packaged.dependencies);
+    assert.equal(lock.name, packaged.name);
+    assert.deepEqual(
+      Object.fromEntries(Object.entries(lock.packages).filter(([packagePath]) => packagePath)),
+      Object.fromEntries(Object.entries(apiLock.packages).filter(([packagePath]) => packagePath)),
+    );
     execFileSync(process.execPath, ["-e", 'require("./workers/grocery-sync-package/grocery-sync")().catch(() => process.exit(1))'], {
       cwd: root, env: { ...process.env, BRING_ACCOUNTS_JSON: "" },
     });
