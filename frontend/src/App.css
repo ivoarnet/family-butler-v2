@@ -1200,6 +1200,10 @@ body,
   gap: 0.5rem;
 }
 
+.parenting-preview-narrow .parenting-preview-timeline-option {
+  display: none;
+}
+
 .parenting-preview-content {
   min-width: 0;
 }

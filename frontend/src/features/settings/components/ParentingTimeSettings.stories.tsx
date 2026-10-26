@@ -262,6 +262,33 @@ export const UpcomingHandoverAdjustment: Story = {
   },
 };
 
+export const UpcomingHandoverNarrowScreen: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const view = canvasElement.ownerDocument.defaultView!;
+    const originalWidth = view.innerWidth;
+    const resizeTo = (width: number) => {
+      Object.defineProperty(view, "innerWidth", { configurable: true, value: width });
+      view.dispatchEvent(new Event("resize"));
+    };
+    try {
+      resizeTo(1280);
+      await waitFor(() => expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument());
+      resizeTo(480);
+      await waitFor(() => expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument());
+      expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
+      expect(canvasElement.querySelector(".parenting-preview-timeline-option")).not.toBeVisible();
+      expect(canvas.getByRole("button", { name: "List" })).toBeVisible();
+      resizeTo(1280);
+      await waitFor(() => expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument());
+      expect(canvas.getByRole("button", { name: "Timeline" })).toBeVisible();
+    } finally {
+      resizeTo(originalWidth);
+    }
+  },
+};
+
 export const UpcomingHandoverSaveFailure: Story = {
   args: { withPlan: true, failChangeSave: true },
   play: async ({ canvasElement }) => {

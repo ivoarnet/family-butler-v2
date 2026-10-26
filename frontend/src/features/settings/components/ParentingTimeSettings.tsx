@@ -168,9 +168,16 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [planDraft, setPlanDraft] = useState<Plan | null>(null);
   const [preview, setPreview] = useState<Interval[]>([]);
   const [previewView, setPreviewView] = useState<"timeline" | "list">("timeline");
+  const [narrowScreen, setNarrowScreen] = useState(() => window.innerWidth <= 640);
   const [previewRangeStart, setPreviewRangeStart] = useState<string | null>(null);
   const previewRangeStartRef = useRef<string | null>(null);
   const [changeDraft, setChangeDraft] = useState<{ id?: string; partyId: string; startAt: string; endAt: string; label: string } | null>(null);
+
+  useEffect(() => {
+    const updateNarrowScreen = () => setNarrowScreen(window.innerWidth <= 640);
+    window.addEventListener("resize", updateNarrowScreen);
+    return () => window.removeEventListener("resize", updateNarrowScreen);
+  }, []);
 
   const load = useCallback(async (requestedStartAt?: string) => {
     setLoading(true);
@@ -615,8 +622,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
               <ChevronRightIcon fontSize="small" />
             </button>
           </div>
-          <div className="pill-group view-switcher" role="group" aria-label="Schedule preview view">
-            <button type="button" className={previewView === "timeline" ? "active" : ""}
+          <div className={`pill-group view-switcher${narrowScreen ? " parenting-preview-narrow" : ""}`}
+            role="group" aria-label="Schedule preview view">
+            <button type="button" className={`parenting-preview-timeline-option${previewView === "timeline" ? " active" : ""}`}
               aria-pressed={previewView === "timeline"} onClick={() => setPreviewView("timeline")}>Timeline</button>
             <button type="button" className={previewView === "list" ? "active" : ""}
               aria-pressed={previewView === "list"} onClick={() => setPreviewView("list")}>List</button>
@@ -624,7 +632,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
         </div>
       </div>
       {(preview.length > 0 || data.plan?.active) ? <div className="parenting-preview-content">
-        {previewView === "timeline"
+        {previewView === "timeline" && !narrowScreen
           ? <UpcomingParentingTimeline intervals={preview} busy={busy || loading} onAdjust={adjustHandover} />
           : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
             <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
