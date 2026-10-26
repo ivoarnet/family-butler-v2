@@ -14,6 +14,7 @@ import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../../../shared/ui/PickerFields";
+import type { ResolvedParentingInterval } from "../../../types/family";
 import { SettingsInfo } from "./SettingsInfo";
 import { UpcomingParentingTimeline } from "./UpcomingParentingTimeline";
 
@@ -30,7 +31,7 @@ type Plan = {
   recurrenceMode: "weekly" | "alternating"; rules: Rule[]; handovers?: Handover[]; active: boolean;
 };
 type Change = { id: string; partyId: string; startAt: string; endAt: string; label: string };
-type Interval = { startAt: string; endAt: string; partyId: string; partyName: string | null; source: { type: string; label?: string } };
+type Interval = ResolvedParentingInterval;
 type Data = { parties: Party[]; plan: Plan | null; changes: Change[] };
 const emptyData: Data = { parties: [], plan: null, changes: [] };
 const localDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}`;

@@ -31,16 +31,23 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
         <span>{formatDateTime(interval.startAt)} – {formatDateTime(interval.endAt)}</span>
       </div>)}
     </div>
-    {handovers.map(({ previous, next, key }) => {
-      const shift = shifts[key] ?? 0;
-      const editable = previous.source.type === "plan" && next.source.type === "plan";
+    {handovers.map(({ previous, next, key }, index) => {
+      const handoverAt = Date.parse(next.startAt);
+      const previousHandoverAt = index > 0 ? Date.parse(handovers[index - 1].next.startAt) : null;
+      const followingHandoverAt = index + 1 < handovers.length ? Date.parse(handovers[index + 1].next.startAt) : null;
+      const minShift = previousHandoverAt === null ? -MAX_SHIFT_MINUTES
+        : Math.max(-MAX_SHIFT_MINUTES, Math.ceil((previousHandoverAt + 5 * 60_000 - handoverAt) / 300_000) * 5);
+      const maxShift = followingHandoverAt === null ? MAX_SHIFT_MINUTES
+        : Math.min(MAX_SHIFT_MINUTES, Math.floor((followingHandoverAt - 5 * 60_000 - handoverAt) / 300_000) * 5);
+      const shift = Math.max(minShift, Math.min(maxShift, shifts[key] ?? 0));
+      const editable = previous.source.type === "plan" && next.source.type === "plan" && minShift <= maxShift;
       return <div className="parenting-timeline-handover" key={key}>
         <div>
           <strong>{previous.partyName ?? "Parent"} → {next.partyName ?? "Parent"}</strong>
           <span>{formatDateTime(next.startAt)}{shift ? ` · ${formatShift(shift)}` : ""}</span>
         </div>
         {editable ? <>
-          <input type="range" min={-MAX_SHIFT_MINUTES} max={MAX_SHIFT_MINUTES} step={5} value={shift}
+          <input type="range" min={minShift} max={maxShift} step={5} value={shift}
             disabled={busy}
             aria-label={`Adjust handover from ${previous.partyName ?? "parent"} to ${next.partyName ?? "parent"} by up to 24 hours`}
             onChange={(event) => setShifts((current) => ({ ...current, [key]: Number(event.target.value) }))} />
@@ -51,7 +58,8 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
             }}>
             Apply {shift > 0 ? "+" : ""}{shift} min
           </button>
-        </> : <span>Adjust this handover in parenting-time settings</span>}
+        </> : <span>{previous.source.type === "plan" && next.source.type === "plan"
+          ? "Handovers are too close to adjust here." : "Adjust this handover in parenting-time settings"}</span>}
       </div>;
     })}
     {!handovers.length && <p>No upcoming handovers in this preview.</p>}
