@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { useMemo, useState } from "react";
 import { ParentingTimeSettings, type ParentingTimeRequest } from "./ParentingTimeSettings";
 
@@ -54,6 +54,10 @@ function ParentingTimeStory({ withPlan = false }: {
       if (resource === "plan" && init.method === "PUT") {
         data.plan = { ...body, id: "00000000-0000-0000-0000-000000000004" };
         return data.plan;
+      }
+      if (resource === "changes" && init.method === "POST") {
+        data.changes.push({ ...body, id: "00000000-0000-0000-0000-000000000008" } as typeof data.changes[number]);
+        return data.changes[data.changes.length - 1];
       }
       if (resource === "parties" && init.method === "POST") {
         const party = { ...body, id: "00000000-0000-0000-0000-000000000005" };
@@ -157,6 +161,32 @@ export const ChangeDateTimePicker: Story = {
       .toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
     await userEvent.click(page.getByRole("button", { name: "pick time" }));
     await expect(page.getByRole("option", { name: "13 hours" })).toBeInTheDocument();
+  },
+};
+
+export const UpcomingHandoverAdjustment: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByRole("slider", {
+      name: "Adjust handover from Dad to Mum by up to 24 hours",
+    })).toBeEnabled());
+    expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
+    const slider = canvas.getByRole("slider", {
+      name: "Adjust handover from Dad to Mum by up to 24 hours",
+    });
+    fireEvent.change(slider, { target: { value: "30" } });
+    await userEvent.click(canvas.getByRole("button", { name: "Apply +30 min" }));
+    await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
+      String(path).endsWith("/changes") && init?.method === "POST")).toBe(true));
+    const adjustment = calls.mock.calls.find(([path, init]) =>
+      String(path).endsWith("/changes") && init?.method === "POST");
+    expect(JSON.parse(String(adjustment?.[1]?.body))).toEqual({
+      partyId: fatherId,
+      startAt: "2026-10-09T17:00:00.000Z",
+      endAt: "2026-10-09T17:30:00.000Z",
+      label: "Handover adjusted from schedule preview",
+    });
   },
 };
 

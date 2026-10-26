@@ -15,6 +15,7 @@ import {
 } from "../../../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../../../shared/ui/PickerFields";
 import { SettingsInfo } from "./SettingsInfo";
+import { UpcomingParentingTimeline } from "./UpcomingParentingTimeline";
 
 export type ParentingTimeRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 type Party = { id: string; name: string; memberId: string | null; active: boolean };
@@ -243,6 +244,24 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       ...changeDraft, startAt: toIso(changeDraft.startAt), endAt: toIso(changeDraft.endAt),
     });
   };
+  const adjustHandover = (previous: Interval, next: Interval, minutes: number) => run(async () => {
+    if (!Number.isInteger(minutes) || minutes === 0 || Math.abs(minutes) > 24 * 60 || minutes % 5 !== 0
+      || previous.endAt !== next.startAt || previous.partyId === next.partyId) {
+      throw new Error("Choose a handover adjustment in 5-minute steps, within 24 hours.");
+    }
+    const handover = Date.parse(next.startAt);
+    const adjusted = handover + minutes * 60_000;
+    await request(`${base}/changes`, {
+      method: "POST",
+      body: JSON.stringify({
+        partyId: minutes > 0 ? previous.partyId : next.partyId,
+        startAt: new Date(Math.min(handover, adjusted)).toISOString(),
+        endAt: new Date(Math.max(handover, adjusted)).toISOString(),
+        label: "Handover adjusted from schedule preview",
+      }),
+    });
+    await load();
+  });
   const updateHandover = (handoverId: string, changes: Partial<Handover>) => {
     setPlanDraft((current) => current ? {
       ...current,
@@ -541,6 +560,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     </section>
     <section className="settings-card">
       <div className="section-toolbar"><h2>Upcoming schedule preview</h2></div>
+      {preview.length > 0 && <UpcomingParentingTimeline intervals={preview} busy={busy} onAdjust={adjustHandover} />}
       {preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
         <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
         <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
