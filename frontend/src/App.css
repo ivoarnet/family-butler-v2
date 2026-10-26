@@ -1182,6 +1182,35 @@ body,
   margin: 1rem 0;
 }
 
+.parenting-timeline-navigation {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.parenting-timeline-navigation button {
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--surface-strong);
+  color: var(--text-primary);
+  font: inherit;
+  font-size: 1.3rem;
+  cursor: pointer;
+}
+
+.parenting-timeline-navigation button:focus-visible {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.parenting-timeline-navigation span {
+  color: var(--text-secondary);
+  font-size: 0.85rem;
+}
+
 .parenting-timeline-track {
   display: flex;
   min-height: 5rem;

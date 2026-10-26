@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState, type FormEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent } from "react";
 import { Alert, Box, Button, Checkbox, Chip, FormControl, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import BlockIcon from "@mui/icons-material/Block";
@@ -42,6 +42,13 @@ const rangeForPreview = (effectiveFrom?: string) => {
     if (effective > start) start.setTime(effective.getTime());
   }
   start.setSeconds(0, 0);
+  const end = new Date(start);
+  end.setDate(end.getDate() + 14);
+  return { startAt: start.toISOString(), endAt: end.toISOString() };
+};
+const shiftPreviewRange = (startAt: string, days: number) => {
+  const start = new Date(startAt);
+  start.setDate(start.getDate() + days);
   const end = new Date(start);
   end.setDate(end.getDate() + 14);
   return { startAt: start.toISOString(), endAt: end.toISOString() };
@@ -158,9 +165,11 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [planDraft, setPlanDraft] = useState<Plan | null>(null);
   const [preview, setPreview] = useState<Interval[]>([]);
   const [previewView, setPreviewView] = useState<"timeline" | "list">("timeline");
+  const [previewRangeStart, setPreviewRangeStart] = useState<string | null>(null);
+  const previewRangeStartRef = useRef<string | null>(null);
   const [changeDraft, setChangeDraft] = useState<{ id?: string; partyId: string; startAt: string; endAt: string; label: string } | null>(null);
 
-  const load = useCallback(async () => {
+  const load = useCallback(async (requestedStartAt?: string) => {
     setLoading(true);
     try {
       const records = await request(base) as Data;
@@ -171,10 +180,18 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       };
       setPlanDraft(draft);
       if (records.plan?.active) {
-        const { startAt, endAt } = rangeForPreview(draft.effectiveFrom);
+        const { startAt, endAt } = requestedStartAt
+          ? shiftPreviewRange(requestedStartAt, 0)
+          : previewRangeStartRef.current ? shiftPreviewRange(previewRangeStartRef.current, 0) : rangeForPreview(draft.effectiveFrom);
+        previewRangeStartRef.current = startAt;
+        setPreviewRangeStart(startAt);
         const resolved = await request(`${base}/resolve?${new URLSearchParams({ startAt, endAt })}`) as { intervals: Interval[] };
         setPreview(resolved.intervals);
-      } else setPreview([]);
+      } else {
+        setPreview([]);
+        previewRangeStartRef.current = null;
+        setPreviewRangeStart(null);
+      }
       setError("");
     } catch (failure) {
       setError(errorText(failure));
@@ -223,6 +240,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     const result = await request(`${base}/preview`, {
       method: "POST", body: JSON.stringify({ plan, startAt, endAt }),
     }) as { intervals: Interval[] };
+    previewRangeStartRef.current = startAt;
+    setPreviewRangeStart(startAt);
     setPreview(result.intervals);
     setPlanDialogOpen(false);
   });
@@ -266,6 +285,10 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     });
     await load();
   });
+  const navigatePreview = (days: number) => {
+    if (!previewRangeStart || !Number.isInteger(days) || days === 0) return;
+    void load(shiftPreviewRange(previewRangeStart, days).startAt);
+  };
   const updateHandover = (handoverId: string, changes: Partial<Handover>) => {
     setPlanDraft((current) => current ? {
       ...current,
@@ -570,8 +593,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           <button type="button" aria-pressed={previewView === "list"} onClick={() => setPreviewView("list")}>List</button>
         </div>
       </div>
-      {preview.length && previewView === "timeline"
-        ? <UpcomingParentingTimeline intervals={preview} busy={busy} onAdjust={adjustHandover} />
+      {(preview.length > 0 || data.plan?.active) && previewView === "timeline"
+        ? <UpcomingParentingTimeline intervals={preview} busy={busy || loading} onAdjust={adjustHandover} onNavigate={navigatePreview} />
         : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
         <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
         <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>

@@ -45,12 +45,16 @@ function ParentingTimeStory({ withPlan = false }: {
       const resource = url.pathname.split("/parenting-time")[1].replace(/^\//, "");
       const body = init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
       if (!resource) return structuredClone(data);
-      if (resource === "preview" || resource === "resolve") return {
-        intervals: [
-          { startAt: "2026-10-08T19:30:00.000Z", endAt: "2026-10-09T17:00:00.000Z", partyId: fatherId, partyName: "Dad", source: { type: "plan" } },
-          { startAt: "2026-10-09T17:00:00.000Z", endAt: "2026-10-11T19:30:00.000Z", partyId: motherId, partyName: "Mum", source: { type: "plan" } },
-        ],
-      };
+      if (resource === "preview" || resource === "resolve") {
+        const rangeStart = resource === "resolve" ? Date.parse(url.searchParams.get("startAt")!) : Date.parse(String(body.startAt));
+        const handover = rangeStart + 24 * 60 * 60 * 1000;
+        return { intervals: [
+          { startAt: new Date(rangeStart).toISOString(), endAt: new Date(handover).toISOString(),
+            partyId: fatherId, partyName: "Dad", source: { type: "plan", planId: "story-plan" } },
+          { startAt: new Date(handover).toISOString(), endAt: new Date(handover + 48 * 60 * 60 * 1000).toISOString(),
+            partyId: motherId, partyName: "Mum", source: { type: "plan", planId: "story-plan" } },
+        ] };
+      }
       if (resource === "plan" && init.method === "PUT") {
         data.plan = { ...body, id: "00000000-0000-0000-0000-000000000004" };
         return data.plan;
@@ -169,6 +173,8 @@ export const UpcomingHandoverAdjustment: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
+    expect(canvasElement.querySelector(".parenting-timeline-segment span"))
+      .not.toHaveTextContent(" – ");
     await userEvent.click(canvas.getByRole("button", { name: "List" }));
     expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument();
     expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
@@ -177,7 +183,10 @@ export const UpcomingHandoverAdjustment: Story = {
     await userEvent.click(canvas.getByRole("button", {
       name: "Select handover time from Dad to Mum",
     }));
-    const selectedTime = new Date("2026-10-09T17:30:00.000Z");
+    const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
+    const firstRangeStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
+    const handoverAt = firstRangeStart + 24 * 60 * 60 * 1000;
+    const selectedTime = new Date(handoverAt + 30 * 60 * 1000);
     const localValue = `${selectedTime.getFullYear()}-${String(selectedTime.getMonth() + 1).padStart(2, "0")}-${String(selectedTime.getDate()).padStart(2, "0")}T${String(selectedTime.getHours()).padStart(2, "0")}:${String(selectedTime.getMinutes()).padStart(2, "0")}`;
     const picker = canvas.getByLabelText("New handover date and time from Dad to Mum");
     expect(picker).toHaveAttribute("step", "1800");
@@ -189,10 +198,23 @@ export const UpcomingHandoverAdjustment: Story = {
       String(path).endsWith("/changes") && init?.method === "POST");
     expect(JSON.parse(String(adjustment?.[1]?.body))).toEqual({
       partyId: fatherId,
-      startAt: "2026-10-09T17:00:00.000Z",
-      endAt: "2026-10-09T17:30:00.000Z",
+      startAt: new Date(handoverAt).toISOString(),
+      endAt: new Date(handoverAt + 30 * 60 * 1000).toISOString(),
       label: "Handover adjusted from schedule preview",
     });
+    const previousResolveCount = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show later timeslices" }));
+    await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
+      .toBeGreaterThan(previousResolveCount));
+    const laterResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+    const laterStart = new URL(String(laterResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
+    const expectedLaterStart = new Date(firstRangeStart);
+    expectedLaterStart.setDate(expectedLaterStart.getDate() + 14);
+    expect(Date.parse(laterStart)).toBe(expectedLaterStart.getTime());
+    expect(canvasElement.querySelector(".parenting-timeline-segment span"))
+      .toHaveTextContent(new Intl.DateTimeFormat(undefined, {
+        weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).format(new Date(laterStart)));
   },
 };
 
