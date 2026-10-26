@@ -278,9 +278,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     const adjusted = Date.parse(newStartAt);
     const minutes = (adjusted - handover) / 60_000;
     if (!Number.isFinite(adjusted) || !Number.isInteger(minutes) || minutes === 0 || Math.abs(minutes) > 24 * 60
-      || new Date(adjusted).getMinutes() % 30 !== 0
+      || new Date(adjusted).getMinutes() % 5 !== 0
       || previous.endAt !== next.startAt || previous.partyId === next.partyId) {
-      throw new Error("Choose a new handover time on a 30-minute mark, within 24 hours.");
+      throw new Error("Choose a new handover time on a 5-minute mark, within 24 hours.");
     }
     await request(`${base}/changes`, {
       method: "POST",

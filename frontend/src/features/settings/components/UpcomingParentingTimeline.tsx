@@ -7,7 +7,10 @@ import { MobileDateTimePicker } from "@mui/x-date-pickers/MobileDateTimePicker";
 import type { ResolvedParentingInterval } from "../../../types/family";
 
 const MAX_SHIFT_MS = 24 * 60 * 60 * 1000;
-const STEP_MS = 30 * 60 * 1000;
+const STEP_MS = 5 * 60 * 1000;
+const MIN_HANDOVER_GAP_MS = 30 * 60 * 1000;
+const roundUpToStep = (timestamp: number) => Math.ceil(timestamp / STEP_MS) * STEP_MS;
+const roundDownToStep = (timestamp: number) => Math.floor(timestamp / STEP_MS) * STEP_MS;
 const localDateTime = (timestamp: number) => {
   const date = new Date(timestamp);
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(date.getDate()).padStart(2, "0")}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`;
@@ -42,10 +45,10 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
       const handoverAt = Date.parse(next.startAt);
       const previousHandoverAt = index > 0 ? Date.parse(handovers[index - 1].next.startAt) : null;
       const followingHandoverAt = index + 1 < handovers.length ? Date.parse(handovers[index + 1].next.startAt) : null;
-      const minTimestamp = Math.max(handoverAt - MAX_SHIFT_MS, previousHandoverAt === null
-        ? Number.NEGATIVE_INFINITY : previousHandoverAt + STEP_MS);
-      const maxTimestamp = Math.min(handoverAt + MAX_SHIFT_MS, followingHandoverAt === null
-        ? Number.POSITIVE_INFINITY : followingHandoverAt - STEP_MS);
+      const minTimestamp = roundUpToStep(Math.max(handoverAt - MAX_SHIFT_MS, previousHandoverAt === null
+        ? Number.NEGATIVE_INFINITY : previousHandoverAt + MIN_HANDOVER_GAP_MS));
+      const maxTimestamp = roundDownToStep(Math.min(handoverAt + MAX_SHIFT_MS, followingHandoverAt === null
+        ? Number.POSITIVE_INFINITY : followingHandoverAt - MIN_HANDOVER_GAP_MS));
       const minDateTime = localDateTime(minTimestamp);
       const maxDateTime = localDateTime(maxTimestamp);
       const selectedTime = newHandoverTimes[key] ?? localDateTime(handoverAt);
@@ -64,7 +67,7 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
               label={`New handover time · ${previous.partyName ?? "parent"} to ${next.partyName ?? "parent"}`}
               ampm={false}
               views={["day", "hours", "minutes"]}
-              minutesStep={30}
+              minutesStep={5}
               format="DD.MM.YYYY HH:mm"
               minDateTime={dayjs(minDateTime)}
               maxDateTime={dayjs(maxDateTime)}
@@ -76,7 +79,7 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
               disabled={busy}
               slotProps={{ textField: { fullWidth: true, size: "small" } }} />
             <button type="button" className="primary-pill no-wrap-button"
-              disabled={busy || !selectedDateTime.isValid() || selectedDateTime.minute() % 30 !== 0
+              disabled={busy || !selectedDateTime.isValid() || selectedDateTime.minute() % 5 !== 0
                 || shift === 0 || Math.abs(shift) > MAX_SHIFT_MS
                 || selectedTimestamp < minTimestamp || selectedTimestamp > maxTimestamp}
               onClick={async () => {

@@ -95,7 +95,7 @@ const meta: Meta<typeof ParentingTimeStory> = {
 };
 export default meta;
 type Story = StoryObj<typeof ParentingTimeStory>;
-const chooseHandoverThirtyMinutesLater = async (canvasElement: HTMLElement) => {
+const chooseHandoverTime = async (canvasElement: HTMLElement, minutesLater = 30) => {
   const canvas = within(canvasElement);
   await userEvent.click(canvas.getByRole("button", {
     name: "Select handover time from Dad to Mum",
@@ -103,8 +103,8 @@ const chooseHandoverThirtyMinutesLater = async (canvasElement: HTMLElement) => {
   const initialResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
   const firstRangeStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
   const handoverAt = firstRangeStart + 24 * 60 * 60 * 1000;
-  const selectedTime = new Date(handoverAt);
-  selectedTime.setMinutes(Math.ceil((selectedTime.getMinutes() + 1) / 30) * 30, 0, 0);
+  const selectedTime = new Date(handoverAt + minutesLater * 60 * 1000);
+  selectedTime.setMinutes(Math.ceil(selectedTime.getMinutes() / 5) * 5, 0, 0);
   const adjustedAt = selectedTime.getTime();
   const picker = canvas.getByRole("group", { name: /New handover time · Dad to Mum/ });
   expect(picker).not.toHaveTextContent(/AM|PM/i);
@@ -231,7 +231,10 @@ export const UpcomingHandoverAdjustment: Story = {
     expect(Date.parse(currentStart)).toBe(initialStart);
     await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
-    const { firstRangeStart, handoverAt, adjustedAt } = await chooseHandoverThirtyMinutesLater(canvasElement);
+    const { firstRangeStart, handoverAt, adjustedAt } = await chooseHandoverTime(canvasElement, 5);
+    expect(adjustedAt - handoverAt).toBeGreaterThan(0);
+    expect(adjustedAt - handoverAt).toBeLessThanOrEqual(10 * 60 * 1000);
+    expect(new Date(adjustedAt).getMinutes() % 5).toBe(0);
     await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
       String(path).endsWith("/changes") && init?.method === "POST")).toBe(true));
@@ -266,7 +269,7 @@ export const UpcomingHandoverSaveFailure: Story = {
     await waitFor(() => expect(canvas.getByRole("button", {
       name: "Select handover time from Dad to Mum",
     })).toBeEnabled());
-    await chooseHandoverThirtyMinutesLater(canvasElement);
+    await chooseHandoverTime(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
     await expect(await canvas.findByRole("alert")).toHaveTextContent("Could not save new time.");
     expect(canvas.getByRole("button", { name: "Save new time" })).toBeInTheDocument();
