@@ -305,6 +305,25 @@ export const UpcomingHandoverPickerDarkMode: Story = {
       expect(getComputedStyle(icon!).color).toBe(primaryColor);
       expect(getComputedStyle(icon!).color).not.toBe("rgb(0, 0, 0)");
       expect(getComputedStyle(outline!).borderTopColor).not.toBe("rgb(0, 0, 0)");
+      await userEvent.click(canvas.getByRole("button", { name: /Choose date/ }));
+      const page = within(canvasElement.ownerDocument.body);
+      await waitFor(() => expect(page.getByRole("grid")).toBeInTheDocument());
+      const calendar = canvasElement.ownerDocument.body.querySelector(".MuiDateCalendar-root");
+      const selectedDay = calendar?.querySelector(".MuiPickerDay-root.Mui-selected");
+      const availableDay = calendar?.querySelector(".MuiPickerDay-root:not(.Mui-selected):not(.Mui-disabled)");
+      const dialog = canvasElement.ownerDocument.body.querySelector(".MuiDialog-paper");
+      expect(selectedDay).not.toBeNull();
+      expect(availableDay).not.toBeNull();
+      expect(dialog).not.toBeNull();
+      expect(getComputedStyle(selectedDay!).color).toBe("rgb(255, 255, 255)");
+      expect(getComputedStyle(availableDay!).color).toBe(primaryColor);
+      const opaqueSurface = canvasElement.ownerDocument.createElement("span");
+      opaqueSurface.style.backgroundColor = "var(--bg)";
+      canvasElement.ownerDocument.body.append(opaqueSurface);
+      const backgroundColor = getComputedStyle(opaqueSurface).backgroundColor;
+      opaqueSurface.remove();
+      expect(getComputedStyle(dialog!).backgroundColor).toBe(backgroundColor);
+      expect(getComputedStyle(dialog!).opacity).toBe("1");
     } finally {
       if (previousTheme === null) root.removeAttribute("data-theme");
       else root.setAttribute("data-theme", previousTheme);

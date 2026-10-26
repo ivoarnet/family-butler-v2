@@ -102,16 +102,40 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
                 },
                 mobilePaper: {
                   sx: {
-                    background: "var(--surface)",
+                    background: "var(--bg)",
+                    backgroundImage: "none",
                     color: "var(--text-primary)",
                     border: "1px solid var(--border)",
+                    opacity: 1,
+                  },
+                },
+                day: {
+                  sx: {
+                    color: "var(--text-primary)",
+                    "&:not(.Mui-selected)": { backgroundColor: "transparent" },
+                    "&.Mui-selected": {
+                      backgroundColor: "var(--accent)",
+                      color: "#fff",
+                    },
+                    "&:not(.Mui-selected):hover": { backgroundColor: "var(--surface-strong)" },
+                    "&.Mui-selected:hover": { backgroundColor: "var(--accent-strong)" },
+                    "&.Mui-disabled": { color: "var(--text-secondary)" },
                   },
                 },
                 layout: {
                   sx: {
+                    background: "var(--bg)",
+                    color: "var(--text-primary)",
+                    opacity: 1,
                     "& .MuiTypography-root, & .MuiClockNumber-root, & .MuiClockPointer-thumb, & .MuiClock-pin": {
                       color: "var(--text-primary)",
                     },
+                    "& .MuiPickerDay-root:not(.Mui-selected)": { color: "var(--text-primary)" },
+                    "& .MuiPickerDay-root.Mui-selected": {
+                      backgroundColor: "var(--accent)",
+                      color: "#fff",
+                    },
+                    "& .MuiPickerDay-root.Mui-selected:hover": { backgroundColor: "var(--accent-strong)" },
                     "& .MuiPickersArrowSwitcher-button .MuiSvgIcon-root, & .MuiButton-root, & .MuiIconButton-root .MuiSvgIcon-root": {
                       color: "var(--text-primary)",
                     },
