@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { useMemo, useState } from "react";
 import { ParentingTimeSettings, type ParentingTimeRequest } from "./ParentingTimeSettings";
 
@@ -13,8 +13,9 @@ const members = [
 ];
 const calls = fn();
 
-function ParentingTimeStory({ withPlan = false }: {
+function ParentingTimeStory({ withPlan = false, failChangeSave = false }: {
   withPlan?: boolean;
+  failChangeSave?: boolean;
 }) {
   const [refresh, setRefresh] = useState(0);
   const request = useMemo(() => {
@@ -60,6 +61,7 @@ function ParentingTimeStory({ withPlan = false }: {
         return data.plan;
       }
       if (resource === "changes" && init.method === "POST") {
+        if (failChangeSave) throw new Error("Could not save new time.");
         data.changes.push({ ...body, id: "00000000-0000-0000-0000-000000000008" } as typeof data.changes[number]);
         return data.changes[data.changes.length - 1];
       }
@@ -75,7 +77,7 @@ function ParentingTimeStory({ withPlan = false }: {
       }
       return structuredClone(data);
     }) as ParentingTimeRequest;
-  }, [withPlan]);
+  }, [failChangeSave, withPlan]);
   return <div className="app-shell" style={{ padding: 24 }}>
     <button type="button" onClick={() => setRefresh((current) => current + 1)}>Reload saved settings</button>
     <section className="settings-section">
@@ -93,6 +95,33 @@ const meta: Meta<typeof ParentingTimeStory> = {
 };
 export default meta;
 type Story = StoryObj<typeof ParentingTimeStory>;
+const chooseHandoverThirtyMinutesLater = async (canvasElement: HTMLElement) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(canvas.getByRole("button", {
+    name: "Select handover time from Dad to Mum",
+  }));
+  const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
+  const firstRangeStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
+  const handoverAt = firstRangeStart + 24 * 60 * 60 * 1000;
+  const selectedTime = new Date(handoverAt);
+  selectedTime.setMinutes(Math.ceil((selectedTime.getMinutes() + 1) / 30) * 30, 0, 0);
+  const adjustedAt = selectedTime.getTime();
+  const picker = canvas.getByRole("group", { name: /New handover time · Dad to Mum/ });
+  expect(picker).not.toHaveTextContent(/AM|PM/i);
+  const segments = [
+    ["Day", String(selectedTime.getDate()).padStart(2, "0")],
+    ["Month", String(selectedTime.getMonth() + 1).padStart(2, "0")],
+    ["Year", String(selectedTime.getFullYear())],
+    ["Hours", String(selectedTime.getHours()).padStart(2, "0")],
+    ["Minutes", String(selectedTime.getMinutes()).padStart(2, "0")],
+  ];
+  for (const [name, value] of segments) {
+    const segment = within(picker).getByRole("spinbutton", { name });
+    await userEvent.click(segment);
+    await userEvent.keyboard(value);
+  }
+  return { canvas, firstRangeStart, handoverAt, adjustedAt };
+};
 
 export const HouseholdPlan: Story = {
   play: async ({ canvasElement }) => {
@@ -180,17 +209,7 @@ export const UpcomingHandoverAdjustment: Story = {
     expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
-    await userEvent.click(canvas.getByRole("button", {
-      name: "Select handover time from Dad to Mum",
-    }));
-    const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
-    const firstRangeStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
-    const handoverAt = firstRangeStart + 24 * 60 * 60 * 1000;
-    const selectedTime = new Date(handoverAt + 30 * 60 * 1000);
-    const localValue = `${selectedTime.getFullYear()}-${String(selectedTime.getMonth() + 1).padStart(2, "0")}-${String(selectedTime.getDate()).padStart(2, "0")}T${String(selectedTime.getHours()).padStart(2, "0")}:${String(selectedTime.getMinutes()).padStart(2, "0")}`;
-    const picker = canvas.getByLabelText("New handover date and time from Dad to Mum");
-    expect(picker).toHaveAttribute("step", "1800");
-    fireEvent.change(picker, { target: { value: localValue } });
+    const { firstRangeStart, handoverAt, adjustedAt } = await chooseHandoverThirtyMinutesLater(canvasElement);
     await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
       String(path).endsWith("/changes") && init?.method === "POST")).toBe(true));
@@ -199,7 +218,7 @@ export const UpcomingHandoverAdjustment: Story = {
     expect(JSON.parse(String(adjustment?.[1]?.body))).toEqual({
       partyId: fatherId,
       startAt: new Date(handoverAt).toISOString(),
-      endAt: new Date(handoverAt + 30 * 60 * 1000).toISOString(),
+      endAt: new Date(adjustedAt).toISOString(),
       label: "Handover adjusted from schedule preview",
     });
     const previousResolveCount = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
@@ -215,6 +234,21 @@ export const UpcomingHandoverAdjustment: Story = {
       .toHaveTextContent(new Intl.DateTimeFormat(undefined, {
         weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
       }).format(new Date(laterStart)));
+  },
+};
+
+export const UpcomingHandoverSaveFailure: Story = {
+  args: { withPlan: true, failChangeSave: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByRole("button", {
+      name: "Select handover time from Dad to Mum",
+    })).toBeEnabled());
+    await chooseHandoverThirtyMinutesLater(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
+    await expect(await canvas.findByRole("alert")).toHaveTextContent("Could not save new time.");
+    expect(canvas.getByRole("button", { name: "Save new time" })).toBeInTheDocument();
+    expect(canvas.getByRole("group", { name: /New handover time · Dad to Mum/ })).toBeInTheDocument();
   },
 };
 

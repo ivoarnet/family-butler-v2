@@ -202,11 +202,16 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   useEffect(() => { void load(); }, [load]);
 
   const run = async (action: () => Promise<void>) => {
-    if (busy) return;
+    if (busy) return false;
     setBusy(true);
     setError("");
-    try { await action(); }
-    catch (failure) { setError(errorText(failure)); }
+    try {
+      await action();
+      return true;
+    } catch (failure) {
+      setError(errorText(failure));
+      return false;
+    }
     finally { setBusy(false); }
   };
   const mutate = (resource: string, method: string, body?: unknown) => run(async () => {
@@ -270,9 +275,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     const adjusted = Date.parse(newStartAt);
     const minutes = (adjusted - handover) / 60_000;
     if (!Number.isFinite(adjusted) || !Number.isInteger(minutes) || minutes === 0 || Math.abs(minutes) > 24 * 60
-      || minutes % 30 !== 0
+      || new Date(adjusted).getMinutes() % 30 !== 0
       || previous.endAt !== next.startAt || previous.partyId === next.partyId) {
-      throw new Error("Choose a new handover time in 30-minute steps, within 24 hours.");
+      throw new Error("Choose a new handover time on a 30-minute mark, within 24 hours.");
     }
     await request(`${base}/changes`, {
       method: "POST",

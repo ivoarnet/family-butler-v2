@@ -1,4 +1,9 @@
 import { useState } from "react";
+import dayjs from "dayjs";
+import "dayjs/locale/de-ch";
+import { AdapterDayjs } from "@mui/x-date-pickers/AdapterDayjs";
+import { LocalizationProvider } from "@mui/x-date-pickers/LocalizationProvider";
+import { MobileDateTimePicker } from "@mui/x-date-pickers/MobileDateTimePicker";
 import type { ResolvedParentingInterval } from "../../../types/family";
 
 const MAX_SHIFT_MS = 24 * 60 * 60 * 1000;
@@ -14,7 +19,7 @@ const formatDateTime = (value: string) => new Intl.DateTimeFormat(undefined, {
 export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigate }: {
   intervals: ResolvedParentingInterval[];
   busy: boolean;
-  onAdjust: (previous: ResolvedParentingInterval, next: ResolvedParentingInterval, newStartAt: string) => void;
+  onAdjust: (previous: ResolvedParentingInterval, next: ResolvedParentingInterval, newStartAt: string) => Promise<boolean>;
   onNavigate: (days: number) => void;
 }) {
   const [selectedHandover, setSelectedHandover] = useState<string | null>(null);
@@ -25,7 +30,9 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigat
     return [{ previous, next, key: `${next.startAt}-${next.partyId}` }];
   });
 
-  return <div className="parenting-timeline" role="region" aria-label="Upcoming parenting timeline">
+  return (
+    <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de-ch">
+    <div className="parenting-timeline" role="region" aria-label="Upcoming parenting timeline">
     <div className="parenting-timeline-navigation" role="group" aria-label="Timeline navigation">
       <button type="button" aria-label="Show earlier timeslices" disabled={busy} onClick={() => {
         setSelectedHandover(null);
@@ -49,16 +56,17 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigat
       const handoverAt = Date.parse(next.startAt);
       const previousHandoverAt = index > 0 ? Date.parse(handovers[index - 1].next.startAt) : null;
       const followingHandoverAt = index + 1 < handovers.length ? Date.parse(handovers[index + 1].next.startAt) : null;
-      const minShift = previousHandoverAt === null ? -MAX_SHIFT_MS
-        : Math.max(-MAX_SHIFT_MS, Math.ceil((previousHandoverAt + STEP_MS - handoverAt) / STEP_MS) * STEP_MS);
-      const maxShift = followingHandoverAt === null ? MAX_SHIFT_MS
-        : Math.min(MAX_SHIFT_MS, Math.floor((followingHandoverAt - STEP_MS - handoverAt) / STEP_MS) * STEP_MS);
-      const minDateTime = localDateTime(handoverAt + minShift);
-      const maxDateTime = localDateTime(handoverAt + maxShift);
+      const minTimestamp = Math.max(handoverAt - MAX_SHIFT_MS, previousHandoverAt === null
+        ? Number.NEGATIVE_INFINITY : previousHandoverAt + STEP_MS);
+      const maxTimestamp = Math.min(handoverAt + MAX_SHIFT_MS, followingHandoverAt === null
+        ? Number.POSITIVE_INFINITY : followingHandoverAt - STEP_MS);
+      const minDateTime = localDateTime(minTimestamp);
+      const maxDateTime = localDateTime(maxTimestamp);
       const selectedTime = newHandoverTimes[key] ?? localDateTime(handoverAt);
-      const selectedTimestamp = new Date(selectedTime).getTime();
+      const selectedDateTime = dayjs(selectedTime);
+      const selectedTimestamp = selectedDateTime.valueOf();
       const shift = selectedTimestamp - handoverAt;
-      const editable = previous.source.type === "plan" && next.source.type === "plan" && minShift <= maxShift;
+      const editable = previous.source.type === "plan" && next.source.type === "plan" && minTimestamp <= maxTimestamp;
       return <div className="parenting-timeline-handover" key={key}>
         <div>
           <strong>{previous.partyName ?? "Parent"} → {next.partyName ?? "Parent"}</strong>
@@ -66,21 +74,35 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigat
         </div>
         {editable ? <>
           {selectedHandover === key ? <>
-            <input type="datetime-local" step={1800} min={minDateTime} max={maxDateTime}
-              value={selectedTime} disabled={busy}
-              aria-label={`New handover date and time from ${previous.partyName ?? "parent"} to ${next.partyName ?? "parent"}`}
-              onChange={(event) => setNewHandoverTimes((current) => ({ ...current, [key]: event.target.value }))} />
+            <MobileDateTimePicker
+              label={`New handover time · ${previous.partyName ?? "parent"} to ${next.partyName ?? "parent"}`}
+              ampm={false}
+              views={["day", "hours", "minutes"]}
+              minutesStep={30}
+              format="DD.MM.YYYY HH:mm"
+              minDateTime={dayjs(minDateTime)}
+              maxDateTime={dayjs(maxDateTime)}
+              value={selectedDateTime.isValid() ? selectedDateTime : null}
+              onChange={(value) => setNewHandoverTimes((current) => ({
+                ...current,
+                [key]: value?.isValid() ? value.format("YYYY-MM-DDTHH:mm") : "",
+              }))}
+              disabled={busy}
+              slotProps={{ textField: { fullWidth: true, size: "small" } }} />
             <button type="button" className="primary-pill no-wrap-button"
-              disabled={busy || !Number.isFinite(selectedTimestamp) || shift === 0 || shift % STEP_MS !== 0
-                || Math.abs(shift) > MAX_SHIFT_MS || shift < minShift || shift > maxShift}
+              disabled={busy || !selectedDateTime.isValid() || selectedDateTime.minute() % 30 !== 0
+                || shift === 0 || Math.abs(shift) > MAX_SHIFT_MS
+                || selectedTimestamp < minTimestamp || selectedTimestamp > maxTimestamp}
               onClick={async () => {
-                await onAdjust(previous, next, new Date(selectedTimestamp).toISOString());
-                setSelectedHandover(null);
-                setNewHandoverTimes((current) => {
-                  const remaining = { ...current };
-                  delete remaining[key];
-                  return remaining;
-                });
+                const saved = await onAdjust(previous, next, selectedDateTime.toDate().toISOString());
+                if (saved) {
+                  setSelectedHandover(null);
+                  setNewHandoverTimes((current) => {
+                    const remaining = { ...current };
+                    delete remaining[key];
+                    return remaining;
+                  });
+                }
               }}>
               Save new time
             </button>
@@ -94,5 +116,7 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigat
       </div>;
     })}
     {!handovers.length && <p>No upcoming handovers in this preview.</p>}
-  </div>;
+    </div>
+    </LocalizationProvider>
+  );
 }

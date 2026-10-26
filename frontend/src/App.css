@@ -1288,17 +1288,6 @@ body,
   gap: 0.25rem;
 }
 
-.parenting-timeline-handover input[type="datetime-local"] {
-  width: 100%;
-  min-width: 0;
-  padding: 0.55rem;
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  background: var(--surface-strong);
-  color: var(--text-primary);
-  font: inherit;
-}
-
 @media (max-width: 640px) {
   .parenting-timeline-handover {
     grid-template-columns: 1fr;
