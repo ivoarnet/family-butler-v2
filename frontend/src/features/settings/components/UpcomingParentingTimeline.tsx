@@ -16,11 +16,10 @@ const formatDateTime = (value: string) => new Intl.DateTimeFormat(undefined, {
   weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
 }).format(new Date(value));
 
-export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigate }: {
+export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
   intervals: ResolvedParentingInterval[];
   busy: boolean;
   onAdjust: (previous: ResolvedParentingInterval, next: ResolvedParentingInterval, newStartAt: string) => Promise<boolean>;
-  onNavigate: (days: number) => void;
 }) {
   const [selectedHandover, setSelectedHandover] = useState<string | null>(null);
   const [newHandoverTimes, setNewHandoverTimes] = useState<Record<string, string>>({});
@@ -33,19 +32,6 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust, onNavigat
   return (
     <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de-ch">
     <div className="parenting-timeline" role="region" aria-label="Upcoming parenting timeline">
-    <div className="parenting-timeline-navigation" role="group" aria-label="Timeline navigation">
-      <button type="button" aria-label="Show earlier timeslices" disabled={busy} onClick={() => {
-        setSelectedHandover(null);
-        setNewHandoverTimes({});
-        onNavigate(-14);
-      }}>←</button>
-      <span>Next 14 days</span>
-      <button type="button" aria-label="Show later timeslices" disabled={busy} onClick={() => {
-        setSelectedHandover(null);
-        setNewHandoverTimes({});
-        onNavigate(14);
-      }}>→</button>
-    </div>
     <div className="parenting-timeline-track">
       {intervals.map((interval, index) => <div className="parenting-timeline-segment" key={`${interval.startAt}-${index}`}>
         <strong>{interval.partyName ?? "Parenting party"}</strong>

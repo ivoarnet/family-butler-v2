@@ -100,7 +100,7 @@ const chooseHandoverThirtyMinutesLater = async (canvasElement: HTMLElement) => {
   await userEvent.click(canvas.getByRole("button", {
     name: "Select handover time from Dad to Mum",
   }));
-  const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
+  const initialResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
   const firstRangeStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
   const handoverAt = firstRangeStart + 24 * 60 * 60 * 1000;
   const selectedTime = new Date(handoverAt);
@@ -204,9 +204,20 @@ export const UpcomingHandoverAdjustment: Story = {
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
     expect(canvasElement.querySelector(".parenting-timeline-segment span"))
       .not.toHaveTextContent(" – ");
+    const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
+    const initialStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
     await userEvent.click(canvas.getByRole("button", { name: "List" }));
     expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument();
     expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
+    const beforeEarlierClick = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show earlier schedule timeslices" }));
+    await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
+      .toBeGreaterThan(beforeEarlierClick));
+    const earlierResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+    const earlierStart = new URL(String(earlierResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
+    const expectedEarlierStart = new Date(initialStart);
+    expectedEarlierStart.setDate(expectedEarlierStart.getDate() - 14);
+    expect(Date.parse(earlierStart)).toBe(expectedEarlierStart.getTime());
     await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
     const { firstRangeStart, handoverAt, adjustedAt } = await chooseHandoverThirtyMinutesLater(canvasElement);
@@ -221,10 +232,10 @@ export const UpcomingHandoverAdjustment: Story = {
       endAt: new Date(adjustedAt).toISOString(),
       label: "Handover adjusted from schedule preview",
     });
-    const previousResolveCount = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
-    await userEvent.click(canvas.getByRole("button", { name: "Show later timeslices" }));
+    const beforeLaterClick = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show later schedule timeslices" }));
     await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
-      .toBeGreaterThan(previousResolveCount));
+      .toBeGreaterThan(beforeLaterClick));
     const laterResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
     const laterStart = new URL(String(laterResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
     const expectedLaterStart = new Date(firstRangeStart);

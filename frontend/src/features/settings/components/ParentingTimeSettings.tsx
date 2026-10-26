@@ -591,22 +591,30 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       </LocalizationProvider>
     </section>
     <section className="settings-card">
-      <div className="section-toolbar">
+      <div className="parenting-preview-header">
         <h2>Upcoming schedule preview</h2>
         <div className="parenting-preview-view-switch" role="group" aria-label="Schedule preview view">
           <button type="button" aria-pressed={previewView === "timeline"} onClick={() => setPreviewView("timeline")}>Timeline</button>
           <button type="button" aria-pressed={previewView === "list"} onClick={() => setPreviewView("list")}>List</button>
         </div>
       </div>
-      {(preview.length > 0 || data.plan?.active) && previewView === "timeline"
-        ? <UpcomingParentingTimeline intervals={preview} busy={busy || loading} onAdjust={adjustHandover} onNavigate={navigatePreview} />
-        : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
-        <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
-        <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
-          <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
-          <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
-        </tr>)}</tbody>
-      </table></div> : <Typography variant="body2">
+      {(preview.length > 0 || data.plan?.active) ? <div className="parenting-preview-range">
+        <button type="button" aria-label="Show earlier schedule timeslices" disabled={busy || loading}
+          onClick={() => navigatePreview(-14)}>←</button>
+        <div className="parenting-preview-content">
+          {previewView === "timeline"
+            ? <UpcomingParentingTimeline intervals={preview} busy={busy || loading} onAdjust={adjustHandover} />
+            : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
+              <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
+              <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
+                <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
+                <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
+              </tr>)}</tbody>
+            </table></div> : <Typography variant="body2" role="status">Loading schedule preview…</Typography>}
+        </div>
+        <button type="button" aria-label="Show later schedule timeslices" disabled={busy || loading}
+          onClick={() => navigatePreview(14)}>→</button>
+      </div> : <Typography variant="body2">
         Preview the schedule to see who the children are with. Changes are always resolved by the server.
       </Typography>}
     </section>
