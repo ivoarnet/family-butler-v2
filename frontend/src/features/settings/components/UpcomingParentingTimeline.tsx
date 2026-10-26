@@ -77,7 +77,47 @@ export function UpcomingParentingTimeline({ intervals, busy, onAdjust }: {
                 [key]: value?.isValid() ? value.format("YYYY-MM-DDTHH:mm") : "",
               }))}
               disabled={busy}
-              slotProps={{ textField: { fullWidth: true, size: "small" } }} />
+              slotProps={{
+                textField: {
+                  fullWidth: true,
+                  size: "small",
+                  sx: {
+                    "& .MuiPickersOutlinedInput-root": {
+                      background: "var(--surface-strong)",
+                      color: "var(--text-primary)",
+                    },
+                    "& .MuiPickersOutlinedInput-root:not(.Mui-error) .MuiPickersOutlinedInput-notchedOutline": {
+                      borderColor: "var(--border)",
+                    },
+                    "& .MuiPickersOutlinedInput-root:hover .MuiPickersOutlinedInput-notchedOutline": {
+                      borderColor: "var(--accent-strong)",
+                    },
+                    "& .MuiPickersOutlinedInput-root.Mui-focused .MuiPickersOutlinedInput-notchedOutline": {
+                      borderColor: "var(--accent-strong)",
+                    },
+                    "& .MuiInputLabel-root": { color: "var(--text-secondary)" },
+                    "& .MuiInputLabel-root.Mui-focused": { color: "var(--accent-strong)" },
+                    "& .MuiIconButton-root, & .MuiSvgIcon-root": { color: "var(--text-primary)" },
+                  },
+                },
+                mobilePaper: {
+                  sx: {
+                    background: "var(--surface)",
+                    color: "var(--text-primary)",
+                    border: "1px solid var(--border)",
+                  },
+                },
+                layout: {
+                  sx: {
+                    "& .MuiTypography-root, & .MuiClockNumber-root, & .MuiClockPointer-thumb, & .MuiClock-pin": {
+                      color: "var(--text-primary)",
+                    },
+                    "& .MuiPickersArrowSwitcher-button .MuiSvgIcon-root, & .MuiButton-root, & .MuiIconButton-root .MuiSvgIcon-root": {
+                      color: "var(--text-primary)",
+                    },
+                  },
+                },
+              }} />
             <button type="button" className="primary-pill no-wrap-button"
               disabled={busy || !selectedDateTime.isValid() || selectedDateTime.minute() % 5 !== 0
                 || shift === 0 || Math.abs(shift) > MAX_SHIFT_MS

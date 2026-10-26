@@ -277,6 +277,41 @@ export const UpcomingHandoverSaveFailure: Story = {
   },
 };
 
+export const UpcomingHandoverPickerDarkMode: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const root = canvasElement.ownerDocument.documentElement;
+    const previousTheme = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", "dark");
+    try {
+      await waitFor(() => expect(canvas.getByRole("button", {
+        name: "Select handover time from Dad to Mum",
+      })).toBeEnabled());
+      await userEvent.click(canvas.getByRole("button", {
+        name: "Select handover time from Dad to Mum",
+      }));
+      const field = canvasElement.querySelector(".MuiPickersOutlinedInput-root");
+      const outline = field?.querySelector(".MuiPickersOutlinedInput-notchedOutline");
+      const icon = field?.querySelector(".MuiIconButton-root .MuiSvgIcon-root");
+      expect(field).not.toBeNull();
+      expect(outline).not.toBeNull();
+      expect(icon).not.toBeNull();
+      const expectedColor = canvasElement.ownerDocument.createElement("span");
+      expectedColor.style.color = "var(--text-primary)";
+      canvasElement.ownerDocument.body.append(expectedColor);
+      const primaryColor = getComputedStyle(expectedColor).color;
+      expectedColor.remove();
+      expect(getComputedStyle(icon!).color).toBe(primaryColor);
+      expect(getComputedStyle(icon!).color).not.toBe("rgb(0, 0, 0)");
+      expect(getComputedStyle(outline!).borderTopColor).not.toBe("rgb(0, 0, 0)");
+    } finally {
+      if (previousTheme === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", previousTheme);
+    }
+  },
+};
+
 export const PartyMemberLinking: Story = {
   args: { withPlan: true },
   play: async ({ canvasElement }) => {
