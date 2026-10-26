@@ -12,10 +12,60 @@ on:
 permissions: {}
 
 jobs:
-  validate:
+  package_deployment_artifacts:
     if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
     runs-on: ubuntu-latest
-    name: Validate and package
+    name: Build and package deployment artifacts
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
+      - name: Check API syntax and build frontend
+        run: npm run build
+
+      - name: Build and smoke-test deployment artifacts
+        run: |
+          mkdir -p deploy-artifacts/frontend deploy-artifacts/api
+          cp -a frontend/dist/. deploy-artifacts/frontend/
+          cp -a api/. deploy-artifacts/api/
+          find deploy-artifacts/api -type f -name '*.test.js' -delete
+          rm deploy-artifacts/api/build.js
+          npm ci --omit=dev --prefix deploy-artifacts/api --workspaces=false
+          node - <<'NODE'
+          const fs = require("node:fs");
+          const path = require("node:path");
+          const api = path.resolve("deploy-artifacts/api");
+          require(path.join(api, "node_modules/bring-shopping"));
+          for (const entry of fs.readdirSync(api, { withFileTypes: true })) {
+            if (entry.isDirectory() && fs.existsSync(path.join(api, entry.name, "function.json"))) {
+              require(path.join(api, entry.name, "index.js"));
+            }
+          }
+          NODE
+          npm run build:grocery-worker
+          npm ci --omit=dev --prefix workers/grocery-sync-package --workspaces=false
+          node -e "require('./workers/grocery-sync-package/node_modules/bring-shopping'); require('./workers/grocery-sync-package/grocery-sync')"
+          cp -a workers/grocery-sync-package deploy-artifacts/worker
+      - uses: actions/upload-artifact@v4
+        with:
+          name: validated-deployment-artifacts
+          path: deploy-artifacts/
+          if-no-files-found: error
+          retention-days: 1
+
+  api_integration_tests:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: API and PostgreSQL integration tests
     permissions:
       contents: read
     services:
@@ -52,8 +102,24 @@ jobs:
         run: |
           test -n "$GROCERY_TEST_PG_SOCKET"
           npm run test:api
-      - name: Check API syntax and build frontend
-        run: npm run build
+
+  storybook_tests:
+    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    runs-on: ubuntu-latest
+    name: Storybook interaction tests
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install locked dependencies
+        run: npm ci
       - name: Build Storybook
         run: npm run build-storybook --workspace frontend
       - name: Install Chromium
@@ -62,40 +128,73 @@ jobs:
         run: |
           npm run test-storybook --workspace frontend -- --reporter=json --outputFile=/tmp/storybook-interactions.json
           node -e "const report = require('/tmp/storybook-interactions.json'); if (report.numPassedTests < 1 || report.numFailedTests) process.exit(1)"
-      - name: Build and smoke-test deployment artifacts
+
+  validate:
+    needs:
+      - package_deployment_artifacts
+      - api_integration_tests
+      - storybook_tests
+    if: always() && (github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed'))
+    runs-on: ubuntu-latest
+    name: Validate and package
+    permissions:
+      contents: read
+    steps:
+      - name: Require all validation jobs to pass
+        env:
+          PACKAGE_RESULT: ${{ needs.package_deployment_artifacts.result }}
+          API_TEST_RESULT: ${{ needs.api_integration_tests.result }}
+          STORYBOOK_TEST_RESULT: ${{ needs.storybook_tests.result }}
         run: |
-          mkdir -p deploy-artifacts/frontend deploy-artifacts/api
-          cp -a frontend/dist/. deploy-artifacts/frontend/
-          cp -a api/. deploy-artifacts/api/
-          find deploy-artifacts/api -type f -name '*.test.js' -delete
-          rm deploy-artifacts/api/build.js
-          npm ci --omit=dev --prefix deploy-artifacts/api --workspaces=false
-          node - <<'NODE'
-          const fs = require("node:fs");
-          const path = require("node:path");
-          const api = path.resolve("deploy-artifacts/api");
-          require(path.join(api, "node_modules/bring-shopping"));
-          for (const entry of fs.readdirSync(api, { withFileTypes: true })) {
-            if (entry.isDirectory() && fs.existsSync(path.join(api, entry.name, "function.json"))) {
-              require(path.join(api, entry.name, "index.js"));
-            }
-          }
-          NODE
-          npm run build:grocery-worker
-          npm ci --omit=dev --prefix workers/grocery-sync-package --workspaces=false
-          node -e "require('./workers/grocery-sync-package/node_modules/bring-shopping'); require('./workers/grocery-sync-package/grocery-sync')"
-          cp -a workers/grocery-sync-package deploy-artifacts/worker
-      - uses: actions/upload-artifact@v4
+          if [ "$PACKAGE_RESULT" != success ] || [ "$API_TEST_RESULT" != success ] || [ "$STORYBOOK_TEST_RESULT" != success ]; then
+            echo "Package, API, and Storybook validation must all pass."
+            exit 1
+          fi
+
+  deploy_pull_request_job:
+    needs:
+      - package_deployment_artifacts
+    if: github.event_name == 'pull_request' && github.event.action != 'closed'
+    runs-on: ubuntu-latest
+    name: Deploy Pull Request Preview
+    permissions:
+      id-token: write
+      contents: read
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: true
+          lfs: false
+      - uses: actions/download-artifact@v4
         with:
           name: validated-deployment-artifacts
-          path: deploy-artifacts/
-          if-no-files-found: error
-          retention-days: 1
+          path: deploy-artifacts
+      - name: Install OIDC Client from Core Package
+        run: npm install @actions/core@1.6.0 @actions/http-client
+      - name: Get Id Token
+        uses: actions/github-script@v6
+        id: idtoken
+        with:
+          script: |
+            const coredemo = require('@actions/core')
+            return await coredemo.getIDToken()
+          result-encoding: string
+      - name: Deploy validated artifacts
+        id: builddeploy
+        uses: Azure/static-web-apps-deploy@v1
+        with:
+          azure_static_web_apps_api_token: ${{ secrets.AZURE_STATIC_WEB_APPS_API_TOKEN_POLITE_HILL_0EA169003 }}
+          action: "upload"
+          app_location: "deploy-artifacts/frontend"
+          api_location: "deploy-artifacts/api"
+          skip_app_build: true
+          api_build_command: "npm ci --omit=dev --workspaces=false --ignore-scripts"
+          github_id_token: ${{ steps.idtoken.outputs.result }}
 
   build_and_deploy_job:
     needs:
       - validate
-    if: github.event_name == 'push' || (github.event_name == 'pull_request' && github.event.action != 'closed')
+    if: github.event_name == 'push'
     runs-on: ubuntu-latest
     name: Build and Deploy Job
     permissions:
