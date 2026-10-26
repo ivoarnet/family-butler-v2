@@ -127,7 +127,7 @@ This repository includes an Azure Static Web Apps workflow under:
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/.github/workflows/azure-static-web-apps-polite-hill-0ea169003.yml`
 
-The workflow runs locked API, PostgreSQL integration, frontend build, and the owner-authorization Storybook interaction before producing and deploying the API/frontend artifacts. It also builds a separately deployable worker artifact using the API's locked dependency tree. Configure the repository's `main` branch protection to require the **Validate and package** status check; deployment itself depends on that job succeeding.
+The workflow builds and smoke-tests deployment artifacts in parallel with API/PostgreSQL and owner-authorization Storybook validation. Pull-request previews deploy as soon as artifact packaging succeeds; deployments from `main` wait for all checks. Configure the repository's `main` branch protection to require the **Validate and package** status check. The workflow also builds a separately deployable worker artifact using the API's locked dependency tree.
 
 Set these app settings in Azure Static Web Apps:
 
