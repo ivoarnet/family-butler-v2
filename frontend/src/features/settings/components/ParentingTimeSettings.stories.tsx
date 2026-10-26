@@ -13,8 +13,9 @@ const members = [
 ];
 const calls = fn();
 
-function ParentingTimeStory({ withPlan = false }: {
+function ParentingTimeStory({ withPlan = false, failChangeSave = false }: {
   withPlan?: boolean;
+  failChangeSave?: boolean;
 }) {
   const [refresh, setRefresh] = useState(0);
   const request = useMemo(() => {
@@ -45,15 +46,24 @@ function ParentingTimeStory({ withPlan = false }: {
       const resource = url.pathname.split("/parenting-time")[1].replace(/^\//, "");
       const body = init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
       if (!resource) return structuredClone(data);
-      if (resource === "preview" || resource === "resolve") return {
-        intervals: [
-          { startAt: "2026-10-08T19:30:00.000Z", endAt: "2026-10-09T17:00:00.000Z", partyId: fatherId, partyName: "Dad", source: { type: "plan" } },
-          { startAt: "2026-10-09T17:00:00.000Z", endAt: "2026-10-11T19:30:00.000Z", partyId: motherId, partyName: "Mum", source: { type: "plan" } },
-        ],
-      };
+      if (resource === "preview" || resource === "resolve") {
+        const rangeStart = resource === "resolve" ? Date.parse(url.searchParams.get("startAt")!) : Date.parse(String(body.startAt));
+        const handover = rangeStart + 24 * 60 * 60 * 1000;
+        return { intervals: [
+          { startAt: new Date(rangeStart).toISOString(), endAt: new Date(handover).toISOString(),
+            partyId: fatherId, partyName: "Dad", source: { type: "plan", planId: "story-plan" } },
+          { startAt: new Date(handover).toISOString(), endAt: new Date(handover + 48 * 60 * 60 * 1000).toISOString(),
+            partyId: motherId, partyName: "Mum", source: { type: "plan", planId: "story-plan" } },
+        ] };
+      }
       if (resource === "plan" && init.method === "PUT") {
         data.plan = { ...body, id: "00000000-0000-0000-0000-000000000004" };
         return data.plan;
+      }
+      if (resource === "changes" && init.method === "POST") {
+        if (failChangeSave) throw new Error("Could not save new time.");
+        data.changes.push({ ...body, id: "00000000-0000-0000-0000-000000000008" } as typeof data.changes[number]);
+        return data.changes[data.changes.length - 1];
       }
       if (resource === "parties" && init.method === "POST") {
         const party = { ...body, id: "00000000-0000-0000-0000-000000000005" };
@@ -67,7 +77,7 @@ function ParentingTimeStory({ withPlan = false }: {
       }
       return structuredClone(data);
     }) as ParentingTimeRequest;
-  }, [withPlan]);
+  }, [failChangeSave, withPlan]);
   return <div className="app-shell" style={{ padding: 24 }}>
     <button type="button" onClick={() => setRefresh((current) => current + 1)}>Reload saved settings</button>
     <section className="settings-section">
@@ -85,6 +95,33 @@ const meta: Meta<typeof ParentingTimeStory> = {
 };
 export default meta;
 type Story = StoryObj<typeof ParentingTimeStory>;
+const chooseHandoverTime = async (canvasElement: HTMLElement, minutesLater = 30) => {
+  const canvas = within(canvasElement);
+  await userEvent.click(canvas.getByRole("button", {
+    name: "Select handover time from Dad to Mum",
+  }));
+  const initialResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+  const firstRangeStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
+  const handoverAt = firstRangeStart + 24 * 60 * 60 * 1000;
+  const selectedTime = new Date(handoverAt + minutesLater * 60 * 1000);
+  selectedTime.setMinutes(Math.ceil(selectedTime.getMinutes() / 5) * 5, 0, 0);
+  const adjustedAt = selectedTime.getTime();
+  const picker = canvas.getByRole("group", { name: /New handover time · Dad to Mum/ });
+  expect(picker).not.toHaveTextContent(/AM|PM/i);
+  const segments = [
+    ["Day", String(selectedTime.getDate()).padStart(2, "0")],
+    ["Month", String(selectedTime.getMonth() + 1).padStart(2, "0")],
+    ["Year", String(selectedTime.getFullYear())],
+    ["Hours", String(selectedTime.getHours()).padStart(2, "0")],
+    ["Minutes", String(selectedTime.getMinutes()).padStart(2, "0")],
+  ];
+  for (const [name, value] of segments) {
+    const segment = within(picker).getByRole("spinbutton", { name });
+    await userEvent.click(segment);
+    await userEvent.keyboard(value);
+  }
+  return { canvas, firstRangeStart, handoverAt, adjustedAt };
+};
 
 export const HouseholdPlan: Story = {
   play: async ({ canvasElement }) => {
@@ -157,6 +194,167 @@ export const ChangeDateTimePicker: Story = {
       .toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
     await userEvent.click(page.getByRole("button", { name: "pick time" }));
     await expect(page.getByRole("option", { name: "13 hours" })).toBeInTheDocument();
+  },
+};
+
+export const UpcomingHandoverAdjustment: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
+    expect(canvasElement.querySelector(".parenting-timeline-segment span"))
+      .not.toHaveTextContent(" – ");
+    const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
+    const initialStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
+    const periodNavigation = canvas.getByRole("group", { name: "Schedule period navigation" });
+    expect(periodNavigation).toHaveClass("pill-group", "period-navigation");
+    expect(canvas.getByRole("group", { name: "Schedule preview view" })).toHaveClass("pill-group", "view-switcher");
+    expect(canvasElement.querySelector(".parenting-preview-content .period-navigation")).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "List" }));
+    expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument();
+    expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
+    const beforeEarlierClick = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show earlier schedule timeslices" }));
+    await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
+      .toBeGreaterThan(beforeEarlierClick));
+    const earlierResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+    const earlierStart = new URL(String(earlierResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
+    const expectedEarlierStart = new Date(initialStart);
+    expectedEarlierStart.setDate(expectedEarlierStart.getDate() - 14);
+    expect(Date.parse(earlierStart)).toBe(expectedEarlierStart.getTime());
+    const beforeCurrentClick = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show current schedule timeslices" }));
+    await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
+      .toBeGreaterThan(beforeCurrentClick));
+    const currentResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+    const currentStart = new URL(String(currentResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
+    expect(Date.parse(currentStart)).toBe(initialStart);
+    await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
+    expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
+    const { firstRangeStart, handoverAt, adjustedAt } = await chooseHandoverTime(canvasElement, 5);
+    expect(adjustedAt - handoverAt).toBeGreaterThan(0);
+    expect(adjustedAt - handoverAt).toBeLessThanOrEqual(10 * 60 * 1000);
+    expect(new Date(adjustedAt).getMinutes() % 5).toBe(0);
+    await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
+    await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
+      String(path).endsWith("/changes") && init?.method === "POST")).toBe(true));
+    const adjustment = calls.mock.calls.find(([path, init]) =>
+      String(path).endsWith("/changes") && init?.method === "POST");
+    expect(JSON.parse(String(adjustment?.[1]?.body))).toEqual({
+      partyId: fatherId,
+      startAt: new Date(handoverAt).toISOString(),
+      endAt: new Date(adjustedAt).toISOString(),
+      label: "Handover adjusted from schedule preview",
+    });
+    const beforeLaterClick = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show later schedule timeslices" }));
+    await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
+      .toBeGreaterThan(beforeLaterClick));
+    const laterResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+    const laterStart = new URL(String(laterResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
+    const expectedLaterStart = new Date(firstRangeStart);
+    expectedLaterStart.setDate(expectedLaterStart.getDate() + 14);
+    expect(Date.parse(laterStart)).toBe(expectedLaterStart.getTime());
+    expect(canvasElement.querySelector(".parenting-timeline-segment span"))
+      .toHaveTextContent(new Intl.DateTimeFormat(undefined, {
+        weekday: "short", month: "short", day: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+      }).format(new Date(laterStart)));
+  },
+};
+
+export const UpcomingHandoverNarrowScreen: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const view = canvasElement.ownerDocument.defaultView!;
+    const originalWidth = view.innerWidth;
+    const resizeTo = (width: number) => {
+      Object.defineProperty(view, "innerWidth", { configurable: true, value: width });
+      view.dispatchEvent(new Event("resize"));
+    };
+    try {
+      resizeTo(1280);
+      await waitFor(() => expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument());
+      resizeTo(480);
+      await waitFor(() => expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument());
+      expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
+      expect(canvasElement.querySelector(".parenting-preview-timeline-option")).not.toBeVisible();
+      expect(canvas.getByRole("button", { name: "List" })).toBeVisible();
+      resizeTo(1280);
+      await waitFor(() => expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument());
+      expect(canvas.getByRole("button", { name: "Timeline" })).toBeVisible();
+    } finally {
+      resizeTo(originalWidth);
+    }
+  },
+};
+
+export const UpcomingHandoverSaveFailure: Story = {
+  args: { withPlan: true, failChangeSave: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await waitFor(() => expect(canvas.getByRole("button", {
+      name: "Select handover time from Dad to Mum",
+    })).toBeEnabled());
+    await chooseHandoverTime(canvasElement);
+    await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
+    await expect(await canvas.findByRole("alert")).toHaveTextContent("Could not save new time.");
+    expect(canvas.getByRole("button", { name: "Save new time" })).toBeInTheDocument();
+    expect(canvas.getByRole("group", { name: /New handover time · Dad to Mum/ })).toBeInTheDocument();
+  },
+};
+
+export const UpcomingHandoverPickerDarkMode: Story = {
+  args: { withPlan: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const root = canvasElement.ownerDocument.documentElement;
+    const previousTheme = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", "dark");
+    try {
+      await waitFor(() => expect(canvas.getByRole("button", {
+        name: "Select handover time from Dad to Mum",
+      })).toBeEnabled());
+      await userEvent.click(canvas.getByRole("button", {
+        name: "Select handover time from Dad to Mum",
+      }));
+      const field = canvasElement.querySelector(".MuiPickersOutlinedInput-root");
+      const outline = field?.querySelector(".MuiPickersOutlinedInput-notchedOutline");
+      const icon = field?.querySelector(".MuiIconButton-root .MuiSvgIcon-root");
+      expect(field).not.toBeNull();
+      expect(outline).not.toBeNull();
+      expect(icon).not.toBeNull();
+      const expectedColor = canvasElement.ownerDocument.createElement("span");
+      expectedColor.style.color = "var(--text-primary)";
+      canvasElement.ownerDocument.body.append(expectedColor);
+      const primaryColor = getComputedStyle(expectedColor).color;
+      expectedColor.remove();
+      expect(getComputedStyle(icon!).color).toBe(primaryColor);
+      expect(getComputedStyle(icon!).color).not.toBe("rgb(0, 0, 0)");
+      expect(getComputedStyle(outline!).borderTopColor).not.toBe("rgb(0, 0, 0)");
+      await userEvent.click(canvas.getByRole("button", { name: /Choose date/ }));
+      const page = within(canvasElement.ownerDocument.body);
+      await waitFor(() => expect(page.getByRole("grid")).toBeInTheDocument());
+      const calendar = canvasElement.ownerDocument.body.querySelector(".MuiDateCalendar-root");
+      const selectedDay = calendar?.querySelector(".MuiPickerDay-root.Mui-selected");
+      const availableDay = calendar?.querySelector(".MuiPickerDay-root:not(.Mui-selected):not(.Mui-disabled)");
+      const dialog = canvasElement.ownerDocument.body.querySelector(".MuiDialog-paper");
+      expect(selectedDay).not.toBeNull();
+      expect(availableDay).not.toBeNull();
+      expect(dialog).not.toBeNull();
+      expect(getComputedStyle(selectedDay!).color).toBe("rgb(255, 255, 255)");
+      expect(getComputedStyle(availableDay!).color).toBe(primaryColor);
+      const opaqueSurface = canvasElement.ownerDocument.createElement("span");
+      opaqueSurface.style.backgroundColor = "var(--bg)";
+      canvasElement.ownerDocument.body.append(opaqueSurface);
+      const backgroundColor = getComputedStyle(opaqueSurface).backgroundColor;
+      opaqueSurface.remove();
+      expect(getComputedStyle(dialog!).backgroundColor).toBe(backgroundColor);
+      expect(getComputedStyle(dialog!).opacity).toBe("1");
+    } finally {
+      if (previousTheme === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", previousTheme);
+    }
   },
 };
 

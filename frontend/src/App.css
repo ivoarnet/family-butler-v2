@@ -1176,6 +1176,118 @@ body,
   border-bottom: 1px dotted var(--border);
 }
 
+.parenting-timeline {
+  display: grid;
+  gap: 1rem;
+  margin: 0;
+}
+
+.parenting-preview-header {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr);
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.parenting-preview-header h2 {
+  margin: 0;
+}
+
+.parenting-preview-controls {
+  display: flex;
+  justify-self: center;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.parenting-preview-narrow .parenting-preview-timeline-option {
+  display: none;
+}
+
+.parenting-preview-content {
+  min-width: 0;
+}
+
+.parenting-timeline-track {
+  display: flex;
+  min-height: 5rem;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.parenting-timeline-segment {
+  display: grid;
+  flex: 1 0 12rem;
+  align-content: center;
+  gap: 0.3rem;
+  min-width: 0;
+  padding: 0.75rem;
+  background: var(--surface-strong);
+}
+
+.parenting-timeline-segment + .parenting-timeline-segment {
+  border-left: 3px solid var(--accent);
+}
+
+.parenting-timeline-segment strong,
+.parenting-timeline-segment span,
+.parenting-timeline-handover span {
+  overflow-wrap: anywhere;
+}
+
+.parenting-timeline-segment span,
+.parenting-timeline-handover span {
+  color: var(--text-secondary);
+  font-size: 0.82rem;
+}
+
+.parenting-handover-select {
+  padding: 0.45rem 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-strong);
+  color: var(--text-primary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.parenting-handover-select:focus-visible {
+  outline: 3px solid var(--text-primary);
+  outline-offset: 2px;
+}
+
+.parenting-timeline-handover {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(12rem, 1fr) auto;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+}
+
+.parenting-timeline-handover > div {
+  display: grid;
+  gap: 0.25rem;
+}
+
+@media (max-width: 640px) {
+  .parenting-preview-header {
+    grid-template-columns: 1fr;
+    justify-items: center;
+    gap: 0.75rem;
+  }
+
+  .parenting-preview-controls {
+    gap: 0.35rem;
+  }
+
+  .parenting-timeline-handover {
+    grid-template-columns: 1fr;
+  }
+}
+
 .event-item-title {
   font-size: 0.83rem;
   white-space: nowrap;
