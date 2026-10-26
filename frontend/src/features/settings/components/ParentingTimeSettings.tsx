@@ -157,6 +157,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [planDialogOpen, setPlanDialogOpen] = useState(false);
   const [planDraft, setPlanDraft] = useState<Plan | null>(null);
   const [preview, setPreview] = useState<Interval[]>([]);
+  const [previewView, setPreviewView] = useState<"timeline" | "list">("timeline");
   const [changeDraft, setChangeDraft] = useState<{ id?: string; partyId: string; startAt: string; endAt: string; label: string } | null>(null);
 
   const load = useCallback(async () => {
@@ -245,13 +246,15 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       ...changeDraft, startAt: toIso(changeDraft.startAt), endAt: toIso(changeDraft.endAt),
     });
   };
-  const adjustHandover = (previous: Interval, next: Interval, minutes: number) => run(async () => {
-    if (!Number.isInteger(minutes) || minutes === 0 || Math.abs(minutes) > 24 * 60 || minutes % 5 !== 0
-      || previous.endAt !== next.startAt || previous.partyId === next.partyId) {
-      throw new Error("Choose a handover adjustment in 5-minute steps, within 24 hours.");
-    }
+  const adjustHandover = (previous: Interval, next: Interval, newStartAt: string) => run(async () => {
     const handover = Date.parse(next.startAt);
-    const adjusted = handover + minutes * 60_000;
+    const adjusted = Date.parse(newStartAt);
+    const minutes = (adjusted - handover) / 60_000;
+    if (!Number.isFinite(adjusted) || !Number.isInteger(minutes) || minutes === 0 || Math.abs(minutes) > 24 * 60
+      || minutes % 30 !== 0
+      || previous.endAt !== next.startAt || previous.partyId === next.partyId) {
+      throw new Error("Choose a new handover time in 30-minute steps, within 24 hours.");
+    }
     await request(`${base}/changes`, {
       method: "POST",
       body: JSON.stringify({
@@ -560,9 +563,16 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       </LocalizationProvider>
     </section>
     <section className="settings-card">
-      <div className="section-toolbar"><h2>Upcoming schedule preview</h2></div>
-      {preview.length > 0 && <UpcomingParentingTimeline intervals={preview} busy={busy} onAdjust={adjustHandover} />}
-      {preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
+      <div className="section-toolbar">
+        <h2>Upcoming schedule preview</h2>
+        <div className="parenting-preview-view-switch" role="group" aria-label="Schedule preview view">
+          <button type="button" aria-pressed={previewView === "timeline"} onClick={() => setPreviewView("timeline")}>Timeline</button>
+          <button type="button" aria-pressed={previewView === "list"} onClick={() => setPreviewView("list")}>List</button>
+        </div>
+      </div>
+      {preview.length && previewView === "timeline"
+        ? <UpcomingParentingTimeline intervals={preview} busy={busy} onAdjust={adjustHandover} />
+        : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
         <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
         <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
           <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>

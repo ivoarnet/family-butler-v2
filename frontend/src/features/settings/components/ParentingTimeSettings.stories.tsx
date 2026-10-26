@@ -168,15 +168,21 @@ export const UpcomingHandoverAdjustment: Story = {
   args: { withPlan: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
-    await waitFor(() => expect(canvas.getByRole("slider", {
-      name: "Adjust handover from Dad to Mum by up to 24 hours",
-    })).toBeEnabled());
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
-    const slider = canvas.getByRole("slider", {
-      name: "Adjust handover from Dad to Mum by up to 24 hours",
-    });
-    fireEvent.change(slider, { target: { value: "30" } });
-    await userEvent.click(canvas.getByRole("button", { name: "Apply +30 min" }));
+    await userEvent.click(canvas.getByRole("button", { name: "List" }));
+    expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument();
+    expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
+    await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
+    expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
+    await userEvent.click(canvas.getByRole("button", {
+      name: "Select handover time from Dad to Mum",
+    }));
+    const selectedTime = new Date("2026-10-09T17:30:00.000Z");
+    const localValue = `${selectedTime.getFullYear()}-${String(selectedTime.getMonth() + 1).padStart(2, "0")}-${String(selectedTime.getDate()).padStart(2, "0")}T${String(selectedTime.getHours()).padStart(2, "0")}:${String(selectedTime.getMinutes()).padStart(2, "0")}`;
+    const picker = canvas.getByLabelText("New handover date and time from Dad to Mum");
+    expect(picker).toHaveAttribute("step", "1800");
+    fireEvent.change(picker, { target: { value: localValue } });
+    await userEvent.click(canvas.getByRole("button", { name: "Save new time" }));
     await waitFor(() => expect(calls.mock.calls.some(([path, init]) =>
       String(path).endsWith("/changes") && init?.method === "POST")).toBe(true));
     const adjustment = calls.mock.calls.find(([path, init]) =>
