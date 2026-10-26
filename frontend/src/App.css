@@ -1193,58 +1193,11 @@ body,
   margin: 0;
 }
 
-.parenting-preview-view-switch {
+.parenting-preview-controls {
   display: flex;
   justify-self: center;
-  gap: 0.15rem;
-  padding: 0.2rem;
-  border: 1px solid var(--border);
-  border-radius: 999px;
-  background: var(--surface-strong);
-}
-
-.parenting-preview-view-switch button {
-  padding: 0.45rem 0.9rem;
-  border: 0;
-  border-radius: 999px;
-  background: transparent;
-  color: var(--text-primary);
-  font: inherit;
-  cursor: pointer;
-}
-
-.parenting-preview-view-switch button[aria-pressed="true"] {
-  background: var(--accent);
-  color: #fff;
-}
-
-.parenting-preview-view-switch button:focus-visible {
-  outline: 3px solid var(--text-primary);
-  outline-offset: 2px;
-}
-
-.parenting-preview-range {
-  display: grid;
-  grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.75rem;
-}
-
-.parenting-preview-range > button {
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 1px solid var(--border);
-  border-radius: 50%;
-  background: var(--surface-strong);
-  color: var(--text-primary);
-  font: inherit;
-  font-size: 1.3rem;
-  cursor: pointer;
-}
-
-.parenting-preview-range > button:focus-visible {
-  outline: 3px solid var(--text-primary);
-  outline-offset: 2px;
+  gap: 0.5rem;
 }
 
 .parenting-preview-content {
@@ -1322,13 +1275,8 @@ body,
     gap: 0.75rem;
   }
 
-  .parenting-preview-range {
-    gap: 0.4rem;
-  }
-
-  .parenting-preview-range > button {
-    width: 2.1rem;
-    height: 2.1rem;
+  .parenting-preview-controls {
+    gap: 0.35rem;
   }
 
   .parenting-timeline-handover {

@@ -2,7 +2,10 @@ import { useCallback, useEffect, useRef, useState, type FormEvent } from "react"
 import { Alert, Box, Button, Checkbox, Chip, FormControl, FormControlLabel, MenuItem, Stack, Typography } from "@mui/material";
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import BlockIcon from "@mui/icons-material/Block";
+import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
 import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlined";
+import ChevronLeftIcon from "@mui/icons-material/ChevronLeft";
+import ChevronRightIcon from "@mui/icons-material/ChevronRight";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import dayjs, { type Dayjs } from "dayjs";
@@ -293,6 +296,10 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const navigatePreview = (days: number) => {
     if (!previewRangeStart || !Number.isInteger(days) || days === 0) return;
     void load(shiftPreviewRange(previewRangeStart, days).startAt);
+  };
+  const navigatePreviewToCurrent = () => {
+    if (!data.plan?.active) return;
+    void load(rangeForPreview(data.plan.effectiveFrom).startAt);
   };
   const updateHandover = (handoverId: string, changes: Partial<Handover>) => {
     setPlanDraft((current) => current ? {
@@ -593,27 +600,39 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     <section className="settings-card">
       <div className="parenting-preview-header">
         <h2>Upcoming schedule preview</h2>
-        <div className="parenting-preview-view-switch" role="group" aria-label="Schedule preview view">
-          <button type="button" aria-pressed={previewView === "timeline"} onClick={() => setPreviewView("timeline")}>Timeline</button>
-          <button type="button" aria-pressed={previewView === "list"} onClick={() => setPreviewView("list")}>List</button>
+        <div className="parenting-preview-controls">
+          <div className="pill-group period-navigation" role="group" aria-label="Schedule period navigation">
+            <button type="button" className="icon-button" aria-label="Show earlier schedule timeslices"
+              title="Previous two-week period" disabled={busy || loading || !previewRangeStart} onClick={() => navigatePreview(-14)}>
+              <ChevronLeftIcon fontSize="small" />
+            </button>
+            <button type="button" className="icon-button" aria-label="Show current schedule timeslices"
+              title="Jump to current period" disabled={busy || loading || !previewRangeStart} onClick={navigatePreviewToCurrent}>
+              <CalendarMonthIcon fontSize="small" />
+            </button>
+            <button type="button" className="icon-button" aria-label="Show later schedule timeslices"
+              title="Next two-week period" disabled={busy || loading || !previewRangeStart} onClick={() => navigatePreview(14)}>
+              <ChevronRightIcon fontSize="small" />
+            </button>
+          </div>
+          <div className="pill-group view-switcher" role="group" aria-label="Schedule preview view">
+            <button type="button" className={previewView === "timeline" ? "active" : ""}
+              aria-pressed={previewView === "timeline"} onClick={() => setPreviewView("timeline")}>Timeline</button>
+            <button type="button" className={previewView === "list" ? "active" : ""}
+              aria-pressed={previewView === "list"} onClick={() => setPreviewView("list")}>List</button>
+          </div>
         </div>
       </div>
-      {(preview.length > 0 || data.plan?.active) ? <div className="parenting-preview-range">
-        <button type="button" aria-label="Show earlier schedule timeslices" disabled={busy || loading}
-          onClick={() => navigatePreview(-14)}>←</button>
-        <div className="parenting-preview-content">
-          {previewView === "timeline"
-            ? <UpcomingParentingTimeline intervals={preview} busy={busy || loading} onAdjust={adjustHandover} />
-            : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
-              <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
-              <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
-                <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
-                <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
-              </tr>)}</tbody>
-            </table></div> : <Typography variant="body2" role="status">Loading schedule preview…</Typography>}
-        </div>
-        <button type="button" aria-label="Show later schedule timeslices" disabled={busy || loading}
-          onClick={() => navigatePreview(14)}>→</button>
+      {(preview.length > 0 || data.plan?.active) ? <div className="parenting-preview-content">
+        {previewView === "timeline"
+          ? <UpcomingParentingTimeline intervals={preview} busy={busy || loading} onAdjust={adjustHandover} />
+          : preview.length ? <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time preview">
+            <thead><tr><th>From</th><th>Until</th><th>With</th><th>Schedule</th></tr></thead>
+            <tbody>{preview.map((interval, index) => <tr key={`${interval.startAt}-${index}`}>
+              <td>{formatInterval(interval.startAt)}</td><td>{formatInterval(interval.endAt)}</td><td>{interval.partyName}</td>
+              <td><Chip size="small" label={interval.source.type === "change" ? `Change · ${interval.source.label}` : "Regular plan"} /></td>
+            </tr>)}</tbody>
+          </table></div> : <Typography variant="body2" role="status">Loading schedule preview…</Typography>}
       </div> : <Typography variant="body2">
         Preview the schedule to see who the children are with. Changes are always resolved by the server.
       </Typography>}

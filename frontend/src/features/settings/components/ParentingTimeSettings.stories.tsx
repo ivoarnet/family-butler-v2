@@ -206,6 +206,10 @@ export const UpcomingHandoverAdjustment: Story = {
       .not.toHaveTextContent(" – ");
     const initialResolve = calls.mock.calls.find(([path]) => String(path).includes("/resolve?"));
     const initialStart = Date.parse(new URL(String(initialResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!);
+    const periodNavigation = canvas.getByRole("group", { name: "Schedule period navigation" });
+    expect(periodNavigation).toHaveClass("pill-group", "period-navigation");
+    expect(canvas.getByRole("group", { name: "Schedule preview view" })).toHaveClass("pill-group", "view-switcher");
+    expect(canvasElement.querySelector(".parenting-preview-content .period-navigation")).toBeNull();
     await userEvent.click(canvas.getByRole("button", { name: "List" }));
     expect(canvas.getByRole("table", { name: "Parenting-time preview" })).toBeInTheDocument();
     expect(canvas.queryByRole("region", { name: "Upcoming parenting timeline" })).toBeNull();
@@ -218,6 +222,13 @@ export const UpcomingHandoverAdjustment: Story = {
     const expectedEarlierStart = new Date(initialStart);
     expectedEarlierStart.setDate(expectedEarlierStart.getDate() - 14);
     expect(Date.parse(earlierStart)).toBe(expectedEarlierStart.getTime());
+    const beforeCurrentClick = calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length;
+    await userEvent.click(canvas.getByRole("button", { name: "Show current schedule timeslices" }));
+    await waitFor(() => expect(calls.mock.calls.filter(([path]) => String(path).includes("/resolve?")).length)
+      .toBeGreaterThan(beforeCurrentClick));
+    const currentResolve = [...calls.mock.calls].reverse().find(([path]) => String(path).includes("/resolve?"));
+    const currentStart = new URL(String(currentResolve?.[0]), "http://storybook.local").searchParams.get("startAt")!;
+    expect(Date.parse(currentStart)).toBe(initialStart);
     await userEvent.click(canvas.getByRole("button", { name: "Timeline" }));
     expect(canvas.getByRole("region", { name: "Upcoming parenting timeline" })).toBeInTheDocument();
     const { firstRangeStart, handoverAt, adjustedAt } = await chooseHandoverThirtyMinutesLater(canvasElement);
