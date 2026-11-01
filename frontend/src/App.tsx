@@ -7,6 +7,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { ProfilePage } from "./pages/ProfilePage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { GroceriesPage } from "./pages/GroceriesPage";
+import { TasksPage } from "./pages/TasksPage";
 import { GrocerySettingsPage } from "./pages/GrocerySettingsPage";
 import { SettingsPage } from "./pages/SettingsPage";
 import { createSupabaseClient, getBuildTimeSupabaseAuthConfig } from "./lib/supabaseClient";
@@ -758,7 +759,7 @@ export function App() {
     }
   };
 
-  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports" | "/groceries" | "/groceries/settings") => {
+  const navigateTo = (nextPathname: "/" | "/profile" | "/settings" | "/reports" | "/groceries" | "/groceries/settings" | "/tasks") => {
     if (window.location.pathname === nextPathname) {
       return;
     }
@@ -996,7 +997,7 @@ export function App() {
 
   const moduleNavigation = (
     <ModuleNavigation
-      activeId={pathname.startsWith("/groceries") ? "shop-cook" : pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
+      activeId={pathname === "/tasks" ? "tasks" : pathname.startsWith("/groceries") ? "shop-cook" : pathname === "/" || pathname === "/settings" ? "family-calendar" : undefined}
       onNavigate={(destination) => {
         if (destination.path) navigateTo(destination.path);
       }}
@@ -1068,6 +1069,12 @@ export function App() {
         setTheme={setTheme}
       />
     </>
+  ) : pathname === "/tasks" ? (
+    <TasksPage householdId={activeHouseholdId!} householdName={householdData.householdName}
+      members={householdData.familyMembers} accessToken={authSession.access_token} moduleNavigation={moduleNavigation}
+      currentUserLabel={currentUserLabel} currentUserEmail={currentUserEmail}
+      currentUserInitials={currentUserInitials} currentUserAvatarUrl={currentUserAvatarUrl}
+      onOpenAccountSection={openSettingsSection} onSignOut={signOut} />
   ) : pathname === "/groceries/settings" ? (
     <GrocerySettingsPage householdId={activeHouseholdId!} householdName={householdData.householdName}
       accessToken={authSession.access_token} onBack={() => navigateTo("/groceries")} moduleNavigation={moduleNavigation} />

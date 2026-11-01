@@ -1,29 +1,26 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
-const { readdirSync, readFileSync, statSync } = require("node:fs");
+const { readFileSync, readdirSync, existsSync } = require("node:fs");
 const path = require("node:path");
 
-const apiDirectory = __dirname;
+test("Tasks deploys the household CRUD and optional move resource Azure Functions route", () => {
+  const definition = JSON.parse(readFileSync(path.join(__dirname, "tasks/function.json"), "utf8"));
+  const trigger = definition.bindings.find((binding) => binding.type === "httpTrigger");
+  assert.equal(trigger.route, "households/{householdId}/tasks/{resource?}");
+  assert.equal(trigger.authLevel, "anonymous");
+  assert.deepEqual(trigger.methods, ["get", "post", "put", "delete"]);
+  assert.ok(definition.bindings.some((binding) => binding.type === "http" && binding.name === "res"));
+  assert.equal(typeof require("./tasks"), "function");
+});
 
-const taskRouteMethods = () => readdirSync(apiDirectory)
-  .filter((entry) => statSync(path.join(apiDirectory, entry)).isDirectory())
-  .flatMap((directory) => {
-    const functionPath = path.join(apiDirectory, directory, "function.json");
-    try {
-      const definition = JSON.parse(readFileSync(functionPath, "utf8"));
-      return definition.bindings
-        .filter((binding) => binding.type === "httpTrigger")
-        .filter((binding) => (binding.route || directory).split("/").at(-1) === "tasks")
-        .flatMap((binding) => (binding.methods || ["get", "post", "put", "patch", "delete"])
-          .map((method) => method.toLowerCase()));
-    } catch (error) {
-      if (error.code === "ENOENT") return [];
-      throw error;
+test("no Azure Function restores any legacy global Tasks route", () => {
+  for (const directory of readdirSync(__dirname, { withFileTypes: true }).filter((entry) => entry.isDirectory())) {
+    const config = path.join(__dirname, directory.name, "function.json");
+    if (!existsSync(config)) continue;
+    const definition = JSON.parse(readFileSync(config, "utf8"));
+    for (const trigger of definition.bindings.filter((binding) => binding.type === "httpTrigger")) {
+      const route = (trigger.route ?? directory.name).replace(/^\/+/, "");
+      assert.notEqual(route.split("/")[0].toLowerCase(), "tasks", `${directory.name} exposes global Tasks`);
     }
-  });
-
-for (const method of ["get", "post"]) {
-  test(`no deployed function exposes the Tasks ${method.toUpperCase()} route`, () => {
-    assert.equal(taskRouteMethods().includes(method), false);
-  });
-}
+  }
+});

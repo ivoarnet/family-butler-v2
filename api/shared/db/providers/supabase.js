@@ -2,6 +2,7 @@ const { randomUUID } = require("crypto");
 const createChildcareProvider = require("./childcare");
 const createParentingTimeProvider = require("./parentingTime");
 const createGroceriesProvider = require("./groceries");
+const createTasksProvider = require("./tasks");
 
 const TABLES = {
   households: "households",
@@ -260,6 +261,7 @@ module.exports = function createSupabaseProvider() {
     ...createChildcareProvider(request),
     ...createParentingTimeProvider(request),
     ...createGroceriesProvider(request),
+    ...createTasksProvider(request),
     async reserveAgentExecution({
       executionId,
       userId,

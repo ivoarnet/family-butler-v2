@@ -10,7 +10,7 @@ Family Butler helps households coordinate the people and plans involved in famil
 
 ## Core household and calendar capabilities — implemented
 
-**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The swipeable left-side module menu contains main modules: **Calendar**, **Shop & Cook**, and a disabled **Tasks — Coming soon** entry. Childcare and Parenting Time remain in Settings, and Reports & exports keeps its existing header shortcut. Existing calendar workflows remain available.
+**Family Calendar** is the main module. **Childcare** and **Shared Parenting** (called **Parenting Time** in the current app) are its sub-features, not separate peer modules. Households, members, and contacts are shared foundations. The swipeable left-side module menu contains main modules: **Calendar**, **Shop & Cook**, and **Tasks**. Childcare and Parenting Time remain in Settings, and Reports & exports keeps its existing header shortcut. Existing calendar workflows remain available.
 
 See [Modular architecture and developer guide](modules/ARCHITECTURE.md) for module boundaries, navigation conventions, step-by-step integration, cross-module reads/events, and external-integration guidance.
 
@@ -66,12 +66,19 @@ Create remote lists in Bring! first, then link them in Shop & Cook: the maintain
 
 See [Shop & Cook integration](modules/ARCHITECTURE.md#shop--cook-implementation), [data model](DATA_MODEL.md#groceries), and [setup](SUPABASE.md#groceries-and-bring).
 
+## Tasks — member-assigned Kanban implemented
+
+The Tasks workspace supports creating, editing, and deleting household tasks assigned to one family member, with a non-negative integer coin reward and an optional due date. Cards show the title, coins, and member avatar. Mouse and touch drag handles move cards between **To do**, **In progress**, and **Done**, and reorder cards within a column; keyboard controls provide the same operations. Board state and ordering persist through the household-scoped API.
+
+Tasks can be single, daily, or weekly. Recurring tasks require a due date. The first completion preserves the completed occurrence and creates the next dated occurrence in To do; reopening and completing it again does not create another copy. Recurrence is date-based, not an elapsed-hours timer, and no background job is required.
+
+Coin balances/payouts, Calendar indicators, and agent task workflows remain planned and are not shipped. Open-task reads already support inclusive date-range and member filters for later Calendar integration. See [Tasks implementation](modules/ARCHITECTURE.md#tasks-implementation), [task data model](DATA_MODEL.md#tasks), and [migration setup](SUPABASE.md#tasks).
+
 ## Planned modules
 
-- **Tasks:** member-assigned Kanban tasks with due dates; planned Calendar integration shows due tasks by day/member.
 - **Gamification:** future Family Coins and reactions to committed events from other modules. Rules and mechanics are not defined in this release.
 
-Tasks and Gamification, their agent workflows, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
+Gamification, Tasks' agent workflows and Calendar integration, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
 
 ## Managing module documentation
 

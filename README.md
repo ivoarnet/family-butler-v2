@@ -6,7 +6,7 @@ Family Butler is agent-first: agents are intended to be the primary way people a
 
 The product is organized around modules. Core household/calendar capabilities, **Childcare**, and **Parenting Time** settings, calendar display, and read-only agent planning checks are implemented. Parenting personal-event warnings currently use an explicit development-only party selection. See the [product overview](docs/PRODUCT_OVERVIEW.md) for current capabilities, module descriptions, status, and guidance for documenting future modules.
 
-**Family Calendar** is the main module, with Childcare and Shared Parenting (Parenting Time) as sub-features. A swipeable left-side menu lists main modules only: Calendar and Tasks (disabled, coming soon). Sub-features stay in Settings. The [modular architecture and developer guide](docs/modules/ARCHITECTURE.md) covers future Tasks, Shop & Cook, Gamification, cross-module interaction, and module conventions; those future modules are not implemented.
+**Family Calendar** is the main module, with Childcare and Shared Parenting (Parenting Time) as sub-features. A swipeable left-side menu lists Calendar, Shop & Cook, and Tasks. Tasks provides member-assigned single/daily/weekly tasks with coin rewards and a persistent, touch-ready Kanban board. Sub-features stay in Settings. The [modular architecture and developer guide](docs/modules/ARCHITECTURE.md) covers module conventions and future Calendar task indicators and Gamification; task coin payouts and agent workflows are not implemented.
 
 This repository contains the React frontend, Azure Functions backend, and Supabase (PostgreSQL) data layer.
 
@@ -97,7 +97,7 @@ Please use `/home/runner/work/family-butler-v2/family-butler-v2/CONTRIBUTING.md`
 ## API Runtime (Azure Functions)
 
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/health` → `GET /api/health`
-- `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET /api/tasks`, `POST /api/tasks`
+- `/home/runner/work/family-butler-v2/family-butler-v2/api/tasks` → `GET/POST/PUT/DELETE /api/households/{householdId}/tasks`, `POST /api/households/{householdId}/tasks/move` (apply `docs/sql/tasks.sql`)
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/households` → `GET /api/households`, `POST /api/households`, `GET /api/households/{householdId}`, `PUT /api/households/{householdId}`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/auth-config` → `GET /api/auth-config`
 - `/home/runner/work/family-butler-v2/family-butler-v2/api/agent-chat` → `POST /api/agent/chat` (text + PDF/image attachments)

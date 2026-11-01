@@ -7,7 +7,7 @@ export interface ModuleDestination {
   id: string;
   label: string;
   icon: SvgIconComponent;
-  path?: "/" | "/groceries";
+  path?: "/" | "/groceries" | "/tasks";
 }
 
 export const moduleDestinations: ModuleDestination[] = [
@@ -17,6 +17,6 @@ export const moduleDestinations: ModuleDestination[] = [
     icon: CalendarMonthIcon,
     path: "/",
   },
-  { id: "tasks", label: "Tasks", icon: TaskAltIcon },
+  { id: "tasks", label: "Tasks", icon: TaskAltIcon, path: "/tasks" },
   { id: "shop-cook", label: "Shop & Cook", icon: ShoppingBasketOutlinedIcon, path: "/groceries" },
 ];
