@@ -130,6 +130,10 @@ export const TasksBoard: Story = {
     const reward = within(canvas.getByRole("article", { name: "Fold laundry" })).getByRole("img", { name: "5 coins" });
     await expect(reward).toHaveTextContent("5");
     await expect(reward).not.toHaveTextContent("coins");
+    const coin = reward.querySelector("img")!;
+    await expect(coin).toHaveAttribute("src", `${import.meta.env.BASE_URL}family-coin.svg`);
+    await expect(coin).toHaveAttribute("alt", "");
+    await waitFor(() => expect(coin.naturalWidth).toBeGreaterThan(0));
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Alex");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Repeats weekly");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Due 02.11.2026");
@@ -298,7 +302,9 @@ export const TasksPointerMoveReorderTouchCancel: Story = {
       await expect(preview).toBeVisible();
       await expect(preview).toHaveTextContent("Water plants");
       await expect(preview).toHaveTextContent("Sam");
-      await expect(preview.querySelector("svg[data-testid='MonetizationOnOutlinedIcon']")).not.toBeNull();
+      const previewCoin = preview.querySelector<HTMLImageElement>("img[src$='family-coin.svg']")!;
+      await expect(previewCoin).not.toBeNull();
+      await waitFor(() => expect(previewCoin.naturalWidth).toBeGreaterThan(0));
       await expect(preview).toHaveAttribute("aria-hidden", "true");
       await expect(getComputedStyle(preview).pointerEvents).toBe("none");
       await expect(canvas.getAllByRole("article", { name: "Water plants" })).toHaveLength(1);

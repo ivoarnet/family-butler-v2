@@ -4,7 +4,6 @@ import { Avatar, Box, IconButton, Stack, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
-import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import type { FamilyMember } from "../../types/family";
 import { normalizeMemberColor } from "../../shared/family/memberAvatarColors";
 import dayjs from "dayjs";
@@ -39,7 +38,7 @@ function TaskCardContent({ task, member, handle, actions }: {
       </Avatar>
       <Typography variant="body2">{member?.firstName ?? "Former member"}</Typography>
       <Stack direction="row" role="img" aria-label={`${task.coins} coins`} sx={{ ml: "auto", alignItems: "center", gap: 0.5 }}>
-        <MonetizationOnOutlinedIcon fontSize="small" />
+        <Box component="img" src={`${import.meta.env.BASE_URL}family-coin.svg`} alt="" width={24} height={24} sx={{ display: "block", objectFit: "contain" }} />
         <Typography variant="body2" sx={{ fontWeight: 700 }}>{task.coins}</Typography>
       </Stack>
     </Stack>
