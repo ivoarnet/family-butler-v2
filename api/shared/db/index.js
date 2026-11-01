@@ -18,6 +18,9 @@ const getProvider = () => {
 };
 
 module.exports = {
+  getTasksHousehold: (...args) => getProvider().getTasksHousehold(...args),
+  getTasks: (...args) => getProvider().getTasks(...args),
+  mutateTasks: (...args) => getProvider().mutateTasks(...args),
   getBringConnectionMetadata: (...args) => getProvider().getBringConnectionMetadata(...args),
   getBringConnection: (...args) => getProvider().getBringConnection(...args),
   listBringConnections: (...args) => getProvider().listBringConnections(...args),

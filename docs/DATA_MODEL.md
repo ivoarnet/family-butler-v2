@@ -16,12 +16,26 @@ The authenticated Azure Functions API checks the existing household owner before
 
 Apply `docs/sql/bring-connections.sql` after the grocery schema for household Bring! connection settings. It stores encrypted credentials or an explicit disconnected override, with no browser read/write access. Encryption uses a server-managed key and household-bound authenticated data; APIs expose status only. Account replacement/disconnect atomically unlinks existing remote list mappings while preserving local content, so old mappings are never silently applied to a replacement account. An explicit disconnected row suppresses the legacy environment-account fallback. No credentials are stored in list/item rows or returned through household data reads.
 
+## Tasks
+
+Tasks uses `public.household_tasks`, not the legacy global `public.tasks` table. Apply `docs/sql/tasks.sql` after the core household schema/access policy and before deploying the Tasks API/UI.
+
+- Each occurrence has a UUID, `householdId`, required same-household `memberId`, title (1–160 characters), integer `coins` (0–1,000,000), status (`todo`, `in_progress`, `done`), and persisted `sortOrder`. A household can retain up to 10,000 occurrences.
+- `dueDate` is an optional inclusive date-only value for single tasks and required for daily/weekly tasks. `repeatRule` is `none`, `daily`, or `weekly`; it is deliberately not a calendar-event RRULE.
+- A recurring series has a stable `seriesId`; occurrences remain independently editable and completed cards are retained. Completing an occurrence first generates one next dated occurrence in To do. Reopening/re-completing never generates another successor. Repeat rules cannot change after an occurrence's first completion, including after reopening a single task; edit the next open occurrence instead. Editing one occurrence does not rewrite existing successors, and deleting an occurrence does not delete a series.
+- `completedAt` records completion; `revision` supports compare-and-swap edits/moves/deletes. Recurrence-generation state is persisted transactionally with completion, so retries cannot duplicate the next occurrence.
+- Composite member references enforce household isolation and prevent deleting/transferring a referenced member without first reassigning or deleting its tasks. Household deletion cascades task records.
+
+Moves and recurrence creation are atomic database commands serialized per household. Reads support member, open/status, and paired inclusive due-date range filters (up to 367 inclusive days); indexes support future Calendar queries. Undated tasks are excluded when a date range is requested. RLS permits owner-scoped reads, while writes go exclusively through the server-only transactional command. No coin balances, credits, event/outbox infrastructure, or Calendar events are stored or modified by this module.
+
+See [Tasks API and boundaries](modules/ARCHITECTURE.md#tasks-implementation) and [Supabase setup](SUPABASE.md#tasks).
+
 ## Recorded decisions
 
 - Database: Supabase PostgreSQL
 - API data access: provider abstraction in `/api/shared/db` (current provider: Supabase)
 - Tenancy: multi-tenant; every household-owned table is scoped by `householdId`
-- Household-owned models: `HouseholdMember`, `Contact`, `EventCategory`, `Event`, `DayConfiguration`, `ChildcareProvider`, `ChildcareArrangement`, `ChildcareOverride`, `ParentingTimeParty`, `ParentingTimePlan`, `ParentingTimeChange`
+- Household-owned models: `HouseholdMember`, `Contact`, `EventCategory`, `Event`, `DayConfiguration`, `ChildcareProvider`, `ChildcareArrangement`, `ChildcareOverride`, `ParentingTimeParty`, `ParentingTimePlan`, `ParentingTimeChange`, `Task`
 - Event recurrence format: RFC 5545 `RRULE` strings; childcare uses explicit weekly weekdays (see below).
 - Calendar annotations (public holidays, bridge days, school holidays, custom days): unified `DayConfiguration` model
 - Terminology: use `HouseholdMember` (not `FamilyMember`)
@@ -48,7 +62,7 @@ erDiagram
 
 ## Notes
 
-- For concrete SQL table definitions currently used by the app (`households`, `household_members`, `contacts`, `tasks`), see `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`.
+- For concrete SQL table definitions currently used by the app (`households`, `household_members`, `contacts`, `household_tasks`), see `/home/runner/work/family-butler-v2/family-butler-v2/docs/SUPABASE.md`.
 - Event type and event entities are now persisted via `event_types` and `events` tables (household-scoped with `ON DELETE CASCADE` on household deletion).
 - Day configurations are persisted in the `day_configurations` table and are available through the household API and agent tools.
 - Service-layer validation must enforce same-household consistency for cross-table references.

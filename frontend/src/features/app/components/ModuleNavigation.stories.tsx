@@ -65,8 +65,8 @@ export const NavigationAndDismissal: Story = {
     await expect(menu.getByRole("button", { name: "Calendar" }).querySelector("svg")?.innerHTML)
       .toBe(trigger.querySelector("svg")?.innerHTML);
     await expect(menu.getByRole("button", { name: "Calendar" })).toHaveAttribute("aria-current", "page");
-    const tasks = menu.getByRole("button", { name: "Tasks Coming soon" });
-    await expect(tasks).toHaveAttribute("aria-disabled", "true");
+    const tasks = menu.getByRole("button", { name: "Tasks" });
+    await expect(tasks).not.toHaveAttribute("aria-disabled");
     await expect(menu.queryByText("Calendar")).toBeNull();
     await expect(menu.queryByText("Tasks")).toBeNull();
     const list = menu.getByRole("list").getBoundingClientRect();
@@ -126,7 +126,7 @@ export const TasksHeaderIcon: Story = {
     await expect(trigger.querySelector("svg")).not.toBeNull();
     await userEvent.click(trigger);
     const menu = within(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Modules" }));
-    await expect(menu.getByRole("button", { name: "Tasks Coming soon" }).querySelector("svg")?.innerHTML)
+    await expect(menu.getByRole("button", { name: "Tasks" }).querySelector("svg")?.innerHTML)
       .toBe(trigger.querySelector("svg")?.innerHTML);
     await expect(menu.getByRole("button", { name: "Calendar" }).querySelector("svg")?.innerHTML)
       .not.toBe(trigger.querySelector("svg")?.innerHTML);

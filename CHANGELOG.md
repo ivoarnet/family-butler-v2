@@ -2,6 +2,20 @@
 
 ## Unreleased
 
+- Extended Tasks lane backgrounds to fill the viewport below the header and board controls, while allowing long task lists to grow naturally. Updated desktop, mobile, and drag screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
+
+- Made the entire task card draggable without a handle, keeping edit/delete actions independent and taps non-mutating. Coin rewards now sit at the top right in cards and drag previews. Updated screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
+
+- Task cards and floating drag previews now display the uploaded `frontend/public/family-coin.svg` artwork, retaining accessible coin-amount labels. Updated screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
+
+- Added a floating task-card preview that follows mouse/touch dragging, with a highlighted destination swimlane and insertion marker. Card details share the normal task-card rendering; cancelling/dropping removes the preview. Updated screenshot: `docs/screenshots/tasks-kanban-drag.png`.
+
+- Centralized shared date/time picker popup colors, including calendar text, controls, selection, and an opaque theme surface for dark mode. Added light/dark desktop and mobile date-picker regression coverage. Updated screenshots: `docs/screenshots/date-picker-dark.png` and `docs/screenshots/date-picker-dark-mobile.png`.
+
+- Replaced task-card “coins” text with a coin icon beside the reward amount, retaining accessible coin labels. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.
+
+- Added the Tasks module: member avatars, coin rewards, single/daily/weekly occurrences, and persisted To do/In progress/Done ordering with mouse/touch drag-and-drop and keyboard alternatives. Apply `docs/sql/tasks.sql` before deployment; legacy global tasks remain untouched. Coin payouts, Calendar integration, and agent workflows remain planned. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.
+
 - Matched grocery settings to the shared settings-table layout with compact rename actions, and moved secondary guidance into title info icons like Parenting settings. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
 
 - Added grocery-list creation and renaming to Shop & Cook settings, with an overview showing each list's Bring! link/sync status. Existing shopping-workspace controls remain available. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.

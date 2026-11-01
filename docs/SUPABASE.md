@@ -23,6 +23,14 @@ The SWA deployment must include `bring-shopping` inside the API artifact, not on
 
 Metadata/settings and local-list handlers defer SDK loading, so an optional client-loading failure does not prevent them starting. If settings still fail after redeployment, inspect the status/body of the `/api/households/…/groceries/connection` request and API host logs. Do not share authorization headers, credentials, or encrypted payloads. A missing/invalid encryption key disables credential editing but does not itself fail the settings read.
 
+## Tasks
+
+After the core household schema and `docs/sql/core-access-policy.sql`, run `docs/sql/tasks.sql` in the Supabase SQL Editor before deploying the updated API/frontend. It creates household-scoped task storage, indexes, access policies, and the transactional command used for edits, ordering, and recurrence. No new Azure resources, packages, timers, or secrets are required.
+
+Existing global `public.tasks` records are deliberately not migrated: they lack trustworthy household ownership. The new API never reads them. The migration is repeatable and does not change existing calendar data. Task assignment references a member in the same household; reassign/delete that member's tasks before deleting or transferring the member.
+
+Open **Tasks** from the module menu, create a member-assigned task, move/reorder it, and reload to verify persistence. Complete a daily/weekly task and verify that exactly one next dated occurrence appears, including after reopening/re-completing the original. Verify `GET /api/health?checks=1` and authenticated `/api/households/{householdId}/tasks` against the configured Supabase instance; unauthorized households must return 404. Coin values are reward metadata only, not account credits. See [model and recurrence rules](DATA_MODEL.md#tasks).
+
 ## 1) Create a Supabase project
 
 1. Create a new Supabase project.
@@ -61,7 +69,7 @@ Set app settings:
 
 ## 4) Create tables in Supabase (SQL Editor)
 
-Tasks is not implemented, and the API does not expose a `/api/tasks` endpoint. Earlier setup instructions may have created a global `public.tasks` table; disabling the endpoint does not delete or migrate that table or its rows. They remain untouched and are not available through the API. Do not expose or reuse those records as household data; a future Tasks release must migrate to household-scoped storage and authorization before enabling task access.
+The Tasks module uses `public.household_tasks` and `/api/households/{householdId}/tasks`, not a global `/api/tasks` endpoint. Earlier setup instructions may have created a global `public.tasks` table; that table and its rows remain untouched and are not available through this API. Do not expose or reuse those records as household data: their ownership cannot safely be inferred. Apply the [Tasks migration](#tasks) after the core schema below.
 
 Run:
 
