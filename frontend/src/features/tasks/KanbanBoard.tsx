@@ -3,6 +3,7 @@ import { Avatar, Box, IconButton, Stack, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import DeleteOutlineIcon from "@mui/icons-material/DeleteOutlined";
+import MonetizationOnOutlinedIcon from "@mui/icons-material/MonetizationOnOutlined";
 import type { FamilyMember } from "../../types/family";
 import { normalizeMemberColor } from "../../shared/family/memberAvatarColors";
 import dayjs from "dayjs";
@@ -181,7 +182,10 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
                       {member?.firstName.charAt(0) ?? "?"}
                     </Avatar>
                     <Typography variant="body2">{member?.firstName ?? "Former member"}</Typography>
-                    <Typography variant="body2" sx={{ ml: "auto", fontWeight: 700 }}>{task.coins} coins</Typography>
+                    <Stack direction="row" role="img" aria-label={`${task.coins} coins`} sx={{ ml: "auto", alignItems: "center", gap: 0.5 }}>
+                      <MonetizationOnOutlinedIcon fontSize="small" />
+                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{task.coins}</Typography>
+                    </Stack>
                   </Stack>
                   {(task.dueDate || task.repeatRule !== "none") && <Typography variant="body2" sx={{ mt: 1, color: "var(--text-secondary)" }}>
                     {task.dueDate ? `Due ${dayjs(task.dueDate).format("DD.MM.YYYY")}` : ""}{task.repeatRule !== "none" ? ` · Repeats ${task.repeatRule}` : ""}

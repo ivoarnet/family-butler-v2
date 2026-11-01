@@ -127,7 +127,9 @@ export const TasksBoard: Story = {
     const root = canvasElement.ownerDocument.documentElement;
     await expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
     await expect(canvas.getByRole("region", { name: "Done" })).toHaveTextContent("No tasks");
-    await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("5 coins");
+    const reward = within(canvas.getByRole("article", { name: "Fold laundry" })).getByRole("img", { name: "5 coins" });
+    await expect(reward).toHaveTextContent("5");
+    await expect(reward).not.toHaveTextContent("coins");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Alex");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Repeats weekly");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Due 02.11.2026");
@@ -190,7 +192,7 @@ export const TasksCreateEditDelete: Story = {
     await userEvent.click(dueDate.getByRole("spinbutton", { name: "Year" }));
     await userEvent.keyboard("2026");
     await userEvent.click(dialog.getByRole("button", { name: "Save task" }));
-    await expect(await canvas.findByRole("article", { name: "Walk the dog" })).toHaveTextContent("4 coins");
+    await expect(within(await canvas.findByRole("article", { name: "Walk the dog" })).getByRole("img", { name: "4 coins" })).toHaveTextContent("4");
     await waitFor(() => expect(canvas.getByRole("button", { name: "Edit Walk the dog" })).toBeEnabled());
     await userEvent.click(canvas.getByRole("button", { name: "Edit Walk the dog" }));
     dialog = await editor(canvasElement, "Edit task");

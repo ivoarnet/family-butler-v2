@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Replaced task-card “coins” text with a coin icon beside the reward amount, retaining accessible coin labels. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.
+
 - Added the Tasks module: member avatars, coin rewards, single/daily/weekly occurrences, and persisted To do/In progress/Done ordering with mouse/touch drag-and-drop and keyboard alternatives. Apply `docs/sql/tasks.sql` before deployment; legacy global tasks remain untouched. Coin payouts, Calendar integration, and agent workflows remain planned. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.
 
 - Matched grocery settings to the shared settings-table layout with compact rename actions, and moved secondary guidance into title info icons like Parenting settings. Updated screenshot: `docs/screenshots/bring-connection-settings.png`.
