@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Made the entire task card draggable without a handle, keeping edit/delete actions independent and taps non-mutating. Coin rewards now sit at the top right in cards and drag previews. Updated screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
+
 - Task cards and floating drag previews now display the uploaded `frontend/public/family-coin.svg` artwork, retaining accessible coin-amount labels. Updated screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
 
 - Added a floating task-card preview that follows mouse/touch dragging, with a highlighted destination swimlane and insertion marker. Card details share the normal task-card rendering; cancelling/dropping removes the preview. Updated screenshot: `docs/screenshots/tasks-kanban-drag.png`.

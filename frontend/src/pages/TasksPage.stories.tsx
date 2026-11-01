@@ -18,13 +18,15 @@ const initialTasks: Task[] = [
   { id: "table", householdId: "demo", title: "Set the table", memberId: "sam", coins: 3, status: "in_progress",
     sortOrder: 0, dueDate: "2026-11-01", repeatRule: "daily", seriesId: "series-table", completedAt: null, revision: 0 },
 ];
-type MockOptions = { failSave?: boolean; conflict?: boolean; failRefresh?: boolean; delayed?: boolean; delayedMutation?: boolean; dark?: boolean };
+const longTitle = "A very long task title ".repeat(7).trim();
+type MockOptions = { failSave?: boolean; conflict?: boolean; failRefresh?: boolean; delayed?: boolean; delayedMutation?: boolean; dark?: boolean; longTitle?: boolean };
 const writes = fn();
 
 function installMock(options: MockOptions = {}) {
   writes.mockClear();
   const original = window.fetch;
   let tasks = structuredClone(initialTasks);
+  if (options.longTitle) { tasks[0].title = longTitle; tasks[0].coins = 1000000; }
   let failSave = options.failSave;
   let conflict = options.conflict;
   let failRefresh = false;
@@ -81,7 +83,7 @@ function installMock(options: MockOptions = {}) {
   return () => { window.fetch = original; };
 }
 
-function TaskStory({ noMembers = false, switchSession = false, boardWidth }: { noMembers?: boolean; switchSession?: boolean; boardWidth?: number }) {
+function TaskStory({ noMembers = false, switchSession = false, boardWidth, avatarPhoto = false }: { noMembers?: boolean; switchSession?: boolean; boardWidth?: number; avatarPhoto?: boolean }) {
   const [householdId, setHouseholdId] = useState("demo");
   const [token, setToken] = useState("storybook-task-session");
   return <div className="app-shell" style={boardWidth ? { width: boardWidth, maxWidth: "100%" } : undefined}>
@@ -89,7 +91,8 @@ function TaskStory({ noMembers = false, switchSession = false, boardWidth }: { n
       <button onClick={() => setHouseholdId("other")}>Switch household</button>
       <button onClick={() => setToken("storybook-task-refreshed-session")}>Refresh session</button>
     </>}
-    <TasksPage householdId={householdId} householdName="The Riverstone household" accessToken={token} members={noMembers ? [] : members}
+    <TasksPage householdId={householdId} householdName="The Riverstone household" accessToken={token}
+      members={noMembers ? [] : avatarPhoto ? members.map((member) => ({ ...member, avatarPhotoUrl: "/family-coin.svg" })) : members}
       currentUserLabel="Alex Riverstone" currentUserEmail="alex@example.com" currentUserInitials="AR" currentUserAvatarUrl={null}
       onOpenAccountSection={fn()} onSignOut={async () => undefined}
       moduleNavigation={<ModuleNavigation activeId="tasks" onNavigate={fn()} />} />
@@ -120,6 +123,16 @@ const editor = async (canvasElement: HTMLElement, name = "Add task") =>
   within(await within(canvasElement.ownerDocument.body).findByRole("dialog", { name }));
 const order = (canvasElement: HTMLElement, status: string) => [...canvasElement.querySelectorAll(`[data-task-column="${status}"] [data-task-card]`)]
   .map((element) => element.getAttribute("data-task-card"));
+const assertRewardHeader = async (card: HTMLElement) => {
+  const reward = card.querySelector<HTMLElement>('[role="img"][aria-label$="coins"]')!;
+  const title = card.querySelector("h3")!.getBoundingClientRect();
+  const coins = reward.getBoundingClientRect();
+  const bounds = card.getBoundingClientRect();
+  await expect(coins.left).toBeGreaterThanOrEqual(title.right);
+  await expect(Math.abs(coins.top - title.top)).toBeLessThan(3);
+  await expect(bounds.right - coins.right).toBeLessThan(30);
+  await expect(card.querySelector('[data-testid="DragIndicatorIcon"]')).toBeNull();
+};
 
 export const TasksBoard: Story = {
   play: async ({ canvasElement }) => {
@@ -134,6 +147,9 @@ export const TasksBoard: Story = {
     await expect(coin).toHaveAttribute("src", `${import.meta.env.BASE_URL}family-coin.svg`);
     await expect(coin).toHaveAttribute("alt", "");
     await waitFor(() => expect(coin.naturalWidth).toBeGreaterThan(0));
+    await assertRewardHeader(canvas.getByRole("article", { name: "Fold laundry" }));
+    await expect(canvas.queryByRole("button", { name: /^Move / })).toBeNull();
+    await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveAttribute("aria-roledescription", "draggable task");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Alex");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Repeats weekly");
     await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveTextContent("Due 02.11.2026");
@@ -273,12 +289,13 @@ export const TasksSavedRefreshFailure: Story = {
 export const TasksKeyboardMoveReorderCancel: Story = {
   play: async ({ canvasElement }) => {
     const canvas = await ready(canvasElement);
-    canvas.getByRole("button", { name: "Move Water plants" }).focus();
+    canvas.getByRole("article", { name: "Water plants" }).focus();
     await userEvent.keyboard("{Enter}{ArrowUp}{Enter}");
     await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
     await waitFor(() => expect(order(canvasElement, "todo")).toEqual(["plants", "laundry"]));
-    await waitFor(() => expect(canvas.getByRole("button", { name: "Move Water plants" })).toBeEnabled());
-    canvas.getByRole("button", { name: "Move Water plants" }).focus();
+    await waitFor(() => expect(canvas.getByRole("article", { name: "Water plants" })).toHaveAttribute("aria-disabled", "false"));
+    await expect(canvas.getByRole("article", { name: "Water plants" })).toHaveFocus();
+    canvas.getByRole("article", { name: "Water plants" }).focus();
     await userEvent.keyboard("{Enter}{ArrowRight}{ArrowRight}{Escape}");
     await expect(order(canvasElement, "done")).toEqual([]);
     await expect(writes).toHaveBeenCalledTimes(1);
@@ -294,9 +311,12 @@ export const TasksPointerMoveReorderTouchCancel: Story = {
     const original = HTMLElement.prototype.setPointerCapture;
     HTMLElement.prototype.setPointerCapture = () => undefined;
     try {
-      const handle = canvas.getByRole("button", { name: "Move Water plants" });
+      const handle = canvas.getByRole("article", { name: "Water plants" });
+      const source = handle.getBoundingClientRect();
       const laundry = canvas.getByRole("article", { name: "Fold laundry" }).getBoundingClientRect();
-      fireEvent.pointerDown(handle, { pointerId: 1, isPrimary: true, button: 0, clientX: laundry.left + 20, clientY: laundry.top + 20 });
+      fireEvent.pointerDown(handle, { pointerId: 1, isPrimary: true, button: 0, clientX: source.left + source.width / 2, clientY: source.top + source.height / 2 });
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+      fireEvent.pointerMove(handle, { pointerId: 1, isPrimary: true, clientX: laundry.left + 20, clientY: laundry.top + 20 });
       const preview = canvasElement.ownerDocument.querySelector<HTMLElement>("[data-task-drag-preview]")!;
       await expect(canvasElement.ownerDocument.querySelectorAll("[data-task-drag-preview]")).toHaveLength(1);
       await expect(preview).toBeVisible();
@@ -315,9 +335,11 @@ export const TasksPointerMoveReorderTouchCancel: Story = {
       fireEvent.pointerUp(handle, { pointerId: 1, isPrimary: true, clientX: laundry.left + 20, clientY: laundry.top + 2 });
       await waitFor(() => expect(order(canvasElement, "todo")).toEqual(["plants", "laundry"]));
       await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
-      await waitFor(() => expect(handle).toBeEnabled());
+      await waitFor(() => expect(handle).toHaveAttribute("aria-disabled", "false"));
       const done = canvas.getByRole("region", { name: "Done" }).getBoundingClientRect();
-      fireEvent.pointerDown(handle, { pointerId: 2, isPrimary: true, pointerType: "touch", button: 0, clientX: laundry.left + 20, clientY: laundry.top + 20 });
+      const moved = handle.getBoundingClientRect();
+      const start = { clientX: moved.left + moved.width / 2, clientY: moved.top + moved.height / 2 };
+      fireEvent.pointerDown(handle, { pointerId: 2, isPrimary: true, pointerType: "touch", button: 0, ...start });
       fireEvent.pointerMove(handle, { pointerId: 2, isPrimary: true, pointerType: "touch", clientX: done.left + 50, clientY: done.top + 100 });
       await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeVisible();
       await expect(canvas.getByRole("region", { name: "Done" })).toHaveAttribute("data-drop-active", "true");
@@ -326,7 +348,7 @@ export const TasksPointerMoveReorderTouchCancel: Story = {
       await expect(canvas.getByRole("region", { name: "Done" })).not.toHaveAttribute("data-drop-active");
       await expect(writes).toHaveBeenCalledTimes(1);
       await expect(order(canvasElement, "done")).toEqual([]);
-      fireEvent.pointerDown(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", button: 0, clientX: laundry.left + 20, clientY: laundry.top + 20 });
+      fireEvent.pointerDown(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", button: 0, ...start });
       fireEvent.pointerMove(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", clientX: done.left + 50, clientY: done.top + 100 });
       fireEvent.pointerUp(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", clientX: done.left + 50, clientY: done.top + 100 });
       await waitFor(() => expect(order(canvasElement, "done")).toEqual(["plants"]));
@@ -338,7 +360,7 @@ export const TasksPointerMoveReorderTouchCancel: Story = {
 export const TasksRecurringCompletion: Story = {
   play: async ({ canvasElement }) => {
     const canvas = await ready(canvasElement);
-    canvas.getByRole("button", { name: "Move Set the table" }).focus();
+    canvas.getByRole("article", { name: "Set the table" }).focus();
     await userEvent.keyboard("{Enter}{ArrowRight}{Enter}");
     await waitFor(() => expect(order(canvasElement, "done")).toEqual(["table"]));
     await expect(order(canvasElement, "todo")).toContain("table-next");
@@ -358,7 +380,7 @@ export const TasksPointerOutsideNoOpAndKeyboardInterference: Story = {
     const original = HTMLElement.prototype.setPointerCapture;
     HTMLElement.prototype.setPointerCapture = () => undefined;
     try {
-      const handle = canvas.getByRole("button", { name: "Move Water plants" });
+      const handle = canvas.getByRole("article", { name: "Water plants" });
       const rect = handle.getBoundingClientRect();
       const x = rect.left + rect.width / 2;
       const y = rect.top + rect.height / 2;
@@ -368,7 +390,7 @@ export const TasksPointerOutsideNoOpAndKeyboardInterference: Story = {
       const done = canvas.getByRole("region", { name: "Done" }).getBoundingClientRect();
       fireEvent.pointerDown(handle, { pointerId: 5, isPrimary: true, button: 0, clientX: x, clientY: y });
       fireEvent.pointerMove(handle, { pointerId: 5, isPrimary: true, clientX: done.left + 50, clientY: done.top + 100 });
-      fireEvent.keyDown(canvas.getByRole("button", { name: "Move Fold laundry" }), { key: "Enter" });
+      fireEvent.keyDown(canvas.getByRole("article", { name: "Fold laundry" }), { key: "Enter" });
       fireEvent.keyDown(handle, { key: "Enter" });
       await expect(writes).not.toHaveBeenCalled();
       await expect(canvas.getByRole("img", { name: "Drop in Done, position 1" })).toBeVisible();
@@ -390,12 +412,12 @@ export const TasksMoveFailureRetry: Story = {
   parameters: { taskMock: { failSave: true } },
   play: async ({ canvasElement }) => {
     const canvas = await ready(canvasElement);
-    canvas.getByRole("button", { name: "Move Water plants" }).focus();
+    canvas.getByRole("article", { name: "Water plants" }).focus();
     await userEvent.keyboard("{Enter}{ArrowRight}{Enter}");
     await expect(await canvas.findByRole("alert")).toHaveTextContent("Task service unavailable");
     await expect(order(canvasElement, "todo")).toEqual(["laundry", "plants"]);
-    await waitFor(() => expect(canvas.getByRole("button", { name: "Move Water plants" })).toBeEnabled());
-    await expect(canvas.getByRole("button", { name: "Move Water plants" })).toHaveFocus();
+    await waitFor(() => expect(canvas.getByRole("article", { name: "Water plants" })).toHaveAttribute("aria-disabled", "false"));
+    await expect(canvas.getByRole("article", { name: "Water plants" })).toHaveFocus();
     await userEvent.keyboard("{Enter}{ArrowRight}{Enter}");
     await waitFor(() => expect(order(canvasElement, "in_progress")).toEqual(["table", "plants"]));
   },
@@ -405,10 +427,11 @@ export const TasksBusyLockAndSessionCancellation: Story = {
   parameters: { taskMock: { delayedMutation: true } },
   play: async ({ canvasElement }) => {
     const canvas = await ready(canvasElement);
-    canvas.getByRole("button", { name: "Move Water plants" }).focus();
+    canvas.getByRole("article", { name: "Water plants" }).focus();
     await userEvent.keyboard("{Enter}{ArrowRight}{Enter}");
     await expect(canvas.getByRole("button", { name: "Add task" })).toBeDisabled();
     await expect(canvas.getByRole("button", { name: "Edit Fold laundry" })).toBeDisabled();
+    await expect(canvas.getByRole("article", { name: "Fold laundry" })).toHaveAttribute("aria-disabled", "true");
     await userEvent.click(canvas.getByRole("button", { name: "Switch household" }));
     await waitFor(() => expect(canvas.getByRole("button", { name: "Add task" })).toBeEnabled());
     await new Promise((resolve) => setTimeout(resolve, 450));
@@ -434,5 +457,126 @@ export const TasksSessionIsolation: Story = {
     await waitFor(() => expect(canvas.getByRole("button", { name: "Add task" })).toBeEnabled());
     await userEvent.click(canvas.getByRole("button", { name: "Add task" }));
     await expect((await editor(canvasElement)).getByRole("textbox", { name: "Title" })).toHaveValue("");
+  },
+};
+
+export const TasksWholeCardDragAreas: Story = {
+  args: { avatarPhoto: true },
+  play: async ({ canvasElement }) => {
+    const canvas = await ready(canvasElement);
+    const card = canvas.getByRole("article", { name: "Fold laundry" });
+    const avatar = await within(card).findByRole("img", { name: "Alex" });
+    await waitFor(() => expect((avatar as HTMLImageElement).naturalWidth).toBeGreaterThan(0));
+    await expect(avatar).toHaveAttribute("draggable", "false");
+    const original = HTMLElement.prototype.setPointerCapture;
+    HTMLElement.prototype.setPointerCapture = () => undefined;
+    try {
+      const areas = [
+        card.querySelector("h3")!,
+        avatar,
+        within(card).getByRole("img", { name: "5 coins" }).querySelector("img")!,
+        within(card).getByText(/Due 02.11.2026/),
+      ];
+      for (const [index, area] of areas.entries()) {
+        const bounds = area.getBoundingClientRect();
+        const start = { clientX: bounds.left + bounds.width / 2, clientY: bounds.top + bounds.height / 2 };
+        const pointer = { pointerId: 20 + index, isPrimary: true, button: 0 };
+        fireEvent.pointerDown(area, { ...pointer, ...start });
+        await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+        fireEvent.pointerMove(card, { ...pointer, clientX: start.clientX + 5, clientY: start.clientY });
+        await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+        fireEvent.pointerMove(card, { ...pointer, clientX: start.clientX + 10, clientY: start.clientY });
+        const preview = canvasElement.ownerDocument.querySelector<HTMLElement>("[data-task-drag-preview]")!;
+        await expect(canvasElement.ownerDocument.querySelectorAll("[data-task-drag-preview]")).toHaveLength(1);
+        await expect(preview).toBeVisible();
+        await expect(preview).toHaveTextContent("Fold laundry");
+        await expect(preview.querySelector('[data-testid="DragIndicatorIcon"]')).toBeNull();
+        fireEvent.pointerCancel(card, pointer);
+        await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+      }
+      await expect(writes).not.toHaveBeenCalled();
+      await expect(card.querySelector("img")).toHaveAttribute("draggable", "false");
+      await expect(fireEvent.dragStart(card.querySelector("img")!)).toBe(false);
+      await expect(fireEvent.dragStart(avatar)).toBe(false);
+    } finally { HTMLElement.prototype.setPointerCapture = original; }
+  },
+};
+
+export const TasksBottomHalfTapNoOp: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = await ready(canvasElement);
+    const card = canvas.getByRole("article", { name: "Fold laundry" });
+    const bounds = card.getBoundingClientRect();
+    const original = HTMLElement.prototype.setPointerCapture;
+    HTMLElement.prototype.setPointerCapture = () => undefined;
+    try {
+      for (const [index, pointerType] of ["mouse", "touch"].entries()) {
+        const pointer = { pointerId: 30 + index, pointerType, isPrimary: true, button: 0, clientX: bounds.left + 20, clientY: bounds.bottom - 10 };
+        fireEvent.pointerDown(card, pointer);
+        fireEvent.pointerMove(card, { ...pointer, clientY: pointer.clientY - 2 });
+        fireEvent.pointerUp(card, pointer);
+        await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+        await expect(canvasElement.querySelector("[data-insertion-marker]")).toBeNull();
+      }
+      fireEvent.pointerDown(card, { pointerId: 32, isPrimary: true, button: 0, clientX: bounds.left + 20, clientY: bounds.bottom - 10 });
+      fireEvent.pointerCancel(card, { pointerId: 32 });
+      await expect(writes).not.toHaveBeenCalled();
+      await expect(order(canvasElement, "todo")).toEqual(["laundry", "plants"]);
+    } finally { HTMLElement.prototype.setPointerCapture = original; }
+  },
+};
+
+export const TasksActionsDoNotDrag: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = await ready(canvasElement);
+    const close = async (name: string) => {
+      await userEvent.click((await editor(canvasElement, name)).getByRole("button", { name: "Cancel" }));
+      await waitFor(() => expect(within(canvasElement.ownerDocument.body).queryByRole("dialog")).toBeNull());
+      await waitFor(() => expect(canvas.getByRole("button", { name: "Edit Fold laundry" })).toBeVisible());
+    };
+    for (const [action, dialogName] of [["Edit", "Edit task"], ["Delete", "Delete task?"]]) {
+      const button = canvas.getByRole("button", { name: `${action} Fold laundry` });
+      const bounds = button.getBoundingClientRect();
+      const pointer = { pointerId: 40, isPrimary: true, button: 0, clientX: bounds.left + 10, clientY: bounds.top + 10 };
+      fireEvent.pointerDown(button, pointer);
+      fireEvent.pointerMove(button, { ...pointer, clientX: pointer.clientX + 20 });
+      fireEvent.pointerUp(button, pointer);
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+      await userEvent.click(button);
+      await close(dialogName);
+      button.focus();
+      await userEvent.keyboard("{Enter}");
+      await close(dialogName);
+      button.focus();
+      await userEvent.keyboard(" ");
+      await close(dialogName);
+      await expect(canvasElement.querySelector("[data-insertion-marker]")).toBeNull();
+    }
+    await expect(writes).not.toHaveBeenCalled();
+  },
+};
+
+export const TasksLongTitleRewardHeader: Story = {
+  args: { boardWidth: 390 },
+  parameters: { taskMock: { longTitle: true } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const card = await canvas.findByRole("article", { name: longTitle });
+    await waitFor(() => expect(card).toHaveAttribute("aria-disabled", "false"));
+    await assertRewardHeader(card);
+    const original = HTMLElement.prototype.setPointerCapture;
+    HTMLElement.prototype.setPointerCapture = () => undefined;
+    try {
+      const rect = card.getBoundingClientRect();
+      const pointer = { pointerId: 50, isPrimary: true, button: 0, clientX: rect.left + 30, clientY: rect.top + 30 };
+      fireEvent.pointerDown(card.querySelector("h3")!, pointer);
+      fireEvent.pointerMove(card, { ...pointer, clientX: pointer.clientX + 10 });
+      const preview = canvasElement.ownerDocument.querySelector<HTMLElement>("[data-task-drag-preview]")!;
+      // Rotation is cosmetic; inspect the shared header's unrotated layout.
+      preview.style.transform = "none";
+      await assertRewardHeader(preview);
+      fireEvent.pointerCancel(card, pointer);
+      await expect(writes).not.toHaveBeenCalled();
+    } finally { HTMLElement.prototype.setPointerCapture = original; }
   },
 };

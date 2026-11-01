@@ -68,7 +68,7 @@ See [Shop & Cook integration](modules/ARCHITECTURE.md#shop--cook-implementation)
 
 ## Tasks — member-assigned Kanban implemented
 
-The Tasks workspace supports creating, editing, and deleting household tasks assigned to one family member, with a non-negative integer coin reward and an optional due date. Cards show the title, coins, and member avatar. Mouse and touch drag handles move cards between **To do**, **In progress**, and **Done**, and reorder cards within a column; keyboard controls provide the same operations. Board state and ordering persist through the household-scoped API.
+The Tasks workspace supports creating, editing, and deleting household tasks assigned to one family member, with a non-negative integer coin reward and an optional due date. Cards show the title, top-right coin reward, and member avatar. Drag anywhere on a card (except its edit/delete controls) with a mouse or touch to move between **To do**, **In progress**, and **Done**, or reorder within a column; keyboard controls on the focused card provide the same operations. Board state and ordering persist through the household-scoped API.
 
 Tasks can be single, daily, or weekly. Recurring tasks require a due date. The first completion preserves the completed occurrence and creates the next dated occurrence in To do; reopening and completing it again does not create another copy. Recurrence is date-based, not an elapsed-hours timer, and no background job is required.
 
