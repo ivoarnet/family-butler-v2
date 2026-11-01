@@ -102,13 +102,13 @@ The API base is `/api/households/{householdId}/tasks`; all access requires the e
 
 | Method/resource | Behavior |
 | --- | --- |
-| `GET` base | Returns `{ tasks, leaderboard }`, ordered by status, persisted position, and ID. Leaderboard entries include all tied leaders for the current UTC week and month. Optional `memberId`, `status` (including `open`), and paired inclusive `startDate`/`endDate` filters support future projections. Date-filtered reads exclude undated tasks. |
+| `GET` base | Returns `{ tasks, leaderboard }`, ordered by status, persisted position, and ID. The leaderboard returns the top three members by coins for the current UTC week and month, with member ID as the tie-breaker. Optional `memberId`, `status` (including `open`), and paired inclusive `startDate`/`endDate` filters support future projections. Date-filtered reads exclude undated tasks. |
 | `POST` base | Creates `{ title, memberId, coins, dueDate, repeatRule }`; optional client UUID `id` supports retry identity. |
 | `PUT` base | Edits a task using `{ id, revision, title, memberId, coins, dueDate, repeatRule }`. |
 | `DELETE` base | Deletes an occurrence using `{ id, revision }`, not an entire series. |
 | `POST move` | Moves `{ id, revision, status, beforeId }`; a null/omitted `beforeId` appends, otherwise inserts before a same-household card in the destination column. |
 
-Commands execute atomically through the provider's database function; positions are recalculated under a household lock. Expected revisions reject stale task edits rather than silently overwriting them. Completion stores an immutable coin earning with task/member snapshots; an occurrence is only awarded once, and a recurring series can be completed once per UTC day/week. The first transition of a daily/weekly occurrence to Done creates one next occurrence, copied from its current reward/assignee/title and dated one/seven calendar days after its due date. No catch-up horizon or timer is implemented: only the next occurrence is generated. See [data model](../DATA_MODEL.md#tasks) for recurrence and history rules.
+Commands execute atomically through the provider's database function; positions are recalculated under a household lock. Expected revisions reject stale task edits rather than silently overwriting them. Completion stores an immutable coin earning with task/member snapshots in a generic household earnings ledger; an occurrence is only awarded once, and a recurring series can be completed once per UTC day/week. The first transition of a daily/weekly occurrence to Done creates one next occurrence, copied from its current reward/assignee/title and dated one/seven calendar days after its due date. No catch-up horizon or timer is implemented: only the next occurrence is generated. See [data model](../DATA_MODEL.md#tasks) for recurrence and history rules.
 
 Spendable coin balances, cross-module outbox, Calendar rendering, and agent tools are not added. The future integration contracts above remain design guidance, not shipped behavior.
 

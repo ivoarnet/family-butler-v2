@@ -46,8 +46,16 @@ function installMock(options: MockOptions = {}) {
       return response({
         tasks: url.pathname.includes("/other/") ? [] : tasks,
         leaderboard: {
-          week: [{ memberId: "alex", firstName: "Alex", avatarColor: "#3b82f6", coins: 7 }],
-          month: [{ memberId: "sam", firstName: "Sam", avatarColor: "#f97316", coins: 12 }],
+          week: [
+            { memberId: "alex", firstName: "Alex", avatarColor: "#3b82f6", coins: 7 },
+            { memberId: "sam", firstName: "Sam", avatarColor: "#f97316", coins: 5 },
+            { memberId: "jordan", firstName: "Jordan", avatarColor: "#ec4899", coins: 3 },
+          ],
+          month: [
+            { memberId: "sam", firstName: "Sam", avatarColor: "#f97316", coins: 12 },
+            { memberId: "alex", firstName: "Alex", avatarColor: "#3b82f6", coins: 9 },
+            { memberId: "jordan", firstName: "Jordan", avatarColor: "#ec4899", coins: 6 },
+          ],
         },
       });
     }
@@ -186,12 +194,18 @@ export const TaskCoinLeaderboards: Story = {
   play: async ({ canvasElement }) => {
     const canvas = await ready(canvasElement);
     const region = canvas.getByRole("region", { name: "Task leaderboards" });
-    const week = within(region).getByRole("region", { name: "This week leader" });
-    const month = within(region).getByRole("region", { name: "This month leader" });
+    const week = within(region).getByRole("region", { name: "This week top 3 leader" });
+    const month = within(region).getByRole("region", { name: "This month top 3 leader" });
     await expect(within(week).getByText("Alex")).toBeVisible();
     await expect(within(week).getByRole("img", { name: "7 coins earned" })).toBeVisible();
+    await expect(within(week).getByText("Sam")).toBeVisible();
+    await expect(within(week).getByText("Jordan")).toBeVisible();
+    await expect(within(week).getByLabelText("Rank 3")).toBeVisible();
     await expect(within(month).getByText("Sam")).toBeVisible();
     await expect(within(month).getByRole("img", { name: "12 coins earned" })).toBeVisible();
+    await expect(within(month).getByText("Alex")).toBeVisible();
+    await expect(within(month).getByText("Jordan")).toBeVisible();
+    await expect(within(month).getByLabelText("Rank 3")).toBeVisible();
   },
 };
 export const TasksDarkBoard: Story = { ...TasksBoard, parameters: { taskMock: { dark: true } } };

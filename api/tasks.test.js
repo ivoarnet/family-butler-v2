@@ -15,6 +15,8 @@ const id = "00000000-0000-0000-0000-000000000004";
 const otherHousehold = "00000000-0000-0000-0000-000000000005";
 const otherMember = "00000000-0000-0000-0000-000000000006";
 const secondMember = "00000000-0000-0000-0000-000000000007";
+const thirdMember = "00000000-0000-0000-0000-000000000008";
+const fourthMember = "00000000-0000-0000-0000-000000000009";
 const task = { title: "Clean room", memberId, coins: 5, dueDate: "2026-11-01", repeatRule: "none" };
 const emptyLeaderboard = { week: [], month: [] };
 const invoke = async (handler, method, body, resource, query, household = householdId) => {
@@ -183,12 +185,26 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
     create table public.households(id uuid primary key, created_by_user_id uuid not null);
     create table public.household_members(id uuid primary key, household_id uuid not null references public.households(id) on delete cascade,
       first_name text not null, avatar_color text);
+    create table public.household_task_coin_earnings (
+      id uuid primary key default gen_random_uuid(), household_id uuid not null references public.households(id) on delete cascade,
+      task_id uuid not null, series_id uuid, member_id uuid not null, member_name text not null, avatar_color text,
+      task_title text not null, coins integer not null, period_start date not null, earned_at timestamptz not null default now()
+    );
+    create unique index household_task_coin_earnings_task on public.household_task_coin_earnings (household_id, task_id);
+    create unique index household_task_coin_earnings_series_period
+      on public.household_task_coin_earnings (household_id, series_id, period_start) where series_id is not null;
+    create index household_task_coin_earnings_period
+      on public.household_task_coin_earnings (household_id, earned_at, member_id);
     create table public.tasks(id uuid primary key, title text not null);
     insert into public.tasks values ('${id}', 'Unowned legacy global task');
     alter table public.tasks enable row level security;
     insert into public.households values ('${householdId}', '${ownerId}'), ('${otherHousehold}', '${otherHousehold}');
     insert into public.household_members values ('${memberId}', '${householdId}', 'Alex', '#3b82f6'),
-      ('${secondMember}', '${householdId}', 'Sam', '#f97316'), ('${otherMember}', '${otherHousehold}', 'Other', '#7c3aed');
+      ('${secondMember}', '${householdId}', 'Sam', '#f97316'), ('${thirdMember}', '${householdId}', 'Jordan', '#ec4899'),
+      ('${fourthMember}', '${householdId}', 'Casey', '#7c3aed'), ('${otherMember}', '${otherHousehold}', 'Other', '#7c3aed');
+    insert into public.household_task_coin_earnings
+      (household_id, task_id, member_id, member_name, avatar_color, task_title, coins, period_start)
+      values ('${householdId}', '${id}', '${memberId}', 'Alex', '#3b82f6', 'Migrated earning', 1, current_date);
     grant select on public.households to authenticated;
   `);
   for (let run = 0; run < 2; run++) execFileSync("psql", [...args, "-d", database], {
@@ -212,10 +228,13 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
     const current = (await snapshot()).find((card) => card.id === taskId);
     return mutate("move", { id: taskId, revision: current.revision, status, beforeId });
   };
-  const clear = () => sql("delete from public.household_task_coin_earnings; delete from public.household_tasks");
+  const clear = () => sql("delete from public.household_coin_earnings; delete from public.household_tasks");
 
   await t.test("migration leaves incompatible global Tasks untouched, inaccessible and entirely outside the new API", async () => {
     assert.equal(sql("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'tasks'"), "2");
+    assert.equal(sql("select to_regclass('public.household_task_coin_earnings') is null"), "t");
+    assert.equal(sql(`select source_type || ':' || source_id::text || ':' || source_label
+      from public.household_coin_earnings where source_id = '${id}'`), `task:${id}:Migrated earning`);
     assert.deepEqual(await snapshot(), []);
     assert.equal(command("update", { ...task, id, revision: 0 }).status, 404);
     assert.equal(command("delete", { id, revision: 0 }).status, 404);
@@ -366,7 +385,7 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
     assert.equal(editedRows.find((card) => card.id !== editable).dueDate, "2026-11-02");
   });
 
-  await t.test("coin earnings persist once per occurrence and weekly/monthly leaderboards include ties", async () => {
+  await t.test("coin earnings persist once per occurrence and leaderboards show the top three including ties", async () => {
     clear();
     const recurring = await create({ repeatRule: "weekly" });
     await move(recurring, "done");
@@ -375,19 +394,32 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
 
     const second = await create({ memberId: secondMember });
     await move(second, "done");
+    const third = await create({ memberId: thirdMember, coins: 3 });
+    await move(third, "done");
+    const fourth = await create({ memberId: fourthMember, coins: 2 });
+    await move(fourth, "done");
     const expected = [
       { memberId, firstName: "Alex", avatarColor: "#3b82f6", coins: 5 },
       { memberId: secondMember, firstName: "Sam", avatarColor: "#f97316", coins: 5 },
+      { memberId: thirdMember, firstName: "Jordan", avatarColor: "#ec4899", coins: 3 },
     ];
     const leaders = command("read").leaderboard;
     assert.deepEqual(leaders.week, expected);
     assert.deepEqual(leaders.month, expected);
-    assert.equal(sql("select count(*) from public.household_task_coin_earnings"), "2");
+    assert.equal(sql("select count(*) from public.household_coin_earnings"), "4");
+    sql(`insert into public.household_coin_earnings
+      (household_id, source_type, source_id, member_id, member_name, source_label, coins, period_start, earned_at)
+      values ('${householdId}', 'event', '${randomUUID()}', '${fourthMember}', 'Casey', 'Birthday bonus', 1,
+        current_date, now() - interval '2 months')`);
+    assert.equal(sql(`select task_id is null and source_label = 'Birthday bonus'
+      from public.household_coin_earnings where source_type = 'event'`), "t",
+      "the generic ledger accepts non-task earnings without task-only fields");
+    assert.deepEqual(command("read").leaderboard.week, expected, "only earnings in the current week count");
 
     await mutate("update", { ...task, id: recurring, revision: 1, repeatRule: "weekly", coins: 10, status: "done" });
     assert.deepEqual(command("read").leaderboard.week, expected, "later task edits do not rewrite earned coins");
     await mutate("delete", { id: second, revision: 1 });
-    assert.equal(sql(`select coins from public.household_task_coin_earnings where task_id = '${second}'`), "5",
+    assert.equal(sql(`select coins from public.household_coin_earnings where task_id = '${second}'`), "5",
       "deleting a task does not delete its earnings record");
   });
 

@@ -25,7 +25,7 @@ Metadata/settings and local-list handlers defer SDK loading, so an optional clie
 
 ## Tasks
 
-After the core household schema and `docs/sql/core-access-policy.sql`, run `docs/sql/tasks.sql` in the Supabase SQL Editor before deploying the updated API/frontend. It creates household-scoped task and coin-earning history, indexes, access policies, and the transactional command used for edits, ordering, recurrence, awards, and leaderboard reads. No new Azure resources, packages, timers, or secrets are required.
+After the core household schema and `docs/sql/core-access-policy.sql`, run `docs/sql/tasks.sql` in the Supabase SQL Editor before deploying the updated API/frontend. It creates household-scoped task storage and a source-neutral coin-earning ledger, indexes, access policies, and the transactional command used for edits, ordering, recurrence, awards, and leaderboard reads. It also upgrades the task-specific coin ledger if the previous version was applied. No new Azure resources, packages, timers, or secrets are required.
 
 Existing global `public.tasks` records are deliberately not migrated: they lack trustworthy household ownership. The new API never reads them. The migration is repeatable and does not change existing calendar data. Task assignment references a member in the same household; reassign/delete that member's tasks before deleting or transferring the member.
 

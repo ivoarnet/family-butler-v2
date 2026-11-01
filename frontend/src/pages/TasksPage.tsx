@@ -186,15 +186,16 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
         display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2,
       }}>
         {([
-          ["This week", leaderboard.week],
-          ["This month", leaderboard.month],
+          ["This week top 3", leaderboard.week],
+          ["This month top 3", leaderboard.month],
         ] as const).map(([period, leaders]) => <Box key={period} className="settings-card" component="section" aria-label={`${period} leader`}>
-          <Typography component="h2" variant="h6" sx={{ mb: 1.5 }}>{period} leader</Typography>
+          <Typography component="h2" variant="h6" sx={{ mb: 1.5 }}>{period}</Typography>
           {leaders.length ? <Stack sx={{ gap: 1 }}>
-            {leaders.map((leader) => {
+            {leaders.map((leader, index) => {
               const member = members.find((item) => item.id === leader.memberId);
               const name = member?.firstName ?? leader.firstName;
               return <Stack key={leader.memberId} direction="row" sx={{ alignItems: "center", gap: 1 }}>
+                <Typography aria-label={`Rank ${index + 1}`} sx={{ width: 20, fontWeight: 700 }}>{index + 1}</Typography>
                 <Avatar src={member?.avatarPhotoUrl} alt={name} slotProps={{ img: { draggable: false } }}
                   sx={{ bgcolor: normalizeMemberColor(member?.avatarColor ?? leader.avatarColor ?? undefined), width: 36, height: 36 }}>
                   {name.charAt(0)}
