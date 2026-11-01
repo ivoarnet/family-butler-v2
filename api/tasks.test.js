@@ -204,7 +204,7 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
       ('${fourthMember}', '${householdId}', 'Casey', '#7c3aed'), ('${otherMember}', '${otherHousehold}', 'Other', '#7c3aed');
     insert into public.household_task_coin_earnings
       (household_id, task_id, member_id, member_name, avatar_color, task_title, coins, period_start)
-      values ('${householdId}', '${id}', '${memberId}', 'Alex', '#3b82f6', 'Migrated earning', 1, current_date);
+      values ('${householdId}', '${id}', '${memberId}', 'Old Alex', '#000000', 'Legacy task title', 1, current_date);
     grant select on public.households to authenticated;
   `);
   for (let run = 0; run < 2; run++) execFileSync("psql", [...args, "-d", database], {
@@ -233,8 +233,14 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
   await t.test("migration leaves incompatible global Tasks untouched, inaccessible and entirely outside the new API", async () => {
     assert.equal(sql("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'tasks'"), "2");
     assert.equal(sql("select to_regclass('public.household_task_coin_earnings') is null"), "t");
-    assert.equal(sql(`select source_type || ':' || source_id::text || ':' || source_label
-      from public.household_coin_earnings where source_id = '${id}'`), `task:${id}:Migrated earning`);
+    assert.equal(sql(`select source_type || ':' || source_id::text
+      from public.household_coin_earnings where source_id = '${id}'`), `task:${id}`);
+    assert.equal(sql(`select count(*) from information_schema.columns where table_schema = 'public'
+      and table_name = 'household_coin_earnings'
+      and column_name in ('task_title', 'member_name', 'avatar_color', 'source_label', 'task_id')`), "0");
+    assert.deepEqual(command("read").leaderboard.week, [
+      { memberId, firstName: "Alex", avatarColor: "#3b82f6", coins: 1 },
+    ], "leaderboard uses the current household member details rather than migrated snapshots");
     assert.deepEqual(await snapshot(), []);
     assert.equal(command("update", { ...task, id, revision: 0 }).status, 404);
     assert.equal(command("delete", { id, revision: 0 }).status, 404);
@@ -408,19 +414,23 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
     assert.deepEqual(leaders.month, expected);
     assert.equal(sql("select count(*) from public.household_coin_earnings"), "4");
     sql(`insert into public.household_coin_earnings
-      (household_id, source_type, source_id, member_id, member_name, source_label, coins, period_start, earned_at)
-      values ('${householdId}', 'event', '${randomUUID()}', '${fourthMember}', 'Casey', 'Birthday bonus', 1,
+      (household_id, source_type, source_id, member_id, coins, period_start, earned_at)
+      values ('${householdId}', 'event', '${randomUUID()}', '${fourthMember}', 1,
         current_date, now() - interval '2 months')`);
-    assert.equal(sql(`select task_id is null and source_label = 'Birthday bonus'
-      from public.household_coin_earnings where source_type = 'event'`), "t",
-      "the generic ledger accepts non-task earnings without task-only fields");
+    assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'event'`), "1",
+      "the generic ledger accepts non-task earnings without task-only data");
     assert.deepEqual(command("read").leaderboard.week, expected, "only earnings in the current week count");
 
     await mutate("update", { ...task, id: recurring, revision: 1, repeatRule: "weekly", coins: 10, status: "done" });
     assert.deepEqual(command("read").leaderboard.week, expected, "later task edits do not rewrite earned coins");
     await mutate("delete", { id: second, revision: 1 });
-    assert.equal(sql(`select coins from public.household_coin_earnings where task_id = '${second}'`), "5",
+    assert.equal(sql(`select coins from public.household_coin_earnings where source_type = 'task' and source_id = '${second}'`), "5",
       "deleting a task does not delete its earnings record");
+    sql(`delete from public.household_tasks where id = '${second}';
+      delete from public.household_members where id = '${secondMember}'`);
+    assert.deepEqual(command("read").leaderboard.week[1], {
+      memberId: secondMember, firstName: "Former member", avatarColor: null, coins: 5,
+    }, "earnings remain attributed after the task and member are deleted");
   });
 
   await t.test("SQL rejects malformed service calls and composite FK rejects cross-household membership", async () => {

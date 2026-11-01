@@ -2,7 +2,7 @@
 
 ## Unreleased
 
-- Added an immutable, source-neutral household coin-earnings ledger, daily/weekly recurrence period limits, and top-three current week/month leaderboards on the Tasks board. Updated screenshot: `docs/screenshots/tasks-leaderboard.png`.
+- Added an immutable, source-neutral household coin-earnings ledger, daily/weekly recurrence period limits, and top-three current week/month leaderboards on the Tasks board. Leaderboards display current member profile details without duplicating them in the ledger. Updated screenshot: `docs/screenshots/tasks-leaderboard.png`.
 
 - Reorganized the mobile Tasks board into In progress, To do, and Done lanes, added compact card status badges, and enabled status changes when editing tasks. Updated screenshot: `docs/screenshots/tasks-kanban-mobile.png`.
 

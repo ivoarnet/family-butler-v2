@@ -63,33 +63,45 @@ create table if not exists public.household_coin_earnings (
   household_id uuid not null references public.households(id) on delete cascade,
   source_type text not null check (length(source_type) between 1 and 64),
   source_id uuid not null,
-  task_id uuid,
   series_id uuid,
   member_id uuid not null,
-  member_name text not null,
-  avatar_color text,
-  source_label text not null,
   coins integer not null check (coins between 0 and 1000000),
   period_start date not null,
   earned_at timestamptz not null default clock_timestamp()
 );
 alter table public.household_coin_earnings add column if not exists source_type text;
 alter table public.household_coin_earnings add column if not exists source_id uuid;
-alter table public.household_coin_earnings add column if not exists source_label text;
+update public.household_coin_earnings set source_type = 'task' where source_type is null;
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'task_id') then
+    update public.household_coin_earnings set source_id = task_id where source_id is null;
+  end if;
+end $$;
+alter table public.household_coin_earnings alter column source_type set not null;
+alter table public.household_coin_earnings alter column source_id set not null;
 do $$ begin
   if exists (select 1 from information_schema.columns where table_schema = 'public'
     and table_name = 'household_coin_earnings' and column_name = 'task_title') then
-    execute 'update public.household_coin_earnings set source_label = task_title where source_label is null';
     alter table public.household_coin_earnings drop column task_title;
   end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'member_name') then
+    alter table public.household_coin_earnings drop column member_name;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'avatar_color') then
+    alter table public.household_coin_earnings drop column avatar_color;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'source_label') then
+    alter table public.household_coin_earnings drop column source_label;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'task_id') then
+    alter table public.household_coin_earnings drop column task_id;
+  end if;
 end $$;
-update public.household_coin_earnings set source_type = 'task' where source_type is null;
-update public.household_coin_earnings set source_id = task_id where source_id is null;
-update public.household_coin_earnings set source_label = 'Task completion' where source_label is null;
-alter table public.household_coin_earnings alter column source_type set not null;
-alter table public.household_coin_earnings alter column source_id set not null;
-alter table public.household_coin_earnings alter column source_label set not null;
-alter table public.household_coin_earnings alter column task_id drop not null;
 do $$ begin
   if not exists (select 1 from pg_constraint where conrelid = 'public.household_coin_earnings'::regclass
     and conname = 'household_coin_earnings_source_type_check') then
@@ -128,8 +140,6 @@ declare
   v_rows jsonb;
   v_leaderboard jsonb;
   v_period_start date;
-  v_member_name text;
-  v_avatar_color text;
   v_uuid constant text := '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 begin
   -- Owner verification is repeated inside the transaction to close the HTTP auth/write race.
@@ -192,15 +202,19 @@ begin
       select date_trunc('week', now() at time zone 'UTC') at time zone 'UTC' as week_start,
         date_trunc('month', now() at time zone 'UTC') at time zone 'UTC' as month_start
     ), week_totals as (
-      select e.member_id, max(e.member_name) as member_name, max(e.avatar_color) as avatar_color,
+      select e.member_id, coalesce(max(m.first_name), 'Former member') as first_name,
+        max(m.avatar_color) as avatar_color,
         sum(e.coins) as coins
       from public.household_coin_earnings e cross join boundaries b
+      left join public.household_members m on m.id = e.member_id and m.household_id = e.household_id
       where e.household_id = p_household and e.earned_at >= b.week_start
       group by e.member_id having sum(e.coins) > 0
     ), month_totals as (
-      select e.member_id, max(e.member_name) as member_name, max(e.avatar_color) as avatar_color,
+      select e.member_id, coalesce(max(m.first_name), 'Former member') as first_name,
+        max(m.avatar_color) as avatar_color,
         sum(e.coins) as coins
       from public.household_coin_earnings e cross join boundaries b
+      left join public.household_members m on m.id = e.member_id and m.household_id = e.household_id
       where e.household_id = p_household and e.earned_at >= b.month_start
       group by e.member_id having sum(e.coins) > 0
     ), week_ranked as (
@@ -209,9 +223,9 @@ begin
       select *, row_number() over (order by coins desc, member_id) as position from month_totals
     )
     select jsonb_build_object(
-      'week', coalesce((select jsonb_agg(jsonb_build_object('memberId', member_id, 'firstName', member_name,
+      'week', coalesce((select jsonb_agg(jsonb_build_object('memberId', member_id, 'firstName', first_name,
         'avatarColor', avatar_color, 'coins', coins) order by position) from week_ranked where position <= 3), '[]'::jsonb),
-      'month', coalesce((select jsonb_agg(jsonb_build_object('memberId', member_id, 'firstName', member_name,
+      'month', coalesce((select jsonb_agg(jsonb_build_object('memberId', member_id, 'firstName', first_name,
         'avatarColor', avatar_color, 'coins', coins) order by position) from month_ranked where position <= 3), '[]'::jsonb)
     ) into v_leaderboard;
     return jsonb_build_object('tasks', v_rows, 'leaderboard', v_leaderboard);
@@ -329,14 +343,10 @@ begin
     else
       v_period_start := (clock_timestamp() at time zone 'UTC')::date;
     end if;
-    select first_name, avatar_color into v_member_name, v_avatar_color
-      from public.household_members where household_id = p_household and id = t.member_id;
     insert into public.household_coin_earnings (
-      household_id, source_type, source_id, task_id, series_id, member_id, member_name,
-      avatar_color, source_label, coins, period_start
+      household_id, source_type, source_id, series_id, member_id, coins, period_start
     ) values (
-      p_household, 'task', t.id, t.id, t.series_id, t.member_id, v_member_name,
-      v_avatar_color, t.title, t.coins, v_period_start
+      p_household, 'task', t.id, t.series_id, t.member_id, t.coins, v_period_start
     ) on conflict (household_id, source_type, source_id) do nothing;
   end if;
 
