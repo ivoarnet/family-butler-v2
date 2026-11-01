@@ -14,7 +14,9 @@ const memberId = "00000000-0000-0000-0000-000000000003";
 const id = "00000000-0000-0000-0000-000000000004";
 const otherHousehold = "00000000-0000-0000-0000-000000000005";
 const otherMember = "00000000-0000-0000-0000-000000000006";
+const secondMember = "00000000-0000-0000-0000-000000000007";
 const task = { title: "Clean room", memberId, coins: 5, dueDate: "2026-11-01", repeatRule: "none" };
+const emptyLeaderboard = { week: [], month: [] };
 const invoke = async (handler, method, body, resource, query, household = householdId) => {
   const context = {};
   await handler(context, { method, params: { householdId: household, resource }, body, query });
@@ -22,7 +24,7 @@ const invoke = async (handler, method, body, resource, query, household = househ
 };
 const store = () => ({
   getTasksHousehold: async () => ({ id: householdId }),
-  getTasks: async () => [],
+  getTasks: async () => ({ tasks: [], leaderboard: emptyLeaderboard }),
   mutateTasks: async () => ({ ok: true, id }),
 });
 
@@ -92,10 +94,11 @@ test("strict UUID, numeric, date, title and full payload validation", async () =
 test("GET filters are strict, inclusive, paired, ordered and bounded and normalized", async () => {
   let received;
   const db = store();
-  db.getTasks = async (...args) => { received = args; return [{ id }]; };
+  db.getTasks = async (...args) => { received = args; return { tasks: [{ id }], leaderboard: emptyLeaderboard }; };
   const handler = createHandler(db, async () => ownerId);
   const filters = { memberId: memberId.toUpperCase(), status: "open", startDate: "2026-11-01", endDate: "2026-11-01" };
-  assert.deepEqual((await invoke(handler, "GET", undefined, undefined, filters)).body, { tasks: [{ id }] });
+  assert.deepEqual((await invoke(handler, "GET", undefined, undefined, filters)).body,
+    { tasks: [{ id }], leaderboard: emptyLeaderboard });
   assert.deepEqual(received, [householdId, ownerId, { ...filters, memberId }]);
   for (const query of [{ status: "" }, { status: "other" }, { memberId: "" }, { memberId: [memberId] },
     { startDate: "2026-11-01" }, { endDate: "2026-11-01" }, { startDate: "", endDate: "" },
@@ -125,33 +128,37 @@ test("provider scopes owner lookup, maps exactly the Task contract and uses RPC 
   const row = { id, household_id: householdId, title: task.title, member_id: memberId, coins: 5,
     status: "todo", sort_order: 0, due_date: null, repeat_rule: "none", series_id: null, completed_at: null,
     revision: 0, next_task_id: memberId, creation_payload: "private" };
+  const leaderboard = { week: [], month: [] };
   const provider = createProvider(async (endpoint, options) => {
     calls.push([endpoint, options]);
     return endpoint === "households" ? [{ id: householdId }]
-      : options.body.p_action === "read" ? { tasks: [row] } : { ok: true, id };
+      : options.body.p_action === "read" ? { tasks: [row], leaderboard } : { ok: true, id };
   });
   assert.deepEqual(await provider.getTasksHousehold(householdId, ownerId), { id: householdId });
   assert.deepEqual(calls[0][1].params, {
     select: "id", id: `eq.${householdId}`, created_by_user_id: `eq.${ownerId}`, limit: 1,
   });
-  assert.deepEqual(await provider.getTasks(householdId, ownerId, { status: "open" }), [{
-    id, householdId, title: task.title, memberId, coins: 5, status: "todo", sortOrder: 0,
-    dueDate: null, repeatRule: "none", seriesId: null, completedAt: null, revision: 0,
-  }]);
+  assert.deepEqual(await provider.getTasks(householdId, ownerId, { status: "open" }), {
+    tasks: [{
+      id, householdId, title: task.title, memberId, coins: 5, status: "todo", sortOrder: 0,
+      dueDate: null, repeatRule: "none", seriesId: null, completedAt: null, revision: 0,
+    }],
+    leaderboard,
+  });
   for (const action of ["create", "update", "delete", "move"]) {
     await provider.mutateTasks(householdId, ownerId, action, { id });
     assert.deepEqual(calls.at(-1), ["rpc/mutate_household_task", {
       method: "POST", body: { p_household: householdId, p_user: ownerId, p_action: action, p_data: { id } },
     }]);
   }
-  for (const result of [null, [], { tasks: null }, { error: "SQL secret", status: 409 }]) {
+  for (const result of [null, [], { tasks: null }, { tasks: [] }, { error: "SQL secret", status: 409 }]) {
     const broken = createProvider(async () => result);
     await assert.rejects(() => broken.getTasks(householdId, ownerId), /unavailable/);
   }
 });
 
 const pgSocket = process.env.TASKS_TEST_PG_SOCKET || process.env.GROCERY_TEST_PG_SOCKET;
-test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrency, isolation and RLS", {
+test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concurrency, isolation and RLS", {
   skip: !pgSocket,
 }, async (t) => {
   const database = `tasks_test_${process.pid}`;
@@ -174,12 +181,14 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema auth to authenticated;
     create table public.households(id uuid primary key, created_by_user_id uuid not null);
-    create table public.household_members(id uuid primary key, household_id uuid not null references public.households(id) on delete cascade);
+    create table public.household_members(id uuid primary key, household_id uuid not null references public.households(id) on delete cascade,
+      first_name text not null, avatar_color text);
     create table public.tasks(id uuid primary key, title text not null);
     insert into public.tasks values ('${id}', 'Unowned legacy global task');
     alter table public.tasks enable row level security;
     insert into public.households values ('${householdId}', '${ownerId}'), ('${otherHousehold}', '${otherHousehold}');
-    insert into public.household_members values ('${memberId}', '${householdId}'), ('${otherMember}', '${otherHousehold}');
+    insert into public.household_members values ('${memberId}', '${householdId}', 'Alex', '#3b82f6'),
+      ('${secondMember}', '${householdId}', 'Sam', '#f97316'), ('${otherMember}', '${otherHousehold}', 'Other', '#7c3aed');
     grant select on public.households to authenticated;
   `);
   for (let run = 0; run < 2; run++) execFileSync("psql", [...args, "-d", database], {
@@ -193,7 +202,7 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     return command(p_action, p_data, p_household, p_user);
   });
   const mutate = (action, data) => provider.mutateTasks(householdId, ownerId, action, data);
-  const snapshot = (filters) => provider.getTasks(householdId, ownerId, filters);
+  const snapshot = async (filters) => (await provider.getTasks(householdId, ownerId, filters)).tasks;
   const create = async (changes = {}) => {
     const taskId = randomUUID();
     await mutate("create", { ...task, id: taskId, ...changes });
@@ -203,7 +212,7 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     const current = (await snapshot()).find((card) => card.id === taskId);
     return mutate("move", { id: taskId, revision: current.revision, status, beforeId });
   };
-  const clear = () => sql("delete from public.household_tasks");
+  const clear = () => sql("delete from public.household_task_coin_earnings; delete from public.household_tasks");
 
   await t.test("migration leaves incompatible global Tasks untouched, inaccessible and entirely outside the new API", async () => {
     assert.equal(sql("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'tasks'"), "2");
@@ -282,8 +291,9 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     rows = await snapshot();
     assert.equal(rows.find((card) => card.id === a).completedAt, null);
     assert.equal(rows.length, 3);
-    await mutate("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" });
+    assert.equal(command("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" }).status, 409);
     assert.equal((await snapshot()).length, 3);
+    assert.equal((await snapshot()).find((card) => card.id === a).status, "todo");
   });
 
   await t.test("date/member/open filters map nulls and include both date boundaries without undated cards", async () => {
@@ -304,7 +314,7 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
       { startDate: "2026-01-01", endDate: "2028-01-01" }]) assert.equal(command("read", filters).status, 400);
   });
 
-  await t.test("daily and weekly first completion spawn one linked occurrence; reopening/edits/deletion never respawn", async () => {
+  await t.test("daily and weekly recurring series cannot be completed twice in one period", async () => {
     for (const [repeatRule, expectedDate] of [["daily", "2026-11-02"], ["weekly", "2026-11-08"]]) {
       clear();
       const recurring = await create({ repeatRule });
@@ -325,12 +335,14 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
       assert.equal((await snapshot()).length, 2);
       await move(recurring, "todo");
       assert.equal((await snapshot()).find((card) => card.id === recurring).completedAt, null);
+      assert.equal(command("move", { id: recurring, revision: 3, status: "done" }).status, 409);
+      assert.equal((await snapshot()).find((card) => card.id === recurring).status, "todo");
       assert.equal(command("update", { ...task, id: recurring, revision: 3, repeatRule: "none" }).status, 400);
       await mutate("update", { ...task, id: recurring, revision: 3, repeatRule,
         title: "Edited original", coins: 10, dueDate: "2026-12-01" });
       assert.equal((await snapshot()).find((card) => card.id === next.id).title, task.title);
       await mutate("delete", { id: next.id, revision: 0 });
-      await move(recurring, "done");
+      assert.equal(command("move", { id: recurring, revision: 4, status: "done" }).status, 409);
       assert.equal((await snapshot()).length, 1);
       assert.equal(sql(`select next_task_id from public.household_tasks where id = '${recurring}'`), next.id);
       assert.ok(sql(`select first_completed_at from public.household_tasks where id = '${recurring}'`));
@@ -352,6 +364,31 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     const editedRows = await snapshot();
     assert.equal(editedRows.length, 2, "recurrence configured before first completion still spawns exactly once");
     assert.equal(editedRows.find((card) => card.id !== editable).dueDate, "2026-11-02");
+  });
+
+  await t.test("coin earnings persist once per occurrence and weekly/monthly leaderboards include ties", async () => {
+    clear();
+    const recurring = await create({ repeatRule: "weekly" });
+    await move(recurring, "done");
+    const next = (await snapshot()).find((card) => card.id !== recurring);
+    assert.equal(command("move", { id: next.id, revision: 0, status: "done" }).status, 409);
+
+    const second = await create({ memberId: secondMember });
+    await move(second, "done");
+    const expected = [
+      { memberId, firstName: "Alex", avatarColor: "#3b82f6", coins: 5 },
+      { memberId: secondMember, firstName: "Sam", avatarColor: "#f97316", coins: 5 },
+    ];
+    const leaders = command("read").leaderboard;
+    assert.deepEqual(leaders.week, expected);
+    assert.deepEqual(leaders.month, expected);
+    assert.equal(sql("select count(*) from public.household_task_coin_earnings"), "2");
+
+    await mutate("update", { ...task, id: recurring, revision: 1, repeatRule: "weekly", coins: 10, status: "done" });
+    assert.deepEqual(command("read").leaderboard.week, expected, "later task edits do not rewrite earned coins");
+    await mutate("delete", { id: second, revision: 1 });
+    assert.equal(sql(`select coins from public.household_task_coin_earnings where task_id = '${second}'`), "5",
+      "deleting a task does not delete its earnings record");
   });
 
   await t.test("SQL rejects malformed service calls and composite FK rejects cross-household membership", async () => {
@@ -431,7 +468,8 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
   await t.test("household deletion cascades tasks and members while individual assigned-member deletion is restricted", async () => {
     const household = randomUUID(), member = randomUUID(), taskId = randomUUID();
     sql(`insert into public.households values ('${household}', '${ownerId}');
-      insert into public.household_members values ('${member}', '${household}')`);
+      insert into public.household_members(id, household_id, first_name, avatar_color)
+        values ('${member}', '${household}', 'Member', '#3b82f6')`);
     assert.equal(command("create", { ...task, id: taskId, memberId: member }, household).ok, true);
     assert.throws(() => sql(`delete from public.household_members where id = '${member}'`));
     sql(`delete from public.households where id = '${household}'`);

@@ -66,19 +66,19 @@ Create remote lists in Bring! first, then link them in Shop & Cook: the maintain
 
 See [Shop & Cook integration](modules/ARCHITECTURE.md#shop--cook-implementation), [data model](DATA_MODEL.md#groceries), and [setup](SUPABASE.md#groceries-and-bring).
 
-## Tasks — member-assigned Kanban implemented
+## Tasks — member-assigned Kanban and coin leaderboards implemented
 
 The Tasks workspace supports creating, editing, and deleting household tasks assigned to one family member, with a non-negative integer coin reward and an optional due date. Cards show the title, top-right coin reward, and member avatar. Drag anywhere on a card (except its edit/delete controls) with a mouse or touch to move between **To do**, **In progress**, and **Done**, or reorder within a column; keyboard controls on the focused card provide the same operations. Board state and ordering persist through the household-scoped API.
 
-Tasks can be single, daily, or weekly. Recurring tasks require a due date. The first completion preserves the completed occurrence and creates the next dated occurrence in To do; reopening and completing it again does not create another copy. Recurrence is date-based, not an elapsed-hours timer, and no background job is required.
+Tasks can be single, daily, or weekly. Recurring tasks require a due date. The first completion preserves the completed occurrence and creates the next dated occurrence in To do; reopening and completing it again does not create another copy. Each daily series can be completed only once per UTC day and each weekly series only once per UTC week. Completion records an immutable coin earning, and the board footer shows the current UTC week and month leaders, including ties. Recurrence is date-based, not an elapsed-hours timer, and no background job is required.
 
-Coin balances/payouts, Calendar indicators, and agent task workflows remain planned and are not shipped. Open-task reads already support inclusive date-range and member filters for later Calendar integration. See [Tasks implementation](modules/ARCHITECTURE.md#tasks-implementation), [task data model](DATA_MODEL.md#tasks), and [migration setup](SUPABASE.md#tasks).
+Spendable coin balances/payouts, Calendar indicators, and agent task workflows remain planned and are not shipped. Open-task reads already support inclusive date-range and member filters for later Calendar integration. See [Tasks implementation](modules/ARCHITECTURE.md#tasks-implementation), [task data model](DATA_MODEL.md#tasks), and [migration setup](SUPABASE.md#tasks).
 
 ## Planned modules
 
-- **Gamification:** future Family Coins and reactions to committed events from other modules. Rules and mechanics are not defined in this release.
+- **Gamification:** future spendable Family Coins and reactions to committed events from other modules. Task coin earnings and their weekly/monthly leaders are implemented in Tasks; broader rules and mechanics are not defined in this release.
 
-Gamification, Tasks' agent workflows and Calendar integration, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
+Broader Gamification, Tasks' agent workflows and Calendar integration, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
 
 ## Managing module documentation
 

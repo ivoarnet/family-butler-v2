@@ -1,4 +1,4 @@
-import type { Task, TaskFields, TaskStatus, TaskUpdateFields } from "./types";
+import type { Task, TaskFields, TaskLeaderboard, TaskStatus, TaskUpdateFields } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -31,7 +31,7 @@ export function createTaskClient(householdId: string, accessToken: string, signa
     return (text ? JSON.parse(text) : undefined) as T;
   };
   return {
-    read: () => request<{ tasks: Task[] }>(),
+    read: () => request<{ tasks: Task[]; leaderboard: TaskLeaderboard }>(),
     create: (id: string, fields: TaskFields) => request<{ ok: true; id: string }>("", "POST", { id, ...fields }),
     edit: (task: Task, fields: TaskUpdateFields) => request("", "PUT", { id: task.id, revision: task.revision, ...fields }),
     remove: (task: Task) => request("", "DELETE", { id: task.id, revision: task.revision }),

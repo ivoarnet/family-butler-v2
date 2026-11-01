@@ -35,8 +35,11 @@ module.exports = function createTasksProvider(request) {
     },
     async getTasks(householdId, userId, filters = {}) {
       const result = await command(householdId, userId, "read", filters);
-      if (!Array.isArray(result.tasks)) throw new Error("unavailable");
-      return result.tasks.map(mapTask);
+      if (!Array.isArray(result.tasks) || !result.leaderboard ||
+        !Array.isArray(result.leaderboard.week) || !Array.isArray(result.leaderboard.month)) {
+        throw new Error("unavailable");
+      }
+      return { tasks: result.tasks.map(mapTask), leaderboard: result.leaderboard };
     },
     async mutateTasks(householdId, userId, action, data) {
       const result = await command(householdId, userId, action, data);

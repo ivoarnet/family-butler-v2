@@ -21,7 +21,7 @@ const createHandler = (store, authenticate) => async (context, req) => {
     let body;
     let status = 200;
     if (method === "GET" && !resource) {
-      body = { tasks: await store.getTasks(householdId, userId, validateFilters(request.query ?? {})) };
+      body = await store.getTasks(householdId, userId, validateFilters(request.query ?? {}));
     } else {
       const action = resource === "move" && method === "POST" ? "move"
         : !resource ? { POST: "create", PUT: "update", DELETE: "delete" }[method] : null;

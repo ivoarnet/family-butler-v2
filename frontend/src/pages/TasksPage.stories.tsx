@@ -43,7 +43,13 @@ function installMock(options: MockOptions = {}) {
     if (method === "GET") {
       if (options.delayed && url.pathname.includes("/demo/")) await new Promise((resolve) => setTimeout(resolve, 350));
       if (failRefresh) { failRefresh = false; return response({ error: "Refresh unavailable" }, 503); }
-      return response({ tasks: url.pathname.includes("/other/") ? [] : tasks });
+      return response({
+        tasks: url.pathname.includes("/other/") ? [] : tasks,
+        leaderboard: {
+          week: [{ memberId: "alex", firstName: "Alex", avatarColor: "#3b82f6", coins: 7 }],
+          month: [{ memberId: "sam", firstName: "Sam", avatarColor: "#f97316", coins: 12 }],
+        },
+      });
     }
     const body = JSON.parse(String(init?.body));
     writes({ path: url.pathname, method, body });
@@ -140,12 +146,13 @@ const assertViewportHeight = async (canvasElement: HTMLElement) => {
   const page = canvasElement.querySelector<HTMLElement>(".tasks-page")!;
   const main = page.querySelector<HTMLElement>(".settings-main")!;
   const board = main.querySelector<HTMLElement>('[aria-label="Task board"]')!;
+  const footer = main.querySelector<HTMLElement>('[aria-label="Task leaderboards"]')!;
   const view = canvasElement.ownerDocument.defaultView!;
   const bottomPadding = parseFloat(view.getComputedStyle(main).paddingBottom) + parseFloat(view.getComputedStyle(board).paddingBottom);
   await expect(page.getBoundingClientRect().height).toBeGreaterThanOrEqual(view.innerHeight);
   const bottoms = [...board.querySelectorAll<HTMLElement>("[data-task-column]")].map((lane) => lane.getBoundingClientRect().bottom + view.scrollY);
   for (const bottom of bottoms) {
-    await expect(bottom).toBeGreaterThanOrEqual(view.innerHeight - bottomPadding - 1);
+    await expect(bottom).toBeGreaterThanOrEqual(footer.getBoundingClientRect().top + view.scrollY - bottomPadding - 1);
     await expect(Math.abs(bottom - bottoms[0])).toBeLessThan(1);
   }
 };
@@ -173,6 +180,18 @@ export const TasksBoard: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Alex Riverstone · Open account menu" }));
     await expect(canvas.getByRole("menu", { name: "Account menu" })).toBeVisible();
     await userEvent.keyboard("{Escape}");
+  },
+};
+export const TaskCoinLeaderboards: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = await ready(canvasElement);
+    const region = canvas.getByRole("region", { name: "Task leaderboards" });
+    const week = within(region).getByRole("region", { name: "This week leader" });
+    const month = within(region).getByRole("region", { name: "This month leader" });
+    await expect(within(week).getByText("Alex")).toBeVisible();
+    await expect(within(week).getByRole("img", { name: "7 coins earned" })).toBeVisible();
+    await expect(within(month).getByText("Sam")).toBeVisible();
+    await expect(within(month).getByRole("img", { name: "12 coins earned" })).toBeVisible();
   },
 };
 export const TasksDarkBoard: Story = { ...TasksBoard, parameters: { taskMock: { dark: true } } };

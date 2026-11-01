@@ -12,9 +12,9 @@ The [product overview](../PRODUCT_OVERVIEW.md) remains the canonical module/stat
 | Childcare | Shipped Family Calendar sub-feature; owns providers, arrangements, overrides, and resolved coverage. Settings → Childcare and calendar display remain unchanged. |
 | Shared Parenting | Shipped Family Calendar sub-feature, named **Parenting Time** in existing Settings/API; owns parties, schedules, changes, and resolved responsibility. This concept does not rename existing UI or APIs. |
 | Reports & exports | Existing `/reports` workspace; actual reports/downloads are still planned. Accessed through the existing header shortcut, not module navigation. |
-| Tasks | Implemented independent `/tasks` workspace: member-assigned, coin-valued single/daily/weekly tasks and persisted Kanban ordering. Calendar projections, coin payouts, and agent coverage remain planned. |
+| Tasks | Implemented independent `/tasks` workspace: member-assigned single/daily/weekly tasks, persisted Kanban ordering, immutable coin earnings, and current week/month leaders. Calendar projections, spendable coin payouts, and agent coverage remain planned. |
 | Shop & Cook | Household grocery lists/items and optional Bring! synchronization through a server-side adapter; cooking/recipes and agent coverage remain planned. |
-| Gamification | Planned independent module: can react to other modules' committed domain events. Family Coins and award rules are deliberately unspecified. |
+| Gamification | Planned independent module: can react to other modules' committed domain events. Spendable Family Coins and broader award rules are deliberately unspecified; task completion earnings are implemented in Tasks. |
 
 Households, members, contacts, authentication, theme, navigation, and reusable UI are shared foundations, not competing calendar modules. A sub-feature belongs to a module's workflow but may have its own API/resolver and Settings entry. Future peer modules need not be children of Calendar.
 
@@ -102,15 +102,15 @@ The API base is `/api/households/{householdId}/tasks`; all access requires the e
 
 | Method/resource | Behavior |
 | --- | --- |
-| `GET` base | Returns `{ tasks }`, ordered by status, persisted position, and ID. Optional `memberId`, `status` (including `open`), and paired inclusive `startDate`/`endDate` filters support future projections. Date-filtered reads exclude undated tasks. |
+| `GET` base | Returns `{ tasks, leaderboard }`, ordered by status, persisted position, and ID. Leaderboard entries include all tied leaders for the current UTC week and month. Optional `memberId`, `status` (including `open`), and paired inclusive `startDate`/`endDate` filters support future projections. Date-filtered reads exclude undated tasks. |
 | `POST` base | Creates `{ title, memberId, coins, dueDate, repeatRule }`; optional client UUID `id` supports retry identity. |
 | `PUT` base | Edits a task using `{ id, revision, title, memberId, coins, dueDate, repeatRule }`. |
 | `DELETE` base | Deletes an occurrence using `{ id, revision }`, not an entire series. |
 | `POST move` | Moves `{ id, revision, status, beforeId }`; a null/omitted `beforeId` appends, otherwise inserts before a same-household card in the destination column. |
 
-Commands execute atomically through the provider's database function; positions are recalculated under a household lock. Expected revisions reject stale task edits rather than silently overwriting them. The first transition of a daily/weekly occurrence to Done creates one next occurrence, copied from its current reward/assignee/title and dated one/seven calendar days after its due date. No catch-up horizon or timer is implemented: only the next occurrence is generated. See [data model](../DATA_MODEL.md#tasks) for recurrence and history rules.
+Commands execute atomically through the provider's database function; positions are recalculated under a household lock. Expected revisions reject stale task edits rather than silently overwriting them. Completion stores an immutable coin earning with task/member snapshots; an occurrence is only awarded once, and a recurring series can be completed once per UTC day/week. The first transition of a daily/weekly occurrence to Done creates one next occurrence, copied from its current reward/assignee/title and dated one/seven calendar days after its due date. No catch-up horizon or timer is implemented: only the next occurrence is generated. See [data model](../DATA_MODEL.md#tasks) for recurrence and history rules.
 
-No coin balances, award ledger, outbox, Calendar rendering, or agent tools are added. The future integration contracts above remain design guidance, not shipped behavior.
+Spendable coin balances, cross-module outbox, Calendar rendering, and agent tools are not added. The future integration contracts above remain design guidance, not shipped behavior.
 
 ## Shop & Cook implementation
 
