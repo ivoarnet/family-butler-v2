@@ -14,7 +14,11 @@ const memberId = "00000000-0000-0000-0000-000000000003";
 const id = "00000000-0000-0000-0000-000000000004";
 const otherHousehold = "00000000-0000-0000-0000-000000000005";
 const otherMember = "00000000-0000-0000-0000-000000000006";
+const secondMember = "00000000-0000-0000-0000-000000000007";
+const thirdMember = "00000000-0000-0000-0000-000000000008";
+const fourthMember = "00000000-0000-0000-0000-000000000009";
 const task = { title: "Clean room", memberId, coins: 5, dueDate: "2026-11-01", repeatRule: "none" };
+const emptyLeaderboard = { week: [], month: [] };
 const invoke = async (handler, method, body, resource, query, household = householdId) => {
   const context = {};
   await handler(context, { method, params: { householdId: household, resource }, body, query });
@@ -22,7 +26,7 @@ const invoke = async (handler, method, body, resource, query, household = househ
 };
 const store = () => ({
   getTasksHousehold: async () => ({ id: householdId }),
-  getTasks: async () => [],
+  getTasks: async () => ({ tasks: [], leaderboard: emptyLeaderboard }),
   mutateTasks: async () => ({ ok: true, id }),
 });
 
@@ -92,10 +96,11 @@ test("strict UUID, numeric, date, title and full payload validation", async () =
 test("GET filters are strict, inclusive, paired, ordered and bounded and normalized", async () => {
   let received;
   const db = store();
-  db.getTasks = async (...args) => { received = args; return [{ id }]; };
+  db.getTasks = async (...args) => { received = args; return { tasks: [{ id }], leaderboard: emptyLeaderboard }; };
   const handler = createHandler(db, async () => ownerId);
   const filters = { memberId: memberId.toUpperCase(), status: "open", startDate: "2026-11-01", endDate: "2026-11-01" };
-  assert.deepEqual((await invoke(handler, "GET", undefined, undefined, filters)).body, { tasks: [{ id }] });
+  assert.deepEqual((await invoke(handler, "GET", undefined, undefined, filters)).body,
+    { tasks: [{ id }], leaderboard: emptyLeaderboard });
   assert.deepEqual(received, [householdId, ownerId, { ...filters, memberId }]);
   for (const query of [{ status: "" }, { status: "other" }, { memberId: "" }, { memberId: [memberId] },
     { startDate: "2026-11-01" }, { endDate: "2026-11-01" }, { startDate: "", endDate: "" },
@@ -120,38 +125,62 @@ test("Tasks masks internal errors and propagates conflicts and resource not-foun
   }
 });
 
+test("Tasks returns a clear recurrence reward limit message for known daily and weekly conflicts", async () => {
+  for (const [period, expected] of [
+    ["daily", "You already closed a task from this series today. Only one per day can be closed to earn coins."],
+    ["weekly", "You already closed a task from this series this week. Only one per week can be closed to earn coins."],
+  ]) {
+    const db = store();
+    db.mutateTasks = async () => { throw Object.assign(new Error("unavailable"), {
+      status: 409, code: "recurring_period_limit", period,
+    }); };
+    const response = await invoke(createHandler(db, async () => ownerId), "POST", { id, revision: 0, status: "done" }, "move");
+    assert.equal(response.status, 409);
+    assert.equal(response.body.error, expected);
+  }
+});
+
 test("provider scopes owner lookup, maps exactly the Task contract and uses RPC for reads and all writes", async () => {
   const calls = [];
   const row = { id, household_id: householdId, title: task.title, member_id: memberId, coins: 5,
     status: "todo", sort_order: 0, due_date: null, repeat_rule: "none", series_id: null, completed_at: null,
     revision: 0, next_task_id: memberId, creation_payload: "private" };
+  const leaderboard = { week: [], month: [] };
   const provider = createProvider(async (endpoint, options) => {
     calls.push([endpoint, options]);
     return endpoint === "households" ? [{ id: householdId }]
-      : options.body.p_action === "read" ? { tasks: [row] } : { ok: true, id };
+      : options.body.p_action === "read" ? { tasks: [row], leaderboard } : { ok: true, id };
   });
   assert.deepEqual(await provider.getTasksHousehold(householdId, ownerId), { id: householdId });
   assert.deepEqual(calls[0][1].params, {
     select: "id", id: `eq.${householdId}`, created_by_user_id: `eq.${ownerId}`, limit: 1,
   });
-  assert.deepEqual(await provider.getTasks(householdId, ownerId, { status: "open" }), [{
-    id, householdId, title: task.title, memberId, coins: 5, status: "todo", sortOrder: 0,
-    dueDate: null, repeatRule: "none", seriesId: null, completedAt: null, revision: 0,
-  }]);
+  assert.deepEqual(await provider.getTasks(householdId, ownerId, { status: "open" }), {
+    tasks: [{
+      id, householdId, title: task.title, memberId, coins: 5, status: "todo", sortOrder: 0,
+      dueDate: null, repeatRule: "none", seriesId: null, completedAt: null, revision: 0,
+    }],
+    leaderboard,
+  });
   for (const action of ["create", "update", "delete", "move"]) {
     await provider.mutateTasks(householdId, ownerId, action, { id });
     assert.deepEqual(calls.at(-1), ["rpc/mutate_household_task", {
       method: "POST", body: { p_household: householdId, p_user: ownerId, p_action: action, p_data: { id } },
     }]);
   }
-  for (const result of [null, [], { tasks: null }, { error: "SQL secret", status: 409 }]) {
+  for (const result of [null, [], { tasks: null }, { tasks: [] }, { error: "SQL secret", status: 409 }]) {
     const broken = createProvider(async () => result);
     await assert.rejects(() => broken.getTasks(householdId, ownerId), /unavailable/);
+  }
+  for (const period of ["daily", "weekly"]) {
+    const limited = createProvider(async () => ({ error: "recurring_period_limit", status: 409, period }));
+    await assert.rejects(() => limited.mutateTasks(householdId, ownerId, "move", { id }), (error) =>
+      error.status === 409 && error.code === "recurring_period_limit" && error.period === period);
   }
 });
 
 const pgSocket = process.env.TASKS_TEST_PG_SOCKET || process.env.GROCERY_TEST_PG_SOCKET;
-test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrency, isolation and RLS", {
+test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concurrency, isolation and RLS", {
   skip: !pgSocket,
 }, async (t) => {
   const database = `tasks_test_${process.pid}`;
@@ -174,12 +203,28 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
       $$ select nullif(current_setting('request.jwt.claim.sub', true), '')::uuid $$;
     grant usage on schema auth to authenticated;
     create table public.households(id uuid primary key, created_by_user_id uuid not null);
-    create table public.household_members(id uuid primary key, household_id uuid not null references public.households(id) on delete cascade);
+    create table public.household_members(id uuid primary key, household_id uuid not null references public.households(id) on delete cascade,
+      first_name text not null, avatar_color text);
+    create table public.household_task_coin_earnings (
+      id uuid primary key default gen_random_uuid(), household_id uuid not null references public.households(id) on delete cascade,
+      task_id uuid not null, series_id uuid, member_id uuid not null, member_name text not null, avatar_color text,
+      task_title text not null, coins integer not null, period_start date not null, earned_at timestamptz not null default now()
+    );
+    create unique index household_task_coin_earnings_task on public.household_task_coin_earnings (household_id, task_id);
+    create unique index household_task_coin_earnings_series_period
+      on public.household_task_coin_earnings (household_id, series_id, period_start) where series_id is not null;
+    create index household_task_coin_earnings_period
+      on public.household_task_coin_earnings (household_id, earned_at, member_id);
     create table public.tasks(id uuid primary key, title text not null);
     insert into public.tasks values ('${id}', 'Unowned legacy global task');
     alter table public.tasks enable row level security;
     insert into public.households values ('${householdId}', '${ownerId}'), ('${otherHousehold}', '${otherHousehold}');
-    insert into public.household_members values ('${memberId}', '${householdId}'), ('${otherMember}', '${otherHousehold}');
+    insert into public.household_members values ('${memberId}', '${householdId}', 'Alex', '#3b82f6'),
+      ('${secondMember}', '${householdId}', 'Sam', '#f97316'), ('${thirdMember}', '${householdId}', 'Jordan', '#ec4899'),
+      ('${fourthMember}', '${householdId}', 'Casey', '#7c3aed'), ('${otherMember}', '${otherHousehold}', 'Other', '#7c3aed');
+    insert into public.household_task_coin_earnings
+      (household_id, task_id, member_id, member_name, avatar_color, task_title, coins, period_start)
+      values ('${householdId}', '${id}', '${memberId}', 'Old Alex', '#000000', 'Legacy task title', 1, current_date);
     grant select on public.households to authenticated;
   `);
   for (let run = 0; run < 2; run++) execFileSync("psql", [...args, "-d", database], {
@@ -193,7 +238,7 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     return command(p_action, p_data, p_household, p_user);
   });
   const mutate = (action, data) => provider.mutateTasks(householdId, ownerId, action, data);
-  const snapshot = (filters) => provider.getTasks(householdId, ownerId, filters);
+  const snapshot = async (filters) => (await provider.getTasks(householdId, ownerId, filters)).tasks;
   const create = async (changes = {}) => {
     const taskId = randomUUID();
     await mutate("create", { ...task, id: taskId, ...changes });
@@ -203,10 +248,19 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     const current = (await snapshot()).find((card) => card.id === taskId);
     return mutate("move", { id: taskId, revision: current.revision, status, beforeId });
   };
-  const clear = () => sql("delete from public.household_tasks");
+  const clear = () => sql("delete from public.household_coin_earnings; delete from public.household_tasks");
 
   await t.test("migration leaves incompatible global Tasks untouched, inaccessible and entirely outside the new API", async () => {
     assert.equal(sql("select count(*) from information_schema.columns where table_schema = 'public' and table_name = 'tasks'"), "2");
+    assert.equal(sql("select to_regclass('public.household_task_coin_earnings') is null"), "t");
+    assert.equal(sql(`select source_type || ':' || source_id::text
+      from public.household_coin_earnings where source_id = '${id}'`), `task:${id}`);
+    assert.equal(sql(`select count(*) from information_schema.columns where table_schema = 'public'
+      and table_name = 'household_coin_earnings'
+      and column_name in ('task_title', 'member_name', 'avatar_color', 'source_label', 'task_id')`), "0");
+    assert.deepEqual(command("read").leaderboard.week, [
+      { memberId, firstName: "Alex", avatarColor: "#3b82f6", coins: 1 },
+    ], "leaderboard uses the current household member details rather than migrated snapshots");
     assert.deepEqual(await snapshot(), []);
     assert.equal(command("update", { ...task, id, revision: 0 }).status, 404);
     assert.equal(command("delete", { id, revision: 0 }).status, 404);
@@ -282,8 +336,10 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     rows = await snapshot();
     assert.equal(rows.find((card) => card.id === a).completedAt, null);
     assert.equal(rows.length, 3);
-    await mutate("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" });
+    assert.equal(command("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" }).ok, true);
     assert.equal((await snapshot()).length, 3);
+    assert.equal((await snapshot()).find((card) => card.id === a).status, "done");
+    assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and source_id = '${a}'`), "1");
   });
 
   await t.test("date/member/open filters map nulls and include both date boundaries without undated cards", async () => {
@@ -304,7 +360,7 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
       { startDate: "2026-01-01", endDate: "2028-01-01" }]) assert.equal(command("read", filters).status, 400);
   });
 
-  await t.test("daily and weekly first completion spawn one linked occurrence; reopening/edits/deletion never respawn", async () => {
+  await t.test("daily and weekly recurring series cannot earn twice in one period, but can re-complete an awarded occurrence", async () => {
     for (const [repeatRule, expectedDate] of [["daily", "2026-11-02"], ["weekly", "2026-11-08"]]) {
       clear();
       const recurring = await create({ repeatRule });
@@ -325,13 +381,22 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
       assert.equal((await snapshot()).length, 2);
       await move(recurring, "todo");
       assert.equal((await snapshot()).find((card) => card.id === recurring).completedAt, null);
-      assert.equal(command("update", { ...task, id: recurring, revision: 3, repeatRule: "none" }).status, 400);
-      await mutate("update", { ...task, id: recurring, revision: 3, repeatRule,
+      await move(recurring, "done");
+      assert.equal((await snapshot()).find((card) => card.id === recurring).status, "done");
+      assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and series_id = '${recurring}'`), "1",
+        "re-completing the same occurrence does not award coins twice");
+      const periodLimit = command("move", { id: next.id, revision: 0, status: "done" });
+      assert.equal(periodLimit.status, 409, "completing another occurrence in the same period remains blocked");
+      assert.deepEqual([periodLimit.error, periodLimit.period], ["recurring_period_limit", repeatRule]);
+      assert.equal(command("update", { ...task, id: recurring, revision: 4, repeatRule: "none" }).status, 400);
+      await mutate("update", { ...task, id: recurring, revision: 4, repeatRule,
         title: "Edited original", coins: 10, dueDate: "2026-12-01" });
       assert.equal((await snapshot()).find((card) => card.id === next.id).title, task.title);
       await mutate("delete", { id: next.id, revision: 0 });
+      await move(recurring, "todo");
       await move(recurring, "done");
       assert.equal((await snapshot()).length, 1);
+      assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and series_id = '${recurring}'`), "1");
       assert.equal(sql(`select next_task_id from public.household_tasks where id = '${recurring}'`), next.id);
       assert.ok(sql(`select first_completed_at from public.household_tasks where id = '${recurring}'`));
     }
@@ -352,6 +417,48 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     const editedRows = await snapshot();
     assert.equal(editedRows.length, 2, "recurrence configured before first completion still spawns exactly once");
     assert.equal(editedRows.find((card) => card.id !== editable).dueDate, "2026-11-02");
+  });
+
+  await t.test("coin earnings persist once per occurrence and leaderboards show the top three including ties", async () => {
+    clear();
+    const recurring = await create({ repeatRule: "weekly" });
+    await move(recurring, "done");
+    const next = (await snapshot()).find((card) => card.id !== recurring);
+    assert.equal(command("move", { id: next.id, revision: 0, status: "done" }).status, 409);
+
+    const second = await create({ memberId: secondMember });
+    await move(second, "done");
+    const third = await create({ memberId: thirdMember, coins: 3 });
+    await move(third, "done");
+    const fourth = await create({ memberId: fourthMember, coins: 2 });
+    await move(fourth, "done");
+    const expected = [
+      { memberId, firstName: "Alex", avatarColor: "#3b82f6", coins: 5 },
+      { memberId: secondMember, firstName: "Sam", avatarColor: "#f97316", coins: 5 },
+      { memberId: thirdMember, firstName: "Jordan", avatarColor: "#ec4899", coins: 3 },
+    ];
+    const leaders = command("read").leaderboard;
+    assert.deepEqual(leaders.week, expected);
+    assert.deepEqual(leaders.month, expected);
+    assert.equal(sql("select count(*) from public.household_coin_earnings"), "4");
+    sql(`insert into public.household_coin_earnings
+      (household_id, source_type, source_id, member_id, coins, period_start, earned_at)
+      values ('${householdId}', 'event', '${randomUUID()}', '${fourthMember}', 1,
+        current_date, now() - interval '2 months')`);
+    assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'event'`), "1",
+      "the generic ledger accepts non-task earnings without task-only data");
+    assert.deepEqual(command("read").leaderboard.week, expected, "only earnings in the current week count");
+
+    await mutate("update", { ...task, id: recurring, revision: 1, repeatRule: "weekly", coins: 10, status: "done" });
+    assert.deepEqual(command("read").leaderboard.week, expected, "later task edits do not rewrite earned coins");
+    await mutate("delete", { id: second, revision: 1 });
+    assert.equal(sql(`select coins from public.household_coin_earnings where source_type = 'task' and source_id = '${second}'`), "5",
+      "deleting a task does not delete its earnings record");
+    sql(`delete from public.household_tasks where id = '${second}';
+      delete from public.household_members where id = '${secondMember}'`);
+    assert.deepEqual(command("read").leaderboard.week[1], {
+      memberId: secondMember, firstName: "Former member", avatarColor: null, coins: 5,
+    }, "earnings remain attributed after the task and member are deleted");
   });
 
   await t.test("SQL rejects malformed service calls and composite FK rejects cross-household membership", async () => {
@@ -431,7 +538,8 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
   await t.test("household deletion cascades tasks and members while individual assigned-member deletion is restricted", async () => {
     const household = randomUUID(), member = randomUUID(), taskId = randomUUID();
     sql(`insert into public.households values ('${household}', '${ownerId}');
-      insert into public.household_members values ('${member}', '${household}')`);
+      insert into public.household_members(id, household_id, first_name, avatar_color)
+        values ('${member}', '${household}', 'Member', '#3b82f6')`);
     assert.equal(command("create", { ...task, id: taskId, memberId: member }, household).ok, true);
     assert.throws(() => sql(`delete from public.household_members where id = '${member}'`));
     sql(`delete from public.households where id = '${household}'`);

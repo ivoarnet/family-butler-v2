@@ -25,11 +25,11 @@ Metadata/settings and local-list handlers defer SDK loading, so an optional clie
 
 ## Tasks
 
-After the core household schema and `docs/sql/core-access-policy.sql`, run `docs/sql/tasks.sql` in the Supabase SQL Editor before deploying the updated API/frontend. It creates household-scoped task storage, indexes, access policies, and the transactional command used for edits, ordering, and recurrence. No new Azure resources, packages, timers, or secrets are required.
+After the core household schema and `docs/sql/core-access-policy.sql`, run `docs/sql/tasks.sql` in the Supabase SQL Editor before deploying the updated API/frontend. It creates household-scoped task storage and a source-neutral coin-earning ledger, indexes, access policies, and the transactional command used for edits, ordering, recurrence, awards, and leaderboard reads. It also upgrades the task-specific coin ledger if the previous version was applied. No new Azure resources, packages, timers, or secrets are required.
 
 Existing global `public.tasks` records are deliberately not migrated: they lack trustworthy household ownership. The new API never reads them. The migration is repeatable and does not change existing calendar data. Task assignment references a member in the same household; reassign/delete that member's tasks before deleting or transferring the member.
 
-Open **Tasks** from the module menu, create a member-assigned task, move/reorder it, and reload to verify persistence. Complete a daily/weekly task and verify that exactly one next dated occurrence appears, including after reopening/re-completing the original. Verify `GET /api/health?checks=1` and authenticated `/api/households/{householdId}/tasks` against the configured Supabase instance; unauthorized households must return 404. Coin values are reward metadata only, not account credits. See [model and recurrence rules](DATA_MODEL.md#tasks).
+Open **Tasks** from the module menu, create a member-assigned task, move/reorder it, and reload to verify persistence. Complete a daily/weekly task and verify that exactly one next dated occurrence appears and the series cannot earn again from another occurrence during the same UTC day/week. Reopen and re-complete the original occurrence to verify that the status change succeeds without a second earning. Verify the current week/month leaders in the footer. Verify `GET /api/health?checks=1` and authenticated `/api/households/{householdId}/tasks` against the configured Supabase instance; unauthorized households must return 404. Coins are recorded as earned history, not spendable account credits. See [model and recurrence rules](DATA_MODEL.md#tasks).
 
 ## 1) Create a Supabase project
 

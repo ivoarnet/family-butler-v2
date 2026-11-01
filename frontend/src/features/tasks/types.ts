@@ -16,6 +16,18 @@ export interface Task {
   revision: number;
 }
 
+export interface TaskLeaderboardEntry {
+  memberId: string;
+  firstName: string;
+  avatarColor: string | null;
+  coins: number;
+}
+
+export interface TaskLeaderboard {
+  week: TaskLeaderboardEntry[];
+  month: TaskLeaderboardEntry[];
+}
+
 export type TaskFields = Pick<Task, "title" | "memberId" | "coins" | "dueDate" | "repeatRule">;
 export type TaskUpdateFields = TaskFields & Pick<Task, "status">;
 export const taskColumns: { status: TaskStatus; label: string }[] = [

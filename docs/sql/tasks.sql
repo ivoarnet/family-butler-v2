@@ -1,6 +1,7 @@
 -- Run after the core household and household_members tables. Safe to rerun.
 -- This creates a NEW household-scoped table. Legacy public.tasks is never read,
 -- altered, exposed by this API, or backfilled: global ownership cannot be inferred.
+-- Existing task-only coin earnings are upgraded to the generic household_coin_earnings ledger.
 -- Deploy only the household Tasks route; never restore the old /api/tasks route.
 -- Recurring tasks require a due date. After ANY first completion, the repeat rule
 -- is immutable (invalid edits return 400), even for a single task or reopened card.
@@ -50,6 +51,76 @@ revoke all on public.household_tasks from public, anon, authenticated, service_r
 grant select (id, household_id, title, member_id, coins, status, sort_order,
   due_date, repeat_rule, series_id, completed_at, revision) on public.household_tasks to authenticated;
 
+do $$ begin
+  if to_regclass('public.household_coin_earnings') is null
+    and to_regclass('public.household_task_coin_earnings') is not null then
+    alter table public.household_task_coin_earnings rename to household_coin_earnings;
+  end if;
+end $$;
+
+create table if not exists public.household_coin_earnings (
+  id uuid primary key default gen_random_uuid(),
+  household_id uuid not null references public.households(id) on delete cascade,
+  source_type text not null check (length(source_type) between 1 and 64),
+  source_id uuid not null,
+  series_id uuid,
+  member_id uuid not null,
+  coins integer not null check (coins between 0 and 1000000),
+  period_start date not null,
+  earned_at timestamptz not null default clock_timestamp()
+);
+alter table public.household_coin_earnings add column if not exists source_type text;
+alter table public.household_coin_earnings add column if not exists source_id uuid;
+update public.household_coin_earnings set source_type = 'task' where source_type is null;
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'task_id') then
+    update public.household_coin_earnings set source_id = task_id where source_id is null;
+  end if;
+end $$;
+alter table public.household_coin_earnings alter column source_type set not null;
+alter table public.household_coin_earnings alter column source_id set not null;
+do $$ begin
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'task_title') then
+    alter table public.household_coin_earnings drop column task_title;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'member_name') then
+    alter table public.household_coin_earnings drop column member_name;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'avatar_color') then
+    alter table public.household_coin_earnings drop column avatar_color;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'source_label') then
+    alter table public.household_coin_earnings drop column source_label;
+  end if;
+  if exists (select 1 from information_schema.columns where table_schema = 'public'
+    and table_name = 'household_coin_earnings' and column_name = 'task_id') then
+    alter table public.household_coin_earnings drop column task_id;
+  end if;
+end $$;
+do $$ begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.household_coin_earnings'::regclass
+    and conname = 'household_coin_earnings_source_type_check') then
+    alter table public.household_coin_earnings add constraint household_coin_earnings_source_type_check
+      check (length(source_type) between 1 and 64);
+  end if;
+end $$;
+drop index if exists public.household_task_coin_earnings_task;
+drop index if exists public.household_task_coin_earnings_series_period;
+drop index if exists public.household_task_coin_earnings_period;
+create unique index if not exists household_coin_earnings_source
+  on public.household_coin_earnings (household_id, source_type, source_id);
+create unique index if not exists household_coin_earnings_series_period
+  on public.household_coin_earnings (household_id, series_id, period_start) where series_id is not null;
+create index if not exists household_coin_earnings_period
+  on public.household_coin_earnings (household_id, earned_at, member_id);
+alter table public.household_coin_earnings enable row level security;
+revoke all on public.household_coin_earnings from public, anon, authenticated, service_role;
+
 create or replace function public.mutate_household_task(p_household uuid, p_user uuid, p_action text, p_data jsonb default '{}')
 returns jsonb language plpgsql security definer set search_path = pg_catalog as $$
 declare
@@ -67,6 +138,8 @@ declare
   v_position integer;
   v_payload jsonb;
   v_rows jsonb;
+  v_leaderboard jsonb;
+  v_period_start date;
   v_uuid constant text := '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}$';
 begin
   -- Owner verification is repeated inside the transaction to close the HTTP auth/write race.
@@ -125,7 +198,37 @@ begin
     if jsonb_array_length(v_rows) > 10000 then
       return jsonb_build_object('error', 'task limit reached', 'status', 409);
     end if;
-    return jsonb_build_object('tasks', v_rows);
+    with boundaries as (
+      select date_trunc('week', now() at time zone 'UTC') at time zone 'UTC' as week_start,
+        date_trunc('month', now() at time zone 'UTC') at time zone 'UTC' as month_start
+    ), week_totals as (
+      select e.member_id, coalesce(max(m.first_name), 'Former member') as first_name,
+        max(m.avatar_color) as avatar_color,
+        sum(e.coins) as coins
+      from public.household_coin_earnings e cross join boundaries b
+      left join public.household_members m on m.id = e.member_id and m.household_id = e.household_id
+      where e.household_id = p_household and e.earned_at >= b.week_start
+      group by e.member_id having sum(e.coins) > 0
+    ), month_totals as (
+      select e.member_id, coalesce(max(m.first_name), 'Former member') as first_name,
+        max(m.avatar_color) as avatar_color,
+        sum(e.coins) as coins
+      from public.household_coin_earnings e cross join boundaries b
+      left join public.household_members m on m.id = e.member_id and m.household_id = e.household_id
+      where e.household_id = p_household and e.earned_at >= b.month_start
+      group by e.member_id having sum(e.coins) > 0
+    ), week_ranked as (
+      select *, row_number() over (order by coins desc, member_id) as position from week_totals
+    ), month_ranked as (
+      select *, row_number() over (order by coins desc, member_id) as position from month_totals
+    )
+    select jsonb_build_object(
+      'week', coalesce((select jsonb_agg(jsonb_build_object('memberId', member_id, 'firstName', first_name,
+        'avatarColor', avatar_color, 'coins', coins) order by position) from week_ranked where position <= 3), '[]'::jsonb),
+      'month', coalesce((select jsonb_agg(jsonb_build_object('memberId', member_id, 'firstName', first_name,
+        'avatarColor', avatar_color, 'coins', coins) order by position) from month_ranked where position <= 3), '[]'::jsonb)
+    ) into v_leaderboard;
+    return jsonb_build_object('tasks', v_rows, 'leaderboard', v_leaderboard);
   end if;
 
   if p_action <> 'create' or p_data ? 'id' then
@@ -226,7 +329,28 @@ begin
       update public.household_tasks set revision = revision + 1 where id = v_id;
     end if;
   end if;
-  if p_action = 'delete' then delete from public.household_tasks where id = v_id; end if;
+  if p_action = 'delete' then delete from public.household_tasks where id = v_id;   end if;
+
+  if p_action in ('move', 'update') and v_status = 'done' and t.status <> 'done' then
+    if t.repeat_rule <> 'none' then
+      v_period_start := case when t.repeat_rule = 'daily'
+        then (clock_timestamp() at time zone 'UTC')::date
+        else date_trunc('week', clock_timestamp() at time zone 'UTC')::date end;
+      if exists (select 1 from public.household_coin_earnings
+        where household_id = p_household and series_id = t.series_id and period_start = v_period_start
+          and source_id <> t.id) then
+        return jsonb_build_object('error', 'recurring_period_limit', 'status', 409, 'period', t.repeat_rule);
+      end if;
+    else
+      v_period_start := (clock_timestamp() at time zone 'UTC')::date;
+    end if;
+    insert into public.household_coin_earnings (
+      household_id, source_type, source_id, series_id, member_id, coins, period_start
+    ) values (
+      p_household, 'task', t.id, t.series_id, t.member_id, t.coins, v_period_start
+    ) on conflict (household_id, source_type, source_id) do nothing;
+  end if;
+
   if p_action in ('create', 'delete', 'move') or (p_action = 'update' and v_status <> t.status) then
     -- Compact both affected columns before inserting the moved card. Other cards retain revisions.
     with positions as (

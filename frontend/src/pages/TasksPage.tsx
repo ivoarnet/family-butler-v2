@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
-import { Alert, Box, CircularProgress, DialogTitle, MenuItem, Stack, Typography } from "@mui/material";
+import { Alert, Avatar, Box, CircularProgress, DialogTitle, MenuItem, Stack, Typography } from "@mui/material";
 import { AvatarContextMenu } from "../shared/ui/AvatarContextMenu";
 import { DialogActionsBar, DialogContentPanel, FormField, GlassDialog, GradientButton, SecondaryButton } from "../shared/ui/GlassFormDialog";
 import { DateField } from "../shared/ui/PickerFields";
 import type { FamilyMember } from "../types/family";
 import { createTaskClient, TaskRequestError } from "../features/tasks/client";
 import { KanbanBoard } from "../features/tasks/KanbanBoard";
-import { taskColumns, type Task, type TaskFields, type TaskStatus } from "../features/tasks/types";
+import { taskColumns, type Task, type TaskFields, type TaskLeaderboard, type TaskStatus } from "../features/tasks/types";
+import { normalizeMemberColor } from "../shared/family/memberAvatarColors";
 
 interface TasksPageProps {
   householdId: string;
@@ -31,6 +32,7 @@ export function TasksPage(props: TasksPageProps) {
 function TaskSession({ householdId, householdName, accessToken, members, moduleNavigation,
   currentUserLabel, currentUserEmail, currentUserInitials, currentUserAvatarUrl, onOpenAccountSection, onSignOut }: TasksPageProps) {
   const [tasks, setTasks] = useState<Task[]>([]);
+  const [leaderboard, setLeaderboard] = useState<TaskLeaderboard>({ week: [], month: [] });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -55,6 +57,7 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
     const next = await api.read();
     if (active.signal.aborted || version !== readVersion.current) return;
     setTasks(next.tasks);
+    setLeaderboard(next.leaderboard);
     setNeedsRefresh(false);
     setEditor((previous) => {
       if (!previous?.task) return previous;
@@ -179,6 +182,35 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
           if (current && current.revision === task.revision) void mutate((api) => api.move(current, status, beforeId));
         }}
         onEdit={openEditor} onDelete={(task) => { setDialogError(null); setDeleting(task); }} />
+      <Box component="footer" role="region" aria-label="Task leaderboards" sx={{
+        display: "grid", gridTemplateColumns: { xs: "1fr", sm: "1fr 1fr" }, gap: 2,
+      }}>
+        {([
+          ["This week top 3", leaderboard.week],
+          ["This month top 3", leaderboard.month],
+        ] as const).map(([period, leaders]) => <Box key={period} className="settings-card" component="section" aria-label={`${period} leader`}>
+          <Typography component="h2" variant="h6" sx={{ mb: 1.5 }}>{period}</Typography>
+          {leaders.length ? <Stack sx={{ gap: 1 }}>
+            {leaders.map((leader, index) => {
+              const member = members.find((item) => item.id === leader.memberId);
+              const name = member?.firstName ?? leader.firstName;
+              return <Stack key={leader.memberId} direction="row" sx={{ alignItems: "center", gap: 1 }}>
+                <Typography aria-label={`Rank ${index + 1}`} sx={{ width: 20, fontWeight: 700 }}>{index + 1}</Typography>
+                <Avatar src={member?.avatarPhotoUrl} alt={name} slotProps={{ img: { draggable: false } }}
+                  sx={{ bgcolor: normalizeMemberColor(member?.avatarColor ?? leader.avatarColor ?? undefined), width: 36, height: 36 }}>
+                  {name.charAt(0)}
+                </Avatar>
+                <Typography sx={{ flex: 1 }}>{name}</Typography>
+                <Stack direction="row" role="img" aria-label={`${leader.coins} coins earned`} sx={{ alignItems: "center", gap: 0.5 }}>
+                  <Box component="img" src={`${import.meta.env.BASE_URL}family-coin.svg`} alt="" draggable={false} width={22} height={22}
+                    sx={{ display: "block", objectFit: "contain" }} />
+                  <Typography sx={{ fontWeight: 700 }}>{leader.coins}</Typography>
+                </Stack>
+              </Stack>;
+            })}
+          </Stack> : <Typography variant="body2" sx={{ color: "var(--text-secondary)" }}>No coins earned yet.</Typography>}
+        </Box>)}
+      </Box>
     </Box>
     <GlassDialog open={!!editor} onClose={() => { if (!busy && !saved) setEditor(null); }} aria-labelledby="task-editor-title" maxWidth="sm" fullWidth>
       <Box component="form" onSubmit={(event) => { event.preventDefault(); save(); }} noValidate>
