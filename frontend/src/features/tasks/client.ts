@@ -1,4 +1,4 @@
-import type { Task, TaskFields, TaskStatus } from "./types";
+import type { Task, TaskFields, TaskStatus, TaskUpdateFields } from "./types";
 
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 
@@ -33,7 +33,7 @@ export function createTaskClient(householdId: string, accessToken: string, signa
   return {
     read: () => request<{ tasks: Task[] }>(),
     create: (id: string, fields: TaskFields) => request<{ ok: true; id: string }>("", "POST", { id, ...fields }),
-    edit: (task: Task, fields: TaskFields) => request("", "PUT", { id: task.id, revision: task.revision, ...fields }),
+    edit: (task: Task, fields: TaskUpdateFields) => request("", "PUT", { id: task.id, revision: task.revision, ...fields }),
     remove: (task: Task) => request("", "DELETE", { id: task.id, revision: task.revision }),
     move: (task: Task, status: TaskStatus, beforeId: string | null) =>
       request<{ ok: true; id: string }>("/move", "POST", { id: task.id, revision: task.revision, status, beforeId }),

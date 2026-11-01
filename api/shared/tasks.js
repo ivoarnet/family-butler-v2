@@ -18,7 +18,7 @@ const validateMutation = (action, body) => {
   const editable = ["title", "memberId", "coins", "dueDate", "repeatRule"];
   object(body, action === "move" ? ["id", "revision", "status", "beforeId"]
     : action === "delete" ? ["id", "revision"]
-      : ["id", ...(action === "update" ? ["revision"] : []), ...editable]);
+      : ["id", ...(action === "update" ? ["revision", "status"] : []), ...editable]);
   const data = {};
   if (action !== "create" || Object.hasOwn(body, "id")) data.id = validateId(body.id, "id");
   if (action !== "create") data.revision = revision(body.revision);
@@ -29,6 +29,10 @@ const validateMutation = (action, body) => {
     data.beforeId = body.beforeId == null ? null : validateId(body.beforeId, "beforeId");
     assert(data.beforeId !== data.id, "cannot move before itself");
     return data;
+  }
+  if (action === "update" && Object.hasOwn(body, "status")) {
+    assert(STATUSES.includes(body.status), "invalid status");
+    data.status = body.status;
   }
   assert(typeof body.title === "string" && !/[\u0000-\u001f\u007f]/u.test(body.title), "invalid title");
   data.title = body.title.trim();

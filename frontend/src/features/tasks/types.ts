@@ -17,6 +17,7 @@ export interface Task {
 }
 
 export type TaskFields = Pick<Task, "title" | "memberId" | "coins" | "dueDate" | "repeatRule">;
+export type TaskUpdateFields = TaskFields & Pick<Task, "status">;
 export const taskColumns: { status: TaskStatus; label: string }[] = [
   { status: "todo", label: "To do" },
   { status: "in_progress", label: "In progress" },

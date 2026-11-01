@@ -81,6 +81,10 @@ test("strict UUID, numeric, date, title and full payload validation", async () =
     { id, revision: 0, status: "done", beforeId: "" }, { id, revision: 0, status: "done", coins: 1 }]) {
     assert.equal((await invoke(handler, "POST", body, "move")).status, 400);
   }
+  for (const status of ["open", null, 1]) {
+    assert.equal((await invoke(handler, "PUT", { ...task, id, revision: 0, status })).status, 400);
+  }
+  assert.equal(validateMutation("update", { ...task, id, revision: 0, status: "done" }).status, "done");
   assert.equal((await invoke(handler, "POST", { ...task, dueDate: null, coins: 0 })).status, 201);
   assert.equal(validateMutation("create", { ...task, title: "😀".repeat(160) }).title.length, 320);
 });
@@ -256,6 +260,32 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     assert.equal((await snapshot()).find((card) => card.id === b).sortOrder, 0);
   });
 
+  await t.test("editing status reorders lanes and completion creates only the updated recurring successor", async () => {
+    clear();
+    const a = await create({ repeatRule: "daily" });
+    const b = await create();
+    await mutate("update", { ...task, id: a, revision: 0, status: "in_progress", repeatRule: "daily" });
+    assert.deepEqual((await snapshot()).map((card) => [card.id, card.status, card.sortOrder, card.revision]),
+      [[b, "todo", 0, 0], [a, "in_progress", 0, 1]]);
+    await mutate("update", { ...task, id: a, revision: 1, status: "done", repeatRule: "daily",
+      title: "Updated task", dueDate: "2026-11-10" });
+    let rows = await snapshot();
+    const completed = rows.find((card) => card.id === a);
+    const next = rows.find((card) => card.id !== a && card.id !== b);
+    assert.equal(completed.status, "done");
+    assert.ok(completed.completedAt);
+    assert.equal(completed.revision, 2);
+    assert.equal(next.title, "Updated task");
+    assert.equal(next.dueDate, "2026-11-11");
+    assert.equal(next.status, "todo");
+    await mutate("update", { ...task, id: a, revision: 2, status: "todo", repeatRule: "daily" });
+    rows = await snapshot();
+    assert.equal(rows.find((card) => card.id === a).completedAt, null);
+    assert.equal(rows.length, 3);
+    await mutate("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" });
+    assert.equal((await snapshot()).length, 3);
+  });
+
   await t.test("date/member/open filters map nulls and include both date boundaries without undated cards", async () => {
     clear();
     const a = await create({ dueDate: "2026-11-01" });
@@ -337,6 +367,7 @@ test("PostgreSQL Tasks transactions, ordering, recurrence, optimistic concurrenc
     assert.throws(() => sql(`update public.household_tasks set member_id = '${otherMember}' where id = '${a}'`));
     assert.equal(command("move", { id: a, revision: 0, status: "done", beforeId: a }).status, 400);
     assert.equal(command("move", { id: a, revision: "0", status: "done" }).status, 400);
+    assert.equal(command("update", { ...task, id: a, revision: 0, status: "open" }).status, 400);
     for (const [repeatRule, dueDate] of [["daily", "9999-12-31"], ["weekly", "9999-12-25"]]) {
       const boundary = await create({ dueDate, repeatRule });
       const before = await snapshot();
