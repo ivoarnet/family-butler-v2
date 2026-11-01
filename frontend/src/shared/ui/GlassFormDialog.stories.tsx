@@ -55,6 +55,21 @@ const meta: Meta<typeof GlassPrimitives> = {
   parameters: {
     layout: "centered",
   },
+  beforeEach: ({ parameters }) => {
+    const root = document.documentElement;
+    const previousTheme = root.getAttribute("data-theme");
+    root.setAttribute("data-theme", parameters.dark ? "dark" : "light");
+    const originalMatchMedia = window.matchMedia;
+    window.matchMedia = (query) => query === "(pointer: fine)"
+      ? { ...originalMatchMedia.call(window, query), matches: !parameters.mobilePicker,
+        media: query, addEventListener: () => {}, removeEventListener: () => {} } as MediaQueryList
+      : originalMatchMedia.call(window, query);
+    return () => {
+      window.matchMedia = originalMatchMedia;
+      if (previousTheme === null) root.removeAttribute("data-theme");
+      else root.setAttribute("data-theme", previousTheme);
+    };
+  },
 };
 
 export default meta;
@@ -86,3 +101,36 @@ export const Default: Story = {
 };
 export const ErrorState: Story = { args: { error: true } };
 export const DisabledState: Story = { args: { disabled: true } };
+
+const calendarPlay: Story["play"] = async ({ canvasElement }) => {
+  const canvas = within(canvasElement);
+  const body = within(canvasElement.ownerDocument.body);
+  await userEvent.click(canvas.getByRole("button", { name: /Choose date/ }));
+  const dialog = await body.findByRole("dialog");
+  const calendar = within(dialog);
+  const root = canvasElement.ownerDocument.documentElement;
+  const expectedColor = getComputedStyle(root).getPropertyValue("--text-primary").trim();
+  const probe = document.createElement("span");
+  probe.style.color = expectedColor;
+  root.appendChild(probe);
+  const textColor = getComputedStyle(probe).color;
+  probe.remove();
+  const day = calendar.getByRole("gridcell", { name: "16" });
+  await expect(getComputedStyle(day).color).toBe(textColor);
+  await expect(getComputedStyle(calendar.getByRole("button", { name: "Next month" })).color).toBe(textColor);
+  const paper = day.closest(".MuiPaper-root")!;
+  const background = getComputedStyle(paper).backgroundColor;
+  await expect(background).not.toBe("rgba(0, 0, 0, 0)");
+  await expect(background).not.toMatch(/rgba/);
+  await userEvent.click(calendar.getByRole("button", { name: /switch to year view/ }));
+  await expect(getComputedStyle(calendar.getByRole("radio", { name: "2025" })).color).toBe(textColor);
+  await userEvent.click(calendar.getByRole("radio", { name: "2026" }));
+  await userEvent.click(calendar.getByRole("gridcell", { name: "16" }));
+  const accept = body.queryByRole("button", { name: /^(OK|Accept)$/ });
+  if (accept) await userEvent.click(accept);
+  await expect(canvas.getByLabelText("Stored values")).toHaveTextContent("2026-03-16");
+};
+
+export const LightDatePicker: Story = { play: calendarPlay };
+export const DarkDatePicker: Story = { parameters: { dark: true }, play: calendarPlay };
+export const DarkMobileDatePicker: Story = { parameters: { dark: true, mobilePicker: true }, play: calendarPlay };

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Centralized shared date/time picker popup colors, including calendar text, controls, selection, and an opaque theme surface for dark mode. Added light/dark desktop and mobile date-picker regression coverage. Updated screenshots: `docs/screenshots/date-picker-dark.png` and `docs/screenshots/date-picker-dark-mobile.png`.
+
 - Replaced task-card “coins” text with a coin icon beside the reward amount, retaining accessible coin labels. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.
 
 - Added the Tasks module: member avatars, coin rewards, single/daily/weekly occurrences, and persisted To do/In progress/Done ordering with mouse/touch drag-and-drop and keyboard alternatives. Apply `docs/sql/tasks.sql` before deployment; legacy global tasks remain untouched. Coin payouts, Calendar integration, and agent workflows remain planned. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.
