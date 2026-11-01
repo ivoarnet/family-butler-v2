@@ -33,6 +33,11 @@ function TaskCardContent({ task, member, actions }: {
         <Typography variant="body2" sx={{ fontWeight: 700 }}>{task.coins}</Typography>
       </Stack>
     </Stack>
+    <Typography variant="caption" data-task-status-badge={task.id} sx={{ display: "none", "@container dashboard (max-width: 640px)": {
+      display: "inline-flex", mt: 0.75, px: 1, py: 0.25, borderRadius: 999, bgcolor: "var(--today-bg)", color: "var(--text-secondary)", fontWeight: 700,
+    } }}>
+      {taskColumns.find(({ status }) => status === task.status)!.label}
+    </Typography>
     <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1 }}>
       <Avatar src={member?.avatarPhotoUrl} alt={member?.firstName ?? "Former member"} slotProps={{ img: { draggable: false } }}
         sx={{ bgcolor: normalizeMemberColor(member?.avatarColor), width: 30, height: 30, fontSize: 14 }}>
@@ -203,7 +208,8 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
       Drag anywhere on a card except its buttons to move or reorder. On touch screens, scroll using lane gaps or backgrounds; drag near the board edge to scroll between lanes. Keyboard: Enter to lift, arrows to position, Enter to drop, Escape to cancel.
     </Typography>
     <Box role="status" aria-live="polite" sx={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clipPath: "inset(50%)" }}>{announcement}</Box>
-    <Box ref={board} aria-label="Task board" sx={{ display: "flex", flex: 1, overflowX: "auto", gap: 2, pb: 2, minWidth: 0, overscrollBehaviorX: "contain" }}>
+    <Box ref={board} aria-label="Task board" sx={{ display: "flex", flex: 1, overflowX: "auto", gap: 2, pb: 2, minWidth: 0, overscrollBehaviorX: "contain",
+      "@container dashboard (max-width: 640px)": { flexDirection: "column", overflowX: "hidden", overflowY: "visible" } }}>
       {taskColumns.map(({ status, label }) => {
         const cards = ordered(status);
         const marker = drag?.valid && drag.destination.status === status ? drag.destination.index : -1;
@@ -213,6 +219,10 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
         return <Box key={status} component="section" aria-label={label} data-task-column={status}
           data-drop-active={marker >= 0 || undefined}
           className="settings-card" sx={{ flex: "1 0 280px", minWidth: 0, maxWidth: { xs: "85vw", md: "none" }, minHeight: 280,
+            "@container dashboard (max-width: 640px)": {
+              flex: "0 0 auto", maxWidth: "none", minHeight: "auto",
+              order: status === "in_progress" ? 0 : status === "todo" ? 1 : 2,
+            },
             boxShadow: marker >= 0 ? "inset 0 0 0 2px var(--accent-strong)" : undefined,
             bgcolor: marker >= 0 ? "var(--today-bg)" : undefined }}>
           <Typography component="h2" variant="h6" sx={{ mb: 2 }}>{label} <Typography component="span" sx={{ color: "var(--text-secondary)" }}>{cards.length}</Typography></Typography>

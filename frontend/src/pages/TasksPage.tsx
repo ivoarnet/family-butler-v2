@@ -6,7 +6,7 @@ import { DateField } from "../shared/ui/PickerFields";
 import type { FamilyMember } from "../types/family";
 import { createTaskClient, TaskRequestError } from "../features/tasks/client";
 import { KanbanBoard } from "../features/tasks/KanbanBoard";
-import type { Task, TaskFields } from "../features/tasks/types";
+import { taskColumns, type Task, type TaskFields, type TaskStatus } from "../features/tasks/types";
 
 interface TasksPageProps {
   householdId: string;
@@ -21,7 +21,7 @@ interface TasksPageProps {
   onSignOut: () => Promise<void>;
   moduleNavigation?: ReactNode;
 }
-type Editor = { id: string; task?: Task; fields: TaskFields };
+type Editor = { id: string; task?: Task; fields: TaskFields; status: TaskStatus };
 const message = (error: unknown) => error instanceof Error ? error.message : "Something went wrong. Please try again.";
 
 export function TasksPage(props: TasksPageProps) {
@@ -131,11 +131,12 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
   const disabled = loading || busy || needsRefresh;
   const openEditor = (task?: Task) => {
     setDialogError(null);
-    setEditor({ id: task?.id ?? crypto.randomUUID(), task, fields: task
+    setEditor({ id: task?.id ?? crypto.randomUUID(), task, status: task?.status ?? "todo", fields: task
       ? { title: task.title, memberId: task.memberId, coins: task.coins, dueDate: task.dueDate, repeatRule: task.repeatRule }
       : { title: "", memberId: members[0]?.id ?? "", coins: 0, dueDate: null, repeatRule: "none" } });
   };
   const change = (fields: Partial<TaskFields>) => setEditor((previous) => previous ? { ...previous, fields: { ...previous.fields, ...fields } } : null);
+  const changeStatus = (status: TaskStatus) => setEditor((previous) => previous ? { ...previous, status } : null);
   const save = () => {
     if (!editor) return;
     const fields = { ...editor.fields, title: editor.fields.title.trim() };
@@ -144,7 +145,7 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
     if (!members.some((member) => member.id === fields.memberId)) return setDialogError("Choose a household member.");
     if (!Number.isSafeInteger(fields.coins) || fields.coins < 0 || fields.coins > 1_000_000) return setDialogError("Coins must be a non-negative whole number up to 1,000,000.");
     if (fields.repeatRule !== "none" && !fields.dueDate) return setDialogError("Repeating tasks require a due date.");
-    void mutate((api) => editor.task ? api.edit(editor.task, fields) : api.create(editor.id, fields));
+    void mutate((api) => editor.task ? api.edit(editor.task, { ...fields, status: editor.status }) : api.create(editor.id, fields));
   };
   return <div className="dashboard-page settings-page tasks-page">
     <header className="dashboard-header grocery-header" role="banner">
@@ -191,6 +192,10 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
             helperText={!members.length ? "No household members available." : undefined} onChange={(event) => change({ memberId: event.target.value })}>
             {members.map((member) => <MenuItem key={member.id} value={member.id}>{member.firstName}</MenuItem>)}
           </FormField>
+          {editor?.task && <FormField select label="Status" value={editor.status} disabled={busy || saved}
+            onChange={(event) => changeStatus(event.target.value as TaskStatus)}>
+            {taskColumns.map(({ status, label }) => <MenuItem key={status} value={status}>{label}</MenuItem>)}
+          </FormField>}
           <FormField label="Coins" type="number" value={editor && Number.isNaN(editor.fields.coins) ? "" : editor?.fields.coins ?? 0} disabled={busy || saved}
             slotProps={{ htmlInput: { min: 0, max: 1_000_000, step: 1 } }} onChange={(event) => change({ coins: event.target.value === "" ? NaN : Number(event.target.value) })} />
           <DateField label="Due date" value={editor?.fields.dueDate ?? ""} disabled={busy || saved}

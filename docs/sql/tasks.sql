@@ -80,7 +80,7 @@ begin
   if exists (select 1 from jsonb_object_keys(p_data) k where not (
     (p_action = 'read' and k in ('memberId', 'status', 'startDate', 'endDate'))
     or (p_action = 'create' and k in ('id', 'title', 'memberId', 'coins', 'dueDate', 'repeatRule'))
-    or (p_action = 'update' and k in ('id', 'revision', 'title', 'memberId', 'coins', 'dueDate', 'repeatRule'))
+    or (p_action = 'update' and k in ('id', 'revision', 'title', 'memberId', 'coins', 'dueDate', 'repeatRule', 'status'))
     or (p_action = 'delete' and k in ('id', 'revision'))
     or (p_action = 'move' and k in ('id', 'revision', 'status', 'beforeId'))
   )) then return jsonb_build_object('error', 'invalid request', 'status', 400); end if;
@@ -207,20 +207,33 @@ begin
       end if;
     end if;
   end if;
+  if p_action = 'update' then
+    v_status := t.status;
+    if p_data ? 'status' then
+      v_status := p_data->>'status';
+      if jsonb_typeof(p_data->'status') is distinct from 'string' or v_status not in ('todo', 'in_progress', 'done') then
+        return jsonb_build_object('error', 'invalid status', 'status', 400);
+      end if;
+    end if;
+  end if;
 
   if p_action = 'update' then
     update public.household_tasks set title = v_title, member_id = v_member, coins = (p_data->>'coins')::integer,
       due_date = v_due, repeat_rule = v_rule,
-      series_id = case when v_rule <> 'none' then coalesce(series_id, id) else series_id end,
-      revision = revision + 1 where id = v_id;
-  else
-    if p_action = 'delete' then delete from public.household_tasks where id = v_id; end if;
+      series_id = case when v_rule <> 'none' then coalesce(series_id, id) else series_id end where id = v_id;
+    select * into t from public.household_tasks where id = v_id;
+    if v_status = t.status then
+      update public.household_tasks set revision = revision + 1 where id = v_id;
+    end if;
+  end if;
+  if p_action = 'delete' then delete from public.household_tasks where id = v_id; end if;
+  if p_action in ('create', 'delete', 'move') or (p_action = 'update' and v_status <> t.status) then
     -- Compact both affected columns before inserting the moved card. Other cards retain revisions.
     with positions as (
       select id, (row_number() over (partition by status order by sort_order, id) - 1)::integer as position
       from public.household_tasks where household_id = p_household and id <> v_id
         and (status = 'todo' and p_action = 'create'
-          or p_action in ('move', 'delete') and status in (t.status, v_status))
+          or p_action in ('move', 'delete', 'update') and status in (t.status, v_status))
     )
     update public.household_tasks x set sort_order = p.position from positions p where x.id = p.id;
     if p_action = 'create' then
@@ -231,7 +244,7 @@ begin
       insert into public.household_tasks(id, household_id, title, member_id, coins, sort_order, due_date, repeat_rule, series_id, creation_payload)
         values (v_id, p_household, v_title, v_member, (p_data->>'coins')::integer, v_position, v_due,
           v_rule, case when v_rule <> 'none' then v_id else null end, v_payload);
-    elsif p_action = 'move' then
+    elsif p_action in ('move', 'update') then
       if v_before is null then
         select count(*) into v_position from public.household_tasks
           where household_id = p_household and status = v_status and id <> v_id;

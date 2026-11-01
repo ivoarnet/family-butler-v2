@@ -74,7 +74,7 @@ function installMock(options: MockOptions = {}) {
       expect(body.id).toMatch(/^[\da-f-]{36}$/);
       if (!task) tasks.push({ ...body, householdId: "demo", status: "todo", sortOrder: 20, seriesId: null, completedAt: null, revision: 0 });
     } else if (method === "PUT") {
-      expect(Object.keys(body).sort()).toEqual(["coins", "dueDate", "id", "memberId", "repeatRule", "revision", "title"]);
+      expect(Object.keys(body).sort()).toEqual(["coins", "dueDate", "id", "memberId", "repeatRule", "revision", "status", "title"]);
       Object.assign(task!, body, { revision: task!.revision + 1 });
     } else if (method === "DELETE") {
       expect(Object.keys(body).sort()).toEqual(["id", "revision"]);
@@ -190,7 +190,21 @@ const assertBoardLayout = async (canvasElement: HTMLElement) => {
 };
 export const TasksPhoneWidthLayout: Story = {
   args: { boardWidth: 390 },
-  play: async ({ canvasElement }) => assertBoardLayout(canvasElement),
+  play: async ({ canvasElement }) => {
+    const canvas = await ready(canvasElement);
+    const root = canvasElement.ownerDocument.documentElement;
+    const board = canvasElement.querySelector<HTMLElement>('[aria-label="Task board"]')!;
+    const lanes = [...board.querySelectorAll<HTMLElement>("[data-task-column]")];
+    await expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
+    await expect(board.scrollWidth).toBeLessThanOrEqual(board.clientWidth + 1);
+    await expect(lanes.map((lane) => getComputedStyle(lane).order)).toEqual(["1", "0", "2"]);
+    for (const lane of lanes) {
+      await expect(lane.getBoundingClientRect().width).toBeLessThanOrEqual(board.getBoundingClientRect().width + 1);
+    }
+    const card = canvas.getByRole("article", { name: "Fold laundry" });
+    await expect(card.querySelector("[data-task-status-badge]")).toHaveTextContent("To do");
+    await expect(getComputedStyle(card.querySelector("[data-task-status-badge]")!).display).toBe("inline-flex");
+  },
 };
 export const TasksTabletWidthLayout: Story = {
   args: { boardWidth: 768 },
@@ -263,8 +277,12 @@ export const TasksCreateEditDelete: Story = {
     await userEvent.type(dialog.getByRole("textbox", { name: "Title" }), "Walk with Sam");
     await userEvent.click(dialog.getByRole("combobox", { name: "Assignee" }));
     await userEvent.click(within(canvasElement.ownerDocument.body).getByRole("option", { name: "Sam" }));
+    await userEvent.click(dialog.getByRole("combobox", { name: "Status" }));
+    await userEvent.click(within(canvasElement.ownerDocument.body).getByRole("option", { name: "In progress" }));
     await userEvent.click(dialog.getByRole("button", { name: "Save task" }));
     await expect(await canvas.findByRole("article", { name: "Walk with Sam" })).toHaveTextContent("Sam");
+    await expect(within(canvas.getByRole("region", { name: "In progress" })).getByRole("article", { name: "Walk with Sam" })).toBeVisible();
+    await expect(writes.mock.calls[writes.mock.calls.length - 1][0].body.status).toBe("in_progress");
     await waitFor(() => expect(canvas.getByRole("button", { name: "Delete Walk with Sam" })).toBeEnabled());
     await userEvent.click(canvas.getByRole("button", { name: "Delete Walk with Sam" }));
     dialog = await editor(canvasElement, "Delete task?");
