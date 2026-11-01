@@ -19,7 +19,7 @@ const initialTasks: Task[] = [
     sortOrder: 0, dueDate: "2026-11-01", repeatRule: "daily", seriesId: "series-table", completedAt: null, revision: 0 },
 ];
 const longTitle = "A very long task title ".repeat(7).trim();
-type MockOptions = { failSave?: boolean; conflict?: boolean; failRefresh?: boolean; delayed?: boolean; delayedMutation?: boolean; dark?: boolean; longTitle?: boolean };
+type MockOptions = { failSave?: boolean; conflict?: boolean; failRefresh?: boolean; delayed?: boolean; delayedMutation?: boolean; dark?: boolean; longTitle?: boolean; manyTasks?: boolean };
 const writes = fn();
 
 function installMock(options: MockOptions = {}) {
@@ -27,6 +27,9 @@ function installMock(options: MockOptions = {}) {
   const original = window.fetch;
   let tasks = structuredClone(initialTasks);
   if (options.longTitle) { tasks[0].title = longTitle; tasks[0].coins = 1000000; }
+  if (options.manyTasks) tasks.push(...Array.from({ length: 24 }, (_, index) => ({
+    ...initialTasks[1], id: `extra-${index}`, title: `Extra task ${index + 1}`, sortOrder: index + 2,
+  })));
   let failSave = options.failSave;
   let conflict = options.conflict;
   let failRefresh = false;
@@ -133,10 +136,24 @@ const assertRewardHeader = async (card: HTMLElement) => {
   await expect(bounds.right - coins.right).toBeLessThan(30);
   await expect(card.querySelector('[data-testid="DragIndicatorIcon"]')).toBeNull();
 };
+const assertViewportHeight = async (canvasElement: HTMLElement) => {
+  const page = canvasElement.querySelector<HTMLElement>(".tasks-page")!;
+  const main = page.querySelector<HTMLElement>(".settings-main")!;
+  const board = main.querySelector<HTMLElement>('[aria-label="Task board"]')!;
+  const view = canvasElement.ownerDocument.defaultView!;
+  const bottomPadding = parseFloat(view.getComputedStyle(main).paddingBottom) + parseFloat(view.getComputedStyle(board).paddingBottom);
+  await expect(page.getBoundingClientRect().height).toBeGreaterThanOrEqual(view.innerHeight);
+  const bottoms = [...board.querySelectorAll<HTMLElement>("[data-task-column]")].map((lane) => lane.getBoundingClientRect().bottom + view.scrollY);
+  for (const bottom of bottoms) {
+    await expect(bottom).toBeGreaterThanOrEqual(view.innerHeight - bottomPadding - 1);
+    await expect(Math.abs(bottom - bottoms[0])).toBeLessThan(1);
+  }
+};
 
 export const TasksBoard: Story = {
   play: async ({ canvasElement }) => {
     const canvas = await ready(canvasElement);
+    await assertViewportHeight(canvasElement);
     const root = canvasElement.ownerDocument.documentElement;
     await expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
     await expect(canvas.getByRole("region", { name: "Done" })).toHaveTextContent("No tasks");
@@ -161,6 +178,7 @@ export const TasksBoard: Story = {
 export const TasksDarkBoard: Story = { ...TasksBoard, parameters: { taskMock: { dark: true } } };
 const assertBoardLayout = async (canvasElement: HTMLElement) => {
   await ready(canvasElement);
+  await assertViewportHeight(canvasElement);
   const root = canvasElement.ownerDocument.documentElement;
   await expect(root.scrollWidth).toBeLessThanOrEqual(root.clientWidth);
   const liveRegion = canvasElement.querySelector<HTMLElement>('[role="status"][aria-live="polite"]')!;
@@ -177,6 +195,31 @@ export const TasksPhoneWidthLayout: Story = {
 export const TasksTabletWidthLayout: Story = {
   args: { boardWidth: 768 },
   play: async ({ canvasElement }) => assertBoardLayout(canvasElement),
+};
+export const TasksLongBoardLayout: Story = {
+  parameters: { taskMock: { manyTasks: true } },
+  play: async ({ canvasElement }) => {
+    await ready(canvasElement);
+    await assertViewportHeight(canvasElement);
+    const view = canvasElement.ownerDocument.defaultView!;
+    const page = canvasElement.querySelector<HTMLElement>(".tasks-page")!;
+    const main = page.querySelector<HTMLElement>(".settings-main")!;
+    const board = main.querySelector<HTMLElement>('[aria-label="Task board"]')!;
+    await expect(page.getBoundingClientRect().height).toBeGreaterThan(view.innerHeight);
+    await expect(main.getBoundingClientRect().height).toBeGreaterThan(view.innerHeight);
+    await expect(board.scrollHeight).toBeLessThanOrEqual(board.clientHeight + 1);
+    for (const lane of board.querySelectorAll<HTMLElement>("[data-task-column]")) {
+      await expect(lane.scrollHeight).toBeLessThanOrEqual(lane.clientHeight + 1);
+      for (const card of lane.querySelectorAll<HTMLElement>("[data-task-card]")) {
+        await expect(card.getBoundingClientRect().bottom).toBeLessThanOrEqual(lane.getBoundingClientRect().bottom - parseFloat(view.getComputedStyle(lane).paddingBottom));
+      }
+    }
+    const last = within(canvasElement).getByRole("article", { name: "Extra task 24" });
+    last.scrollIntoView({ block: "end" });
+    await waitFor(() => expect(view.scrollY).toBeGreaterThan(0));
+    await expect(last.getBoundingClientRect().bottom).toBeLessThanOrEqual(view.innerHeight);
+    view.scrollTo(0, 0);
+  },
 };
 export const TasksCreateEditDelete: Story = {
   play: async ({ canvasElement }) => {

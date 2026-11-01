@@ -499,6 +499,19 @@ body,
   gap: 1rem;
 }
 
+.tasks-page {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+  min-height: 100dvh;
+}
+
+.tasks-page .settings-main {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+}
+
 .settings-card {
   padding: 1rem;
 }

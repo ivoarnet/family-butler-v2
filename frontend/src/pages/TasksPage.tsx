@@ -146,7 +146,7 @@ function TaskSession({ householdId, householdName, accessToken, members, moduleN
     if (fields.repeatRule !== "none" && !fields.dueDate) return setDialogError("Repeating tasks require a due date.");
     void mutate((api) => editor.task ? api.edit(editor.task, fields) : api.create(editor.id, fields));
   };
-  return <div className="dashboard-page settings-page">
+  return <div className="dashboard-page settings-page tasks-page">
     <header className="dashboard-header grocery-header" role="banner">
       <div className="header-branding">{moduleNavigation}<div><h1>Tasks</h1><p>{householdName}</p></div></div>
       <div className="header-meta">

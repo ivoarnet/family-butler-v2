@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Extended Tasks lane backgrounds to fill the viewport below the header and board controls, while allowing long task lists to grow naturally. Updated desktop, mobile, and drag screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
+
 - Made the entire task card draggable without a handle, keeping edit/delete actions independent and taps non-mutating. Coin rewards now sit at the top right in cards and drag previews. Updated screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.
 
 - Task cards and floating drag previews now display the uploaded `frontend/public/family-coin.svg` artwork, retaining accessible coin-amount labels. Updated screenshots: `docs/screenshots/tasks-kanban.png`, `docs/screenshots/tasks-kanban-mobile.png`, and `docs/screenshots/tasks-kanban-drag.png`.

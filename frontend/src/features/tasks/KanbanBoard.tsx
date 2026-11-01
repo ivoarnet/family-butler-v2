@@ -203,7 +203,7 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
       Drag anywhere on a card except its buttons to move or reorder. On touch screens, scroll using lane gaps or backgrounds; drag near the board edge to scroll between lanes. Keyboard: Enter to lift, arrows to position, Enter to drop, Escape to cancel.
     </Typography>
     <Box role="status" aria-live="polite" sx={{ position: "absolute", width: "1px", height: "1px", overflow: "hidden", clipPath: "inset(50%)" }}>{announcement}</Box>
-    <Box ref={board} aria-label="Task board" sx={{ display: "flex", overflowX: "auto", gap: 2, pb: 2, minWidth: 0, overscrollBehaviorX: "contain" }}>
+    <Box ref={board} aria-label="Task board" sx={{ display: "flex", flex: 1, overflowX: "auto", gap: 2, pb: 2, minWidth: 0, overscrollBehaviorX: "contain" }}>
       {taskColumns.map(({ status, label }) => {
         const cards = ordered(status);
         const marker = drag?.valid && drag.destination.status === status ? drag.destination.index : -1;
