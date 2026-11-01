@@ -271,6 +271,7 @@ export const TasksKeyboardMoveReorderCancel: Story = {
     const canvas = await ready(canvasElement);
     canvas.getByRole("button", { name: "Move Water plants" }).focus();
     await userEvent.keyboard("{Enter}{ArrowUp}{Enter}");
+    await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
     await waitFor(() => expect(order(canvasElement, "todo")).toEqual(["plants", "laundry"]));
     await waitFor(() => expect(canvas.getByRole("button", { name: "Move Water plants" })).toBeEnabled());
     canvas.getByRole("button", { name: "Move Water plants" }).focus();
@@ -292,21 +293,38 @@ export const TasksPointerMoveReorderTouchCancel: Story = {
       const handle = canvas.getByRole("button", { name: "Move Water plants" });
       const laundry = canvas.getByRole("article", { name: "Fold laundry" }).getBoundingClientRect();
       fireEvent.pointerDown(handle, { pointerId: 1, isPrimary: true, button: 0, clientX: laundry.left + 20, clientY: laundry.top + 20 });
+      const preview = canvasElement.ownerDocument.querySelector<HTMLElement>("[data-task-drag-preview]")!;
+      await expect(canvasElement.ownerDocument.querySelectorAll("[data-task-drag-preview]")).toHaveLength(1);
+      await expect(preview).toBeVisible();
+      await expect(preview).toHaveTextContent("Water plants");
+      await expect(preview).toHaveTextContent("Sam");
+      await expect(preview.querySelector("svg[data-testid='MonetizationOnOutlinedIcon']")).not.toBeNull();
+      await expect(preview).toHaveAttribute("aria-hidden", "true");
+      await expect(getComputedStyle(preview).pointerEvents).toBe("none");
+      await expect(canvas.getAllByRole("article", { name: "Water plants" })).toHaveLength(1);
+      const startY = preview.getBoundingClientRect().top;
       fireEvent.pointerMove(handle, { pointerId: 1, isPrimary: true, clientX: laundry.left + 20, clientY: laundry.top + 2 });
+      await waitFor(() => expect(Math.round(preview.getBoundingClientRect().top - startY)).toBe(-18));
       await expect(canvas.getByRole("img", { name: "Drop in To do, position 1" })).toBeVisible();
       fireEvent.pointerUp(handle, { pointerId: 1, isPrimary: true, clientX: laundry.left + 20, clientY: laundry.top + 2 });
       await waitFor(() => expect(order(canvasElement, "todo")).toEqual(["plants", "laundry"]));
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
       await waitFor(() => expect(handle).toBeEnabled());
       const done = canvas.getByRole("region", { name: "Done" }).getBoundingClientRect();
       fireEvent.pointerDown(handle, { pointerId: 2, isPrimary: true, pointerType: "touch", button: 0, clientX: laundry.left + 20, clientY: laundry.top + 20 });
       fireEvent.pointerMove(handle, { pointerId: 2, isPrimary: true, pointerType: "touch", clientX: done.left + 50, clientY: done.top + 100 });
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeVisible();
+      await expect(canvas.getByRole("region", { name: "Done" })).toHaveAttribute("data-drop-active", "true");
       fireEvent.pointerCancel(handle, { pointerId: 2, pointerType: "touch" });
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
+      await expect(canvas.getByRole("region", { name: "Done" })).not.toHaveAttribute("data-drop-active");
       await expect(writes).toHaveBeenCalledTimes(1);
       await expect(order(canvasElement, "done")).toEqual([]);
       fireEvent.pointerDown(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", button: 0, clientX: laundry.left + 20, clientY: laundry.top + 20 });
       fireEvent.pointerMove(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", clientX: done.left + 50, clientY: done.top + 100 });
       fireEvent.pointerUp(handle, { pointerId: 3, isPrimary: true, pointerType: "touch", clientX: done.left + 50, clientY: done.top + 100 });
       await waitFor(() => expect(order(canvasElement, "done")).toEqual(["plants"]));
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
       await expect(within(canvasElement.ownerDocument.body).queryByRole("dialog")).toBeNull();
     } finally { HTMLElement.prototype.setPointerCapture = original; }
   },
@@ -349,6 +367,7 @@ export const TasksPointerOutsideNoOpAndKeyboardInterference: Story = {
       await expect(writes).not.toHaveBeenCalled();
       await expect(canvas.getByRole("img", { name: "Drop in Done, position 1" })).toBeVisible();
       fireEvent.pointerUp(handle, { pointerId: 5, isPrimary: true, clientX: done.left + 50, clientY: done.bottom + 40 });
+      await expect(canvasElement.ownerDocument.querySelector("[data-task-drag-preview]")).toBeNull();
       await expect(canvas.queryByRole("img", { name: "Drop in Done, position 1" })).toBeNull();
       await expect(writes).not.toHaveBeenCalled();
       fireEvent.pointerDown(handle, { pointerId: 6, isPrimary: true, button: 0, clientX: x, clientY: y });

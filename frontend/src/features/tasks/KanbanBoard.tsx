@@ -1,4 +1,5 @@
-import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent } from "react";
+import { useEffect, useRef, useState, type KeyboardEvent, type PointerEvent, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 import { Avatar, Box, IconButton, Stack, Typography } from "@mui/material";
 import DragIndicatorIcon from "@mui/icons-material/DragIndicator";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
@@ -10,7 +11,10 @@ import dayjs from "dayjs";
 import { taskColumns, type Task, type TaskStatus } from "./types";
 
 type Destination = { status: TaskStatus; index: number };
-type Drag = { task: Task; destination: Destination; pointerId?: number; x: number; y: number; valid: boolean };
+type Drag = {
+  task: Task; destination: Destination; pointerId?: number; x: number; y: number; valid: boolean;
+  preview?: { width: number; offsetX: number; offsetY: number };
+};
 interface Props {
   tasks: Task[];
   members: FamilyMember[];
@@ -18,6 +22,32 @@ interface Props {
   onMove: (task: Task, status: TaskStatus, beforeId: string | null) => void;
   onEdit: (task: Task) => void;
   onDelete: (task: Task) => void;
+}
+
+function TaskCardContent({ task, member, handle, actions }: {
+  task: Task; member?: FamilyMember; handle: ReactNode; actions?: ReactNode;
+}) {
+  return <>
+    <Stack direction="row" sx={{ alignItems: "start", gap: 1 }}>
+      {handle}
+      <Typography component="h3" sx={{ fontWeight: 700, flex: 1, overflowWrap: "anywhere", pt: 1 }}>{task.title}</Typography>
+    </Stack>
+    <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1 }}>
+      <Avatar src={member?.avatarPhotoUrl} alt={member?.firstName ?? "Former member"}
+        sx={{ bgcolor: normalizeMemberColor(member?.avatarColor), width: 30, height: 30, fontSize: 14 }}>
+        {member?.firstName.charAt(0) ?? "?"}
+      </Avatar>
+      <Typography variant="body2">{member?.firstName ?? "Former member"}</Typography>
+      <Stack direction="row" role="img" aria-label={`${task.coins} coins`} sx={{ ml: "auto", alignItems: "center", gap: 0.5 }}>
+        <MonetizationOnOutlinedIcon fontSize="small" />
+        <Typography variant="body2" sx={{ fontWeight: 700 }}>{task.coins}</Typography>
+      </Stack>
+    </Stack>
+    {(task.dueDate || task.repeatRule !== "none") && <Typography variant="body2" sx={{ mt: 1, color: "var(--text-secondary)" }}>
+      {task.dueDate ? `Due ${dayjs(task.dueDate).format("DD.MM.YYYY")}` : ""}{task.repeatRule !== "none" ? ` · Repeats ${task.repeatRule}` : ""}
+    </Typography>}
+    {actions}
+  </>;
 }
 
 export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete }: Props) {
@@ -104,7 +134,9 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
     event.preventDefault();
     event.currentTarget.focus();
     event.currentTarget.setPointerCapture(event.pointerId);
+    const rect = event.currentTarget.closest("[data-task-card]")!.getBoundingClientRect();
     const next = { task, pointerId: event.pointerId, x: event.clientX, y: event.clientY, valid: true,
+      preview: { width: rect.width, offsetX: event.clientX - rect.left, offsetY: event.clientY - rect.top },
       destination: { status: task.status, index: ordered(task.status).findIndex((item) => item.id === task.id) } };
     update(next); announce(next);
   };
@@ -150,7 +182,10 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
         const insertion = (index: number) => marker === index && <Box key={`marker-${index}`} data-insertion-marker role="img" aria-label={`Drop in ${label}, position ${index + 1}`}
           sx={{ height: 4, background: "var(--accent-strong)", borderRadius: 2, my: 0.5 }} />;
         return <Box key={status} component="section" aria-label={label} data-task-column={status}
-          className="settings-card" sx={{ flex: "1 0 280px", minWidth: 0, maxWidth: { xs: "85vw", md: "none" }, minHeight: 280 }}>
+          data-drop-active={marker >= 0 || undefined}
+          className="settings-card" sx={{ flex: "1 0 280px", minWidth: 0, maxWidth: { xs: "85vw", md: "none" }, minHeight: 280,
+            boxShadow: marker >= 0 ? "inset 0 0 0 2px var(--accent-strong)" : undefined,
+            bgcolor: marker >= 0 ? "var(--today-bg)" : undefined }}>
           <Typography component="h2" variant="h6" sx={{ mb: 2 }}>{label} <Typography component="span" sx={{ color: "var(--text-secondary)" }}>{cards.length}</Typography></Typography>
           <Stack sx={{ gap: 1.5 }}>
             {cards.map((task) => {
@@ -161,8 +196,8 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
               return <Box key={task.id}>
                 {!isDragging && insertion(index)}
                 <Box component="article" aria-label={task.title} data-task-card={task.id}
-                  sx={{ p: 1.5, borderRadius: 2, border: "1px solid var(--dialog-border)", bgcolor: "var(--dialog-field)", opacity: isDragging ? 0.5 : 1 }}>
-                  <Stack direction="row" sx={{ alignItems: "start", gap: 1 }}>
+                  sx={{ p: 1.5, borderRadius: 2, border: "1px solid var(--dialog-border)", bgcolor: "var(--dialog-field)", opacity: isDragging ? 0.25 : 1 }}>
+                  <TaskCardContent task={task} member={member} handle={
                     <IconButton aria-label={`Move ${task.title}`} aria-describedby="task-drag-help" aria-pressed={isDragging}
                       disabled={disabled} sx={{ touchAction: "none", cursor: isDragging ? "grabbing" : "grab", color: "var(--text-primary)", minWidth: 44, minHeight: 44 }}
                       onPointerDown={(event) => startPointer(event, task)}
@@ -174,26 +209,12 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
                       onKeyDown={(event) => keyboard(event, task)} onClick={(event) => event.preventDefault()}>
                       <DragIndicatorIcon />
                     </IconButton>
-                    <Typography component="h3" sx={{ fontWeight: 700, flex: 1, overflowWrap: "anywhere", pt: 1 }}>{task.title}</Typography>
-                  </Stack>
-                  <Stack direction="row" sx={{ alignItems: "center", gap: 1, mt: 1 }}>
-                    <Avatar src={member?.avatarPhotoUrl} alt={member?.firstName ?? "Former member"}
-                      sx={{ bgcolor: normalizeMemberColor(member?.avatarColor), width: 30, height: 30, fontSize: 14 }}>
-                      {member?.firstName.charAt(0) ?? "?"}
-                    </Avatar>
-                    <Typography variant="body2">{member?.firstName ?? "Former member"}</Typography>
-                    <Stack direction="row" role="img" aria-label={`${task.coins} coins`} sx={{ ml: "auto", alignItems: "center", gap: 0.5 }}>
-                      <MonetizationOnOutlinedIcon fontSize="small" />
-                      <Typography variant="body2" sx={{ fontWeight: 700 }}>{task.coins}</Typography>
-                    </Stack>
-                  </Stack>
-                  {(task.dueDate || task.repeatRule !== "none") && <Typography variant="body2" sx={{ mt: 1, color: "var(--text-secondary)" }}>
-                    {task.dueDate ? `Due ${dayjs(task.dueDate).format("DD.MM.YYYY")}` : ""}{task.repeatRule !== "none" ? ` · Repeats ${task.repeatRule}` : ""}
-                  </Typography>}
+                  } actions={
                   <Stack direction="row" sx={{ justifyContent: "flex-end" }}>
                     <IconButton disabled={disabled || !!drag} aria-label={`Edit ${task.title}`} onClick={() => onEdit(task)} sx={{ color: "var(--text-primary)", minWidth: 44, minHeight: 44 }}><EditOutlinedIcon fontSize="small" /></IconButton>
                     <IconButton disabled={disabled || !!drag} aria-label={`Delete ${task.title}`} onClick={() => onDelete(task)} sx={{ color: "var(--text-primary)", minWidth: 44, minHeight: 44 }}><DeleteOutlineIcon fontSize="small" /></IconButton>
                   </Stack>
+                  } />
                 </Box>
               </Box>;
             })}
@@ -203,5 +224,17 @@ export function KanbanBoard({ tasks, members, disabled, onMove, onEdit, onDelete
         </Box>;
       })}
     </Box>
+    {drag?.preview && createPortal(
+      <Box data-task-drag-preview aria-hidden="true" sx={{
+        position: "fixed", top: 0, left: 0, zIndex: 1500, pointerEvents: "none",
+        width: `${drag.preview.width}px`, boxSizing: "border-box", p: 1.5, borderRadius: 2,
+        transform: `translate3d(${drag.x - drag.preview.offsetX}px, ${drag.y - drag.preview.offsetY}px, 0) rotate(2deg)`,
+        transformOrigin: "top left", bgcolor: "var(--bg)", color: "var(--text-primary)",
+        border: "2px solid var(--accent-strong)", boxShadow: "var(--shadow)",
+      }}>
+        <TaskCardContent task={drag.task} member={members.find((member) => member.id === drag.task.memberId)}
+          handle={<Box sx={{ minWidth: 44, height: 44, display: "grid", placeItems: "center" }}><DragIndicatorIcon /></Box>} />
+      </Box>, document.body,
+    )}
   </>;
 }

@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added a floating task-card preview that follows mouse/touch dragging, with a highlighted destination swimlane and insertion marker. Card details share the normal task-card rendering; cancelling/dropping removes the preview. Updated screenshot: `docs/screenshots/tasks-kanban-drag.png`.
+
 - Centralized shared date/time picker popup colors, including calendar text, controls, selection, and an opaque theme surface for dark mode. Added light/dark desktop and mobile date-picker regression coverage. Updated screenshots: `docs/screenshots/date-picker-dark.png` and `docs/screenshots/date-picker-dark-mobile.png`.
 
 - Replaced task-card “coins” text with a coin icon beside the reward amount, retaining accessible coin labels. Updated screenshots: `docs/screenshots/tasks-kanban.png` and `docs/screenshots/tasks-kanban-mobile.png`.

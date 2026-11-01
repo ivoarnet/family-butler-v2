@@ -96,7 +96,7 @@ Define per-household external list/item mappings, least-privilege consent and di
 
 Tasks owns its task records and Kanban state, separately from shared `HouseholdData`, calendar events, and future Gamification. The workspace uses existing household members, avatars, theme/form controls, navigation, and local React state. Its authenticated client aborts obsolete household/token requests and reloads persisted state after commands.
 
-The board has three fixed columns: `todo`, `in_progress`, and `done`. Dedicated pointer drag handles support mouse/touch moves and insertion within columns without disabling normal scrolling outside the handles. Keyboard alternatives support moving/reordering without dragging. Narrow screens scroll horizontally rather than squeezing all three columns into unreadable cards.
+The board has three fixed columns: `todo`, `in_progress`, and `done`. Dedicated pointer drag handles support mouse/touch moves and insertion within columns without disabling normal scrolling outside the handles. A floating card preview follows the pointer above the board, sharing the card's title, avatar, reward, and due/recurrence details. The origin remains dimmed and the destination lane/insertion position is highlighted; the preview never intercepts input or duplicates accessible controls. Keyboard alternatives support moving/reordering without dragging. Narrow screens scroll horizontally rather than squeezing all three columns into unreadable cards.
 
 The API base is `/api/households/{householdId}/tasks`; all access requires the existing authenticated household owner. Assigning a task to a member does not grant that member login access.
 
