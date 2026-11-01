@@ -20,9 +20,13 @@ module.exports = function createTasksProvider(request) {
       body: { p_household: householdId, p_user: userId, p_action: action, p_data: data },
     });
     if (!result || typeof result !== "object" || Array.isArray(result)) throw new Error("unavailable");
-    if (result.error) throw Object.assign(new Error("unavailable"), {
-      status: [400, 404, 409].includes(result.status) ? result.status : 500,
-    });
+    if (result.error) {
+      const periodLimit = result.error === "recurring_period_limit" && ["daily", "weekly"].includes(result.period);
+      throw Object.assign(new Error("unavailable"), {
+        status: [400, 404, 409].includes(result.status) ? result.status : 500,
+        ...(periodLimit ? { code: result.error, period: result.period } : {}),
+      });
+    }
     return result;
   };
   return {

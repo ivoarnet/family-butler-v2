@@ -339,7 +339,7 @@ begin
       if exists (select 1 from public.household_coin_earnings
         where household_id = p_household and series_id = t.series_id and period_start = v_period_start
           and source_id <> t.id) then
-        return jsonb_build_object('error', 'recurring task already completed this period', 'status', 409);
+        return jsonb_build_object('error', 'recurring_period_limit', 'status', 409, 'period', t.repeat_rule);
       end if;
     else
       v_period_start := (clock_timestamp() at time zone 'UTC')::date;

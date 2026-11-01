@@ -125,6 +125,21 @@ test("Tasks masks internal errors and propagates conflicts and resource not-foun
   }
 });
 
+test("Tasks returns a clear recurrence reward limit message for known daily and weekly conflicts", async () => {
+  for (const [period, expected] of [
+    ["daily", "You already closed a task from this series today. Only one per day can be closed to earn coins."],
+    ["weekly", "You already closed a task from this series this week. Only one per week can be closed to earn coins."],
+  ]) {
+    const db = store();
+    db.mutateTasks = async () => { throw Object.assign(new Error("unavailable"), {
+      status: 409, code: "recurring_period_limit", period,
+    }); };
+    const response = await invoke(createHandler(db, async () => ownerId), "POST", { id, revision: 0, status: "done" }, "move");
+    assert.equal(response.status, 409);
+    assert.equal(response.body.error, expected);
+  }
+});
+
 test("provider scopes owner lookup, maps exactly the Task contract and uses RPC for reads and all writes", async () => {
   const calls = [];
   const row = { id, household_id: householdId, title: task.title, member_id: memberId, coins: 5,
@@ -156,6 +171,11 @@ test("provider scopes owner lookup, maps exactly the Task contract and uses RPC 
   for (const result of [null, [], { tasks: null }, { tasks: [] }, { error: "SQL secret", status: 409 }]) {
     const broken = createProvider(async () => result);
     await assert.rejects(() => broken.getTasks(householdId, ownerId), /unavailable/);
+  }
+  for (const period of ["daily", "weekly"]) {
+    const limited = createProvider(async () => ({ error: "recurring_period_limit", status: 409, period }));
+    await assert.rejects(() => limited.mutateTasks(householdId, ownerId, "move", { id }), (error) =>
+      error.status === 409 && error.code === "recurring_period_limit" && error.period === period);
   }
 });
 
@@ -365,8 +385,9 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
       assert.equal((await snapshot()).find((card) => card.id === recurring).status, "done");
       assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and series_id = '${recurring}'`), "1",
         "re-completing the same occurrence does not award coins twice");
-      assert.equal(command("move", { id: next.id, revision: 0, status: "done" }).status, 409,
-        "completing another occurrence in the same period remains blocked");
+      const periodLimit = command("move", { id: next.id, revision: 0, status: "done" });
+      assert.equal(periodLimit.status, 409, "completing another occurrence in the same period remains blocked");
+      assert.deepEqual([periodLimit.error, periodLimit.period], ["recurring_period_limit", repeatRule]);
       assert.equal(command("update", { ...task, id: recurring, revision: 4, repeatRule: "none" }).status, 400);
       await mutate("update", { ...task, id: recurring, revision: 4, repeatRule,
         title: "Edited original", coins: 10, dueDate: "2026-12-01" });

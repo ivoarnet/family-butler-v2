@@ -35,8 +35,15 @@ const createHandler = (store, authenticate) => async (context, req) => {
     context.res = { status, body };
   } catch (error) {
     const status = [400, 404, 409].includes(error.status) ? error.status : 500;
+    const recurrenceMessage = error.code === "recurring_period_limit"
+      ? error.period === "weekly"
+        ? "You already closed a task from this series this week. Only one per week can be closed to earn coins."
+        : error.period === "daily"
+          ? "You already closed a task from this series today. Only one per day can be closed to earn coins."
+          : null
+      : null;
     context.res = { status, body: { error: status === 400 ? "invalid task request"
-      : status === 404 ? "not found" : status === 409 ? "conflict; refresh and retry" : "unavailable" } };
+      : status === 404 ? "not found" : status === 409 ? recurrenceMessage ?? "conflict; refresh and retry" : "unavailable" } };
   }
 };
 
