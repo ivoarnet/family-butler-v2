@@ -316,9 +316,10 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
     rows = await snapshot();
     assert.equal(rows.find((card) => card.id === a).completedAt, null);
     assert.equal(rows.length, 3);
-    assert.equal(command("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" }).status, 409);
+    assert.equal(command("update", { ...task, id: a, revision: 3, status: "done", repeatRule: "daily" }).ok, true);
     assert.equal((await snapshot()).length, 3);
-    assert.equal((await snapshot()).find((card) => card.id === a).status, "todo");
+    assert.equal((await snapshot()).find((card) => card.id === a).status, "done");
+    assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and source_id = '${a}'`), "1");
   });
 
   await t.test("date/member/open filters map nulls and include both date boundaries without undated cards", async () => {
@@ -339,7 +340,7 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
       { startDate: "2026-01-01", endDate: "2028-01-01" }]) assert.equal(command("read", filters).status, 400);
   });
 
-  await t.test("daily and weekly recurring series cannot be completed twice in one period", async () => {
+  await t.test("daily and weekly recurring series cannot earn twice in one period, but can re-complete an awarded occurrence", async () => {
     for (const [repeatRule, expectedDate] of [["daily", "2026-11-02"], ["weekly", "2026-11-08"]]) {
       clear();
       const recurring = await create({ repeatRule });
@@ -360,15 +361,21 @@ test("PostgreSQL Tasks transactions, coin earnings, recurrence, optimistic concu
       assert.equal((await snapshot()).length, 2);
       await move(recurring, "todo");
       assert.equal((await snapshot()).find((card) => card.id === recurring).completedAt, null);
-      assert.equal(command("move", { id: recurring, revision: 3, status: "done" }).status, 409);
-      assert.equal((await snapshot()).find((card) => card.id === recurring).status, "todo");
-      assert.equal(command("update", { ...task, id: recurring, revision: 3, repeatRule: "none" }).status, 400);
-      await mutate("update", { ...task, id: recurring, revision: 3, repeatRule,
+      await move(recurring, "done");
+      assert.equal((await snapshot()).find((card) => card.id === recurring).status, "done");
+      assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and series_id = '${recurring}'`), "1",
+        "re-completing the same occurrence does not award coins twice");
+      assert.equal(command("move", { id: next.id, revision: 0, status: "done" }).status, 409,
+        "completing another occurrence in the same period remains blocked");
+      assert.equal(command("update", { ...task, id: recurring, revision: 4, repeatRule: "none" }).status, 400);
+      await mutate("update", { ...task, id: recurring, revision: 4, repeatRule,
         title: "Edited original", coins: 10, dueDate: "2026-12-01" });
       assert.equal((await snapshot()).find((card) => card.id === next.id).title, task.title);
       await mutate("delete", { id: next.id, revision: 0 });
-      assert.equal(command("move", { id: recurring, revision: 4, status: "done" }).status, 409);
+      await move(recurring, "todo");
+      await move(recurring, "done");
       assert.equal((await snapshot()).length, 1);
+      assert.equal(sql(`select count(*) from public.household_coin_earnings where source_type = 'task' and series_id = '${recurring}'`), "1");
       assert.equal(sql(`select next_task_id from public.household_tasks where id = '${recurring}'`), next.id);
       assert.ok(sql(`select first_completed_at from public.household_tasks where id = '${recurring}'`));
     }
