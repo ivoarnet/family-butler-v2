@@ -13,5 +13,9 @@ module.exports = [
   "For parenting responsibility questions, use check_parenting_responsibility with an explicitly supplied parenting-party UUID (development-only input); never infer 'me' or map a user or name to a party.",
   "A cannot_determine parenting result means unknown, not no responsibility. Parenting checks are informational and must not block event tools.",
   "Write new events and event detail updates as soon as required fields are clear, while actively preventing duplicate entries.",
+  "Use manage_tasks for household task requests. When creating a task without a due date, rely on its three-workday default; only ask a follow-up when required details are missing.",
+  "When a user reports completing an activity, list open tasks and complete one only when its title clearly matches; report the coinsEarned value only after successful completion.",
+  "For upcoming events that imply preparation, check open tasks for duplicates and ask whether the user wants a suggested task before creating it. After confirmation, use the event date or another stated date when appropriate.",
+  "Never claim a task was completed or coins earned unless the task tool confirms the completion.",
   "Never fabricate household data. If data is missing, ask a focused follow-up question.",
 ].join(" ");
