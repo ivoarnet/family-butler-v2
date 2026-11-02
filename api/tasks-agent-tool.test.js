@@ -82,7 +82,23 @@ test("task creation respects specified member, reward and due date, and rejects 
     tools.executeTool("manage_tasks", { action: "create", title: "Invalid assignment", memberId: "foreign-member" }),
     /not part of this household/
   );
+  await assert.rejects(
+    tools.executeTool("manage_tasks", { action: "create", title: "Invalid date", dueDate: "0000-01-01" }),
+    /valid YYYY-MM-DD/
+  );
   assert.equal(calls.length, 1);
+});
+
+test("a null due date still receives the default", async () => {
+  let created;
+  const tools = makeTools({
+    async mutateTasks(_householdId, _userId, _action, taskInput) {
+      created = taskInput;
+    },
+  });
+  const result = await tools.executeTool("manage_tasks", { action: "create", title: "Call the dentist", dueDate: null });
+  assert.equal(created.dueDate, defaultDueDate());
+  assert.equal(result.task.dueDate, created.dueDate);
 });
 
 test("task listing reads open tasks and completion earns only the matched task's configured coins", async () => {

@@ -2,7 +2,7 @@ const { randomUUID } = require("crypto");
 const { cleanString, isIsoDate } = require("./eventModel");
 
 const isValidDate = (value) => {
-  if (!isIsoDate(value)) return false;
+  if (!isIsoDate(value) || value.startsWith("0000")) return false;
   const date = new Date(`${value}T00:00:00.000Z`);
   return Number.isFinite(date.getTime()) && date.toISOString().slice(0, 10) === value;
 };
@@ -45,7 +45,7 @@ module.exports = function createTasksTool({ db, householdId, householdState, use
           title: { type: "string" },
           memberId: { type: "string" },
           coins: { type: "integer", minimum: 0, maximum: 1000000 },
-          dueDate: { type: ["string", "null"] },
+          dueDate: { type: "string" },
           repeatRule: { type: "string", enum: ["none", "daily", "weekly"] },
         },
         required: ["action"],
@@ -55,9 +55,9 @@ module.exports = function createTasksTool({ db, householdId, householdState, use
       const action = args?.action;
       if (action === "list") {
         const result = await db.getTasks(householdId, userId, { status: "open" });
-        const query = cleanString(args?.query).toLocaleLowerCase();
+        const query = cleanString(args?.query).toLowerCase();
         const tasks = result.tasks
-          .filter((task) => !query || task.title.toLocaleLowerCase().includes(query))
+          .filter((task) => !query || task.title.toLowerCase().includes(query))
           .slice(0, 100)
           .map((task) => ({
             id: task.id,
@@ -85,7 +85,7 @@ module.exports = function createTasksTool({ db, householdId, householdState, use
         if (!Number.isInteger(coins) || coins < 0 || coins > 1000000) {
           throw toClientError("task coins must be a non-negative whole number up to 1,000,000");
         }
-        const dueDate = Object.hasOwn(args ?? {}, "dueDate") ? args.dueDate : defaultDueDate();
+        const dueDate = args?.dueDate == null ? defaultDueDate() : args.dueDate;
         if (dueDate !== null && (typeof dueDate !== "string" || !isValidDate(dueDate))) {
           throw toClientError("task dueDate must use a valid YYYY-MM-DD date or null");
         }
