@@ -162,7 +162,7 @@ module.exports = async function agentChat(context, req) {
       return;
     }
 
-    const agentTools = createAgentTools({ db, householdId, householdState, toClientError });
+    const agentTools = createAgentTools({ db, householdId, householdState, userId, toClientError });
 
     if (attachments.some((attachment) => attachment.kind === "pdf") && !agentProvider.supportsPdf()) {
       context.res = {

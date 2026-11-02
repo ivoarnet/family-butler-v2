@@ -110,7 +110,13 @@ The API base is `/api/households/{householdId}/tasks`; all access requires the e
 
 Commands execute atomically through the provider's database function; positions are recalculated under a household lock. Expected revisions reject stale task edits rather than silently overwriting them. Completion stores an immutable coin earning with source/member IDs and coin amount in a generic household ledger; current member details are joined for leaderboard display. An occurrence is only awarded once, and a recurring series can earn coins once per UTC day/week. Reopening and re-completing the same occurrence is allowed without another award; completing a different occurrence in the same period is rejected. The first transition of a daily/weekly occurrence to Done creates one next occurrence, copied from its current reward/assignee/title and dated one/seven calendar days after its due date. No catch-up horizon or timer is implemented: only the next occurrence is generated. See [data model](../DATA_MODEL.md#tasks) for recurrence and history rules.
 
-Spendable coin balances, cross-module outbox, Calendar rendering, and agent tools are not added. The future integration contracts above remain design guidance, not shipped behavior.
+Spendable coin balances, cross-module outbox, and Calendar rendering are not added. The future integration contracts above remain design guidance, not shipped behavior.
+
+### Tasks agent integration
+
+Agent chat uses the existing household-owner-scoped task provider to list open tasks, create tasks, and complete an open task. Agent-created tasks default to one coin and a due date three UTC workdays ahead (weekends skipped) when those values are not supplied; an unspecified assignee uses the first household member. The agent reports a coin reward only after the task completion command succeeds.
+
+When an upcoming event suggests preparation, the agent checks open tasks for a duplicate and asks the user before creating a suggested task. Activity reports can complete only a clearly matching open task. These commands reuse the transactional task API, including its revision checks and immutable coin earnings; coin earnings are not spendable balances.
 
 ## Shop & Cook implementation
 

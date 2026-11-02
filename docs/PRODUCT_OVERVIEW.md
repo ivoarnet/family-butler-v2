@@ -72,13 +72,15 @@ The Tasks workspace supports creating, editing, and deleting household tasks ass
 
 Tasks can be single, daily, or weekly. Recurring tasks require a due date. The first completion preserves the completed occurrence and creates the next dated occurrence in To do; reopening and completing it again does not create another copy. A daily series can earn coins only once per UTC day and a weekly series only once per UTC week; reopening and re-completing the same occurrence remains possible but does not award it again. Completion records an immutable coin earning in the generic household ledger, and the board footer shows the top three current UTC week and month earners with current member avatars. Recurrence is date-based, not an elapsed-hours timer, and no background job is required.
 
-Spendable coin balances/payouts, Calendar indicators, and agent task workflows remain planned and are not shipped. Open-task reads already support inclusive date-range and member filters for later Calendar integration. See [Tasks implementation](modules/ARCHITECTURE.md#tasks-implementation), [task data model](DATA_MODEL.md#tasks), and [migration setup](SUPABASE.md#tasks).
+Agent chat can list open tasks, create tasks, and complete a clearly matching open task from a user's reported activity. Agent-created tasks default to one coin and a due date three UTC workdays ahead (weekends skipped) unless the user specifies otherwise; an unspecified assignee defaults to the first household member. After a successful completion, the agent reports the task's recorded coin reward. For upcoming events that imply preparation, the agent checks for duplicate open tasks and asks before creating a suggested task.
+
+Spendable coin balances/payouts and Calendar indicators remain planned and are not shipped. Open-task reads already support inclusive date-range and member filters for later Calendar integration. See [Tasks implementation](modules/ARCHITECTURE.md#tasks-implementation), [task data model](DATA_MODEL.md#tasks), and [migration setup](SUPABASE.md#tasks).
 
 ## Planned modules
 
 - **Gamification:** future spendable Family Coins and reactions to committed events from other modules. Task coin earnings and their weekly/monthly leaders are implemented in Tasks; broader rules and mechanics are not defined in this release.
 
-Broader Gamification, Tasks' agent workflows and Calendar integration, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
+Broader Gamification, Tasks' Calendar integration, and cross-module event/outbox infrastructure remain unimplemented. See the [module concept](modules/ARCHITECTURE.md) for the proposed contracts and assumptions about family-level enablement and a growing menu.
 
 ## Managing module documentation
 

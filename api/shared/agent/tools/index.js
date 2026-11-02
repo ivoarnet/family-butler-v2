@@ -8,6 +8,7 @@ const createAddDayConfigurationsTool = require("./addDayConfigurationsTool");
 const createGetEventsTool = require("./getEventsTool");
 const createAddEventTool = require("./addEventTool");
 const createUpdateEventDetailsTool = require("./updateEventDetailsTool");
+const createTasksTool = require("./tasksTool");
 
 module.exports = function createAgentTools(context) {
   const toolModules = [
@@ -21,6 +22,7 @@ module.exports = function createAgentTools(context) {
     createGetEventsTool(context),
     createAddEventTool(context),
     createUpdateEventDetailsTool(context),
+    createTasksTool(context),
   ];
   const definitions = toolModules.map((tool) => tool.definition);
 
