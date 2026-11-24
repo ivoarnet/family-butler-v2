@@ -172,6 +172,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [previewRangeStart, setPreviewRangeStart] = useState<string | null>(null);
   const previewRangeStartRef = useRef<string | null>(null);
   const [changeDraft, setChangeDraft] = useState<{ id?: string; partyId: string; startAt: string; endAt: string; label: string } | null>(null);
+  const [changeReason, setChangeReason] = useState("");
 
   useEffect(() => {
     const updateNarrowScreen = () => setNarrowScreen(window.innerWidth <= 640);
@@ -231,6 +232,11 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     await load();
   });
   const activeParties = data.parties.filter((party) => party.active);
+  const upcomingChanges = data.changes.filter((change) => Date.parse(change.endAt) > Date.now())
+    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+  const changeReasons = [...new Set(upcomingChanges.map((change) => change.label))].sort((a, b) => a.localeCompare(b));
+  const selectedChangeReason = changeReasons.includes(changeReason) ? changeReason : "";
+  const visibleChanges = upcomingChanges.filter((change) => !selectedChangeReason || change.label === selectedChangeReason);
   const handovers = planDraft?.handovers ?? [];
   const validHandovers = handovers.length > 0 && handovers.every((handover) =>
     activeParties.some((party) => party.id === handover.fromPartyId)
@@ -542,9 +548,19 @@ export function ParentingTimeSettings({ householdId, members, request }: {
           partyId: activeParties[0]?.id ?? "", startAt: "", endAt: "", label: "",
         })}><AddCircleOutlineIcon fontSize="small" /> Add change</button>
       </div>
+      {upcomingChanges.length > 0 && <FormField select label="Filter by reason"
+        value={selectedChangeReason ? `reason:${selectedChangeReason}` : "all"}
+        slotProps={{ select: { MenuProps: selectMenuProps } }}
+        onChange={(event) => setChangeReason(event.target.value === "all" ? "" : event.target.value.slice(7))}
+        sx={{ mb: 2, minWidth: 220, maxWidth: "100%" }}>
+        <MenuItem value="all">All reasons</MenuItem>
+        {changeReasons.map((reason) => <MenuItem key={reason} value={`reason:${reason}`}>{reason}</MenuItem>)}
+      </FormField>}
+      {!loading && upcomingChanges.length === 0 && <Typography>No upcoming changes.</Typography>}
+      {upcomingChanges.length > 0 &&
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time changes">
         <thead><tr><th>Period</th><th>With</th><th>Reason</th><th className="actions-column">Actions</th></tr></thead>
-        <tbody>{data.changes.map((change) => <tr key={change.id}>
+        <tbody>{visibleChanges.map((change) => <tr key={change.id}>
           <td>{formatInterval(change.startAt)} – {formatInterval(change.endAt)}</td>
           <td>{data.parties.find((party) => party.id === change.partyId)?.name ?? "Archived party"}</td><td>{change.label}</td>
           <td className="actions-cell"><div className="icon-actions">
@@ -560,7 +576,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             })}><DeleteOutlineIcon fontSize="small" /></button>
           </div></td>
         </tr>)}</tbody>
-      </table></div>
+      </table></div>}
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de-ch">
         <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
           aria-labelledby="parenting-change-title" maxWidth="sm" fullWidth>

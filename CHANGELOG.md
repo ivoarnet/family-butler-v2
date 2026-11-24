@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Show ongoing and upcoming parenting-time changes in chronological order, with a filter for their saved reasons. Updated screenshot: [parenting-time changes](https://github.com/user-attachments/assets/0a168b5f-11b4-4341-8a03-a1e8863c6b15).
+
 - Added an immutable, source-neutral household coin-earnings ledger, daily/weekly recurrence period limits, and top-three current week/month leaderboards on the Tasks board. Leaderboards display current member profile details without duplicating them in the ledger. Updated screenshot: `docs/screenshots/tasks-leaderboard.png`.
 
 - Reorganized the mobile Tasks board into In progress, To do, and Done lanes, added compact card status badges, and enabled status changes when editing tasks. Updated screenshot: `docs/screenshots/tasks-kanban-mobile.png`.

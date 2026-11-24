@@ -13,9 +13,10 @@ const members = [
 ];
 const calls = fn();
 
-function ParentingTimeStory({ withPlan = false, failChangeSave = false }: {
+function ParentingTimeStory({ withPlan = false, failChangeSave = false, withChanges = false }: {
   withPlan?: boolean;
   failChangeSave?: boolean;
+  withChanges?: boolean;
 }) {
   const [refresh, setRefresh] = useState(0);
   const request = useMemo(() => {
@@ -38,7 +39,16 @@ function ParentingTimeStory({ withPlan = false, failChangeSave = false }: {
         handovers: [],
         active: true,
       } : null,
-      changes: [],
+      changes: withChanges ? [
+        { id: "future-handover", partyId: motherId, startAt: new Date(Date.now() + 3 * 86400000).toISOString(),
+          endAt: new Date(Date.now() + 4 * 86400000).toISOString(), label: "Handover adjusted from schedule preview" },
+        { id: "past", partyId: fatherId, startAt: new Date(Date.now() - 3 * 86400000).toISOString(),
+          endAt: new Date(Date.now() - 2 * 86400000).toISOString(), label: "Past change" },
+        { id: "future-other", partyId: fatherId, startAt: new Date(Date.now() + 2 * 86400000).toISOString(),
+          endAt: new Date(Date.now() + 2.5 * 86400000).toISOString(), label: "Family agreement" },
+        { id: "ongoing", partyId: motherId, startAt: new Date(Date.now() - 86400000).toISOString(),
+          endAt: new Date(Date.now() + 86400000).toISOString(), label: "Holiday" },
+      ] : [],
     };
     return (async (path, init = {}) => {
       calls(path, init);
@@ -77,7 +87,7 @@ function ParentingTimeStory({ withPlan = false, failChangeSave = false }: {
       }
       return structuredClone(data);
     }) as ParentingTimeRequest;
-  }, [failChangeSave, withPlan]);
+  }, [failChangeSave, withChanges, withPlan]);
   return <div className="app-shell" style={{ padding: 24 }}>
     <button type="button" onClick={() => setRefresh((current) => current + 1)}>Reload saved settings</button>
     <section className="settings-section">
@@ -194,6 +204,38 @@ export const ChangeDateTimePicker: Story = {
       .toEqual(["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"]);
     await userEvent.click(page.getByRole("button", { name: "pick time" }));
     await expect(page.getByRole("option", { name: "13 hours" })).toBeInTheDocument();
+  },
+};
+
+export const UpcomingChanges: Story = {
+  args: { withPlan: true, withChanges: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const table = await canvas.findByRole("table", { name: "Parenting-time changes" });
+    const rows = within(table).getAllByRole("row");
+    expect(rows).toHaveLength(4);
+    expect(rows[1]).toHaveTextContent("Holiday");
+    expect(rows[2]).toHaveTextContent("Family agreement");
+    expect(rows[3]).toHaveTextContent("Handover adjusted from schedule preview");
+    expect(within(table).queryByText("Past change")).not.toBeInTheDocument();
+
+    await userEvent.click(canvas.getByRole("combobox", { name: "Filter by reason" }));
+    expect(page.queryByRole("option", { name: "Past change" })).not.toBeInTheDocument();
+    await userEvent.click(page.getByRole("option", { name: "Handover adjusted from schedule preview" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(2);
+    expect(within(table).getByRole("button", { name: "Edit change Handover adjusted from schedule preview" })).toBeVisible();
+    await userEvent.click(canvas.getByRole("combobox", { name: "Filter by reason" }));
+    await userEvent.click(page.getByRole("option", { name: "All reasons" }));
+    expect(within(table).getAllByRole("row")).toHaveLength(4);
+  },
+};
+
+export const NoUpcomingChanges: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("No upcoming changes.")).toBeVisible();
+    expect(canvas.queryByRole("combobox", { name: "Filter by reason" })).not.toBeInTheDocument();
   },
 };
 
