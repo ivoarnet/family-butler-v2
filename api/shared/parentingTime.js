@@ -258,12 +258,15 @@ const validateChange = (data, parties, changes = [], ignoredId = null) => {
   assert(endAt > startAt, "endAt must be after startAt");
   assert(typeof data.label === "string" && data.label.trim().length > 0, "change label is required");
   assert(data.label.trim().length <= 200, "change label must be 200 characters or fewer");
+  const category = data.category ?? (data.label.trim() === "Handover adjusted from schedule preview"
+    ? "adjusted_handover" : ["Holiday", "Ferien gemäss Absprache"].includes(data.label.trim()) ? "holiday" : "diverse");
+  assert(["adjusted_handover", "holiday", "diverse"].includes(category), "invalid change category");
   for (const change of changes) {
     if (change.id === ignoredId || change.id === id) continue;
     assert(endAt <= Date.parse(change.startAt) || startAt >= Date.parse(change.endAt),
       "one-off parenting-time changes must not overlap");
   }
-  return { id, partyId, startAt: new Date(startAt).toISOString(), endAt: new Date(endAt).toISOString(), label: data.label.trim() };
+  return { id, partyId, startAt: new Date(startAt).toISOString(), endAt: new Date(endAt).toISOString(), label: data.label.trim(), category };
 };
 
 const formatterCache = new Map();

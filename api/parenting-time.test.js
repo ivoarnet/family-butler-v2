@@ -352,9 +352,16 @@ test("authenticated API persists and reloads parties, plans, changes, and resolv
   assert.deepEqual(draftPreview.body.intervals.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]),
     persistedPreview.body.intervals.map(({ startAt, endAt, partyId: owner }) => [startAt, endAt, owner]));
   const oneOff = await invoke("POST", "changes", {
-    partyId: mother.body.id, startAt: "2026-10-09T18:00:00Z", endAt: "2026-10-09T20:00:00Z", label: "Swap",
+    partyId: mother.body.id, startAt: "2026-10-09T18:00:00Z", endAt: "2026-10-09T20:00:00Z", label: "Custom holiday", category: "holiday",
   });
   assert.equal(oneOff.status, 201);
+  assert.equal(oneOff.body.category, "holiday");
+  assert.equal(tables.parenting_time_changes[0].category, "holiday");
+  assert.equal((await invoke("GET", undefined)).body.changes[0].category, "holiday");
+  const updatedChange = await invoke("PUT", "changes", { ...oneOff.body, category: undefined, label: "Another agreement" });
+  assert.equal(updatedChange.body.category, "holiday");
+  assert.equal(updatedChange.body.label, "Another agreement");
+  assert.equal((await invoke("PUT", "changes", { ...updatedChange.body, category: "invalid" })).status, 400);
   assert.equal(tables.parenting_time_changes[0].plan_id, tables.parenting_time_plans[0].id);
   assert.equal((await invoke("DELETE", "changes", undefined, { id: oneOff.body.id })).status, 204);
   assert.equal(tables.parenting_time_changes.length, 0);
