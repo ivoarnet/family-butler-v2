@@ -617,7 +617,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             <FormField select label="Category" value={changeDraft.category}
               slotProps={{ select: { MenuProps: selectMenuProps } }} onChange={(event) => {
                 const category = event.target.value as ChangeCategory;
-                setChangeDraft({ ...changeDraft, category, label: changeCategories[category].defaultLabel });
+                setChangeDraft({ ...changeDraft, category });
               }}>
               {(Object.keys(changeCategories) as ChangeCategory[]).map((category) =>
                 <MenuItem key={category} value={category}>{changeCategories[category].name}</MenuItem>)}

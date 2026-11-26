@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Preserve the reason text when changing a parenting-time category. Updated screenshot: [category and preserved reason](https://github.com/user-attachments/assets/d7526184-13f9-4f92-ad88-10f29a7bdfee).
+
 - Show ongoing and upcoming parenting-time changes in chronological order, with a category filter and editable default reasons. Re-run `docs/sql/parenting-time.sql` to add categories to existing databases. Updated screenshots: [changes list](https://github.com/user-attachments/assets/0a168b5f-11b4-4341-8a03-a1e8863c6b15), [category and reason](https://github.com/user-attachments/assets/d32cf39f-c2a1-461d-bacb-8d190e7c64a4).
 
 - Added an immutable, source-neutral household coin-earnings ledger, daily/weekly recurrence period limits, and top-three current week/month leaderboards on the Tasks board. Leaderboards display current member profile details without duplicating them in the ledger. Updated screenshot: `docs/screenshots/tasks-leaderboard.png`.

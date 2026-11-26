@@ -236,20 +236,30 @@ export const UpcomingChanges: Story = {
     const dialog = within(page.getByRole("dialog", { name: "Edit change for this period" }));
     expect(dialog.getByRole("combobox", { name: "Category" })).toHaveTextContent("Holiday");
     expect(dialog.getByRole("textbox", { name: "Reason or agreement" })).toHaveValue("Family agreement");
-    await userEvent.click(dialog.getByRole("button", { name: "Cancel" }));
+    await userEvent.click(dialog.getByRole("combobox", { name: "Category" }));
+    await userEvent.click(page.getByRole("option", { name: "Diverse" }));
+    expect(dialog.getByRole("textbox", { name: "Reason or agreement" })).toHaveValue("Family agreement");
+    await userEvent.click(dialog.getByRole("button", { name: "Save change" }));
+    await waitFor(() => expect(page.queryByRole("dialog", { name: "Edit change for this period" })).not.toBeInTheDocument());
+    const updatedTable = await canvas.findByRole("table", { name: "Parenting-time changes" });
+    expect(within(updatedTable).getByRole("button", { name: "Edit change Family agreement" }).closest("tr")).toHaveTextContent("Diverse");
     await userEvent.click(await canvas.findByRole("button", { name: "Add change" }));
     const addDialog = within(page.getByRole("dialog", { name: "Add change for this period" }));
     const reason = addDialog.getByRole("textbox", { name: "Reason or agreement" });
     expect(reason).toHaveValue("Gemäss Absprache");
     await userEvent.click(addDialog.getByRole("combobox", { name: "Category" }));
     await userEvent.click(page.getByRole("option", { name: "Holiday" }));
-    expect(reason).toHaveValue("Ferien gemäss Absprache");
+    expect(reason).toHaveValue("Gemäss Absprache");
     await userEvent.clear(reason);
     await userEvent.type(reason, "Custom holiday");
-    expect(reason).toHaveValue("Custom holiday");
     await userEvent.click(addDialog.getByRole("combobox", { name: "Category" }));
     await userEvent.click(page.getByRole("option", { name: "Adjusted Handover" }));
-    expect(reason).toHaveValue("Handover adjusted from schedule preview");
+    expect(reason).toHaveValue("Custom holiday");
+    await userEvent.clear(reason);
+    await userEvent.click(addDialog.getByRole("combobox", { name: "Category" }));
+    await userEvent.click(page.getByRole("option", { name: "Diverse" }));
+    expect(reason).toHaveValue("");
+    expect(addDialog.getByRole("button", { name: "Save change" })).toBeDisabled();
   },
 };
 
