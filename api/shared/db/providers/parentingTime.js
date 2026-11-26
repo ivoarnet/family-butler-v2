@@ -35,6 +35,7 @@ const mapChange = (row) => ({
   startAt: row.start_at,
   endAt: row.end_at,
   label: row.label,
+  category: row.category,
 });
 
 module.exports = function createParentingTimeProvider(request) {
@@ -145,10 +146,10 @@ module.exports = function createParentingTimeProvider(request) {
       return save(TABLES.plans, householdId, existing?.[0]?.id, body, mapPlan, "household_id");
     },
     createParentingChange: (householdId, data) => save(TABLES.changes, householdId, data.id, {
-      plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
+      plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label, category: data.category,
     }, mapChange),
     updateParentingChange: (householdId, id, data) => update(TABLES.changes, householdId, id, {
-      plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label,
+      plan_id: data.planId, party_id: data.partyId, start_at: data.startAt, end_at: data.endAt, label: data.label, category: data.category,
     }, mapChange),
     async deleteParentingChange(householdId, id) {
       await request(TABLES.changes, {

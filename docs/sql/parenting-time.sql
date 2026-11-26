@@ -69,6 +69,24 @@ create table if not exists public.parenting_time_changes (
   check (end_at > start_at)
 );
 
+alter table public.parenting_time_changes add column if not exists category text;
+update public.parenting_time_changes set category = case
+  when trim(label) = 'Handover adjusted from schedule preview' then 'adjusted_handover'
+  when trim(label) in ('Holiday', 'Ferien gemäss Absprache') then 'holiday'
+  else 'diverse'
+end where category is null;
+alter table public.parenting_time_changes alter column category set default 'diverse';
+alter table public.parenting_time_changes alter column category set not null;
+do $$
+begin
+  if not exists (select 1 from pg_constraint where conrelid = 'public.parenting_time_changes'::regclass
+    and conname = 'parenting_time_changes_category_check') then
+    alter table public.parenting_time_changes add constraint parenting_time_changes_category_check
+      check (category in ('adjusted_handover', 'holiday', 'diverse'));
+  end if;
+end;
+$$;
+
 create index if not exists idx_parenting_time_changes_household_range
   on public.parenting_time_changes (household_id, start_at, end_at);
 

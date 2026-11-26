@@ -33,7 +33,13 @@ type Plan = {
   id?: string; effectiveFrom: string; effectiveTo?: string | null; timeZone: string;
   recurrenceMode: "weekly" | "alternating"; rules: Rule[]; handovers?: Handover[]; active: boolean;
 };
-type Change = { id: string; partyId: string; startAt: string; endAt: string; label: string };
+const changeCategories = {
+  adjusted_handover: { name: "Adjusted Handover", defaultLabel: "Handover adjusted from schedule preview" },
+  holiday: { name: "Holiday", defaultLabel: "Ferien gemäss Absprache" },
+  diverse: { name: "Diverse", defaultLabel: "Gemäss Absprache" },
+} as const;
+type ChangeCategory = keyof typeof changeCategories;
+type Change = { id: string; partyId: string; startAt: string; endAt: string; label: string; category: ChangeCategory };
 type Interval = ResolvedParentingInterval;
 type Data = { parties: Party[]; plan: Plan | null; changes: Change[] };
 const emptyData: Data = { parties: [], plan: null, changes: [] };
@@ -171,7 +177,8 @@ export function ParentingTimeSettings({ householdId, members, request }: {
   const [narrowScreen, setNarrowScreen] = useState(() => window.innerWidth <= 640);
   const [previewRangeStart, setPreviewRangeStart] = useState<string | null>(null);
   const previewRangeStartRef = useRef<string | null>(null);
-  const [changeDraft, setChangeDraft] = useState<{ id?: string; partyId: string; startAt: string; endAt: string; label: string } | null>(null);
+  const [changeDraft, setChangeDraft] = useState<Omit<Change, "id"> & { id?: string } | null>(null);
+  const [changeCategory, setChangeCategory] = useState<ChangeCategory | "all">("all");
 
   useEffect(() => {
     const updateNarrowScreen = () => setNarrowScreen(window.innerWidth <= 640);
@@ -231,6 +238,9 @@ export function ParentingTimeSettings({ householdId, members, request }: {
     await load();
   });
   const activeParties = data.parties.filter((party) => party.active);
+  const upcomingChanges = data.changes.filter((change) => Date.parse(change.endAt) > Date.now())
+    .sort((a, b) => Date.parse(a.startAt) - Date.parse(b.startAt));
+  const visibleChanges = upcomingChanges.filter((change) => changeCategory === "all" || change.category === changeCategory);
   const handovers = planDraft?.handovers ?? [];
   const validHandovers = handovers.length > 0 && handovers.every((handover) =>
     activeParties.some((party) => party.id === handover.fromPartyId)
@@ -295,6 +305,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
         partyId: minutes > 0 ? previous.partyId : next.partyId,
         startAt: new Date(Math.min(handover, adjusted)).toISOString(),
         endAt: new Date(Math.max(handover, adjusted)).toISOString(),
+        category: "adjusted_handover",
         label: "Handover adjusted from schedule preview",
       }),
     });
@@ -539,18 +550,30 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       </span>
         <button type="button" className="primary-pill no-wrap-button"
           disabled={busy || !data.plan?.active || activeParties.length === 0} onClick={() => setChangeDraft({
-          partyId: activeParties[0]?.id ?? "", startAt: "", endAt: "", label: "",
+          partyId: activeParties[0]?.id ?? "", startAt: "", endAt: "", category: "diverse", label: changeCategories.diverse.defaultLabel,
         })}><AddCircleOutlineIcon fontSize="small" /> Add change</button>
       </div>
+      {upcomingChanges.length > 0 && <FormField select label="Filter by category"
+        value={changeCategory}
+        slotProps={{ select: { MenuProps: selectMenuProps } }}
+        onChange={(event) => setChangeCategory(event.target.value as ChangeCategory | "all")}
+        sx={{ mb: 2, minWidth: 220, maxWidth: "100%" }}>
+        <MenuItem value="all">All categories</MenuItem>
+        {(Object.keys(changeCategories) as ChangeCategory[]).map((category) =>
+          <MenuItem key={category} value={category}>{changeCategories[category].name}</MenuItem>)}
+      </FormField>}
+      {!loading && upcomingChanges.length === 0 && <Typography>No upcoming changes.</Typography>}
+      {upcomingChanges.length > 0 &&
       <div className="table-scroll"><table className="settings-table" aria-label="Parenting-time changes">
-        <thead><tr><th>Period</th><th>With</th><th>Reason</th><th className="actions-column">Actions</th></tr></thead>
-        <tbody>{data.changes.map((change) => <tr key={change.id}>
+        <thead><tr><th>Period</th><th>With</th><th>Category</th><th>Reason</th><th className="actions-column">Actions</th></tr></thead>
+        <tbody>{visibleChanges.map((change) => <tr key={change.id}>
           <td>{formatInterval(change.startAt)} – {formatInterval(change.endAt)}</td>
-          <td>{data.parties.find((party) => party.id === change.partyId)?.name ?? "Archived party"}</td><td>{change.label}</td>
+          <td>{data.parties.find((party) => party.id === change.partyId)?.name ?? "Archived party"}</td>
+          <td>{changeCategories[change.category]?.name ?? "Diverse"}</td><td>{change.label}</td>
           <td className="actions-cell"><div className="icon-actions">
             <button type="button" className="icon-button compact-icon-button" aria-label={`Edit change ${change.label}`}
               title="Edit change" onClick={() => setChangeDraft({ id: change.id, partyId: change.partyId,
-                startAt: dateTimeInput(change.startAt), endAt: dateTimeInput(change.endAt), label: change.label })}>
+                startAt: dateTimeInput(change.startAt), endAt: dateTimeInput(change.endAt), category: change.category ?? "diverse", label: change.label })}>
               <EditOutlinedIcon fontSize="small" />
             </button>
             <button type="button" className="icon-button compact-icon-button" disabled={busy}
@@ -560,7 +583,7 @@ export function ParentingTimeSettings({ householdId, members, request }: {
             })}><DeleteOutlineIcon fontSize="small" /></button>
           </div></td>
         </tr>)}</tbody>
-      </table></div>
+      </table></div>}
       <LocalizationProvider dateAdapter={AdapterDayjs} adapterLocale="de-ch">
         <GlassDialog open={!!changeDraft} onClose={() => { if (!busy) setChangeDraft(null); }}
           aria-labelledby="parenting-change-title" maxWidth="sm" fullWidth>
@@ -591,6 +614,14 @@ export function ParentingTimeSettings({ householdId, members, request }: {
                   slotProps={dateTimePickerSlotProps} />
               </FormControl>
             </Stack>
+            <FormField select label="Category" value={changeDraft.category}
+              slotProps={{ select: { MenuProps: selectMenuProps } }} onChange={(event) => {
+                const category = event.target.value as ChangeCategory;
+                setChangeDraft({ ...changeDraft, category });
+              }}>
+              {(Object.keys(changeCategories) as ChangeCategory[]).map((category) =>
+                <MenuItem key={category} value={category}>{changeCategories[category].name}</MenuItem>)}
+            </FormField>
             <FormField required label="Reason or agreement" value={changeDraft.label}
               onChange={(event) => setChangeDraft({ ...changeDraft, label: event.target.value })} />
           </Box></DialogContentPanel>

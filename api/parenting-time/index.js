@@ -104,7 +104,8 @@ module.exports = async function parentingTime(context, req) {
       const data = await db.getParentingTime(householdId);
       assert(data.plan?.active, "an active parenting-time plan is required before adding one-off changes");
       const id = method === "PUT" ? validateId(body.id, "id") : undefined;
-      const change = validateChange({ ...body, id }, data.parties, data.changes, id ?? null);
+      const existingCategory = data.changes.find((item) => item.id === id)?.category;
+      const change = validateChange({ ...body, id, category: body.category ?? existingCategory }, data.parties, data.changes, id ?? null);
       assert(Date.parse(change.startAt) >= getPlanStartTimestamp(data.plan),
         "one-off changes cannot start before the plan's effectiveFrom date");
       const planEnd = getPlanEndTimestamp(data.plan);
