@@ -4,24 +4,56 @@ import { formatShareDateTime } from "../../shared/sharing/formatShareDateTime";
 
 type SharedChange = { startAt: string; endAt: string; partyName: string; category: string; label: string };
 type SharedChanges = { resourceType: "parenting_changes"; expiresAt: string; timeZone: string; changes: SharedChange[] };
+type SharedOccurrence = {
+  date: string; providerName: string; childNames: string[];
+  allDay: boolean; startTime: string | null; endTime: string | null; overrideAction: string | null;
+};
+type SharedChildcare = {
+  resourceType: "childcare_schedule"; expiresAt: string; timeZone: string;
+  startDate: string; endDate: string; providerName: string | null; occurrences: SharedOccurrence[];
+};
+type SharedData = SharedChanges | SharedChildcare;
 const categoryLabels: Record<string, string> = { adjusted_handover: "Adjusted Handover", holiday: "Holiday", diverse: "Diverse" };
 const invalidMessage = "This shared link is unavailable. It may be invalid, expired, or deleted. Ask its creator for a new link.";
 const API_BASE_URL = (import.meta.env.VITE_API_BASE_URL ?? "").replace(/\/$/, "");
 class InvalidSharedLinkError extends Error {}
-const isPayload = (value: unknown): value is SharedChanges => {
+const isPayload = (value: unknown): value is SharedData => {
   if (!value || typeof value !== "object") return false;
-  const data = value as SharedChanges;
+  const data = value as SharedData;
+  if (typeof data.timeZone !== "string" || typeof data.expiresAt !== "string" || !Number.isFinite(Date.parse(data.expiresAt))) return false;
   try { new Intl.DateTimeFormat(undefined, { timeZone: data.timeZone }).format(); } catch { return false; }
-  return data.resourceType === "parenting_changes" && typeof data.timeZone === "string"
-    && typeof data.expiresAt === "string" && Number.isFinite(Date.parse(data.expiresAt))
-    && Array.isArray(data.changes) && data.changes.every((change) => change && typeof change === "object"
-      && typeof change.startAt === "string" && Number.isFinite(Date.parse(change.startAt))
+  if (data.resourceType === "parenting_changes") {
+    return Array.isArray(data.changes) && data.changes.length <= 500 && data.changes.every((change) =>
+      change && typeof change === "object" && typeof change.startAt === "string" && Number.isFinite(Date.parse(change.startAt))
       && typeof change.endAt === "string" && Date.parse(change.endAt) > Date.parse(change.startAt)
       && typeof change.partyName === "string" && typeof change.category === "string" && typeof change.label === "string");
+  }
+  return data.resourceType === "childcare_schedule"
+    && /^\d{4}-\d{2}-\d{2}$/.test(data.startDate) && /^\d{4}-\d{2}-\d{2}$/.test(data.endDate)
+    && data.startDate <= data.endDate
+    && (data.providerName === null || typeof data.providerName === "string")
+    && Array.isArray(data.occurrences) && data.occurrences.length <= 500 && data.occurrences.every((occurrence) =>
+      occurrence && typeof occurrence === "object" && /^\d{4}-\d{2}-\d{2}$/.test(occurrence.date)
+      && typeof occurrence.providerName === "string" && Array.isArray(occurrence.childNames)
+      && occurrence.childNames.every((name) => typeof name === "string")
+      && typeof occurrence.allDay === "boolean"
+      && (occurrence.startTime === null || typeof occurrence.startTime === "string")
+      && (occurrence.endTime === null || typeof occurrence.endTime === "string")
+      && (occurrence.overrideAction === null || typeof occurrence.overrideAction === "string"));
 };
+const localDateInTimeZone = (time: number, timeZone: string) => {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(time));
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+const formatCareDate = (date: string) => new Intl.DateTimeFormat(undefined, {
+  timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric",
+}).format(new Date(`${date}T00:00:00Z`));
 
 export function SharedLinkPage({ token }: { token: string }) {
-  const [data, setData] = useState<SharedChanges | null>(null);
+  const [data, setData] = useState<SharedData | null>(null);
   const [error, setError] = useState(false);
   const [rateLimited, setRateLimited] = useState(false);
   const [temporaryError, setTemporaryError] = useState(false);
@@ -136,10 +168,15 @@ export function SharedLinkPage({ token }: { token: string }) {
   }, [token, retryAttempt]);
   const expired = data && Date.parse(data.expiresAt) <= now;
   const format = (value: string) => formatShareDateTime(value, data?.timeZone);
-  const changes = data?.changes.filter((change) => Date.parse(change.startAt) >= now && Date.parse(change.startAt) < Date.parse(data.expiresAt)) ?? [];
+  const changes = data?.resourceType === "parenting_changes"
+    ? data.changes.filter((change) => Date.parse(change.startAt) >= now && Date.parse(change.startAt) < Date.parse(data.expiresAt)) : [];
+  const occurrences = data?.resourceType === "childcare_schedule"
+    ? data.occurrences.filter((item) => item.date >= localDateInTimeZone(now, data.timeZone) && item.date <= data.endDate) : [];
   return <Box component="main" sx={{ maxWidth: 760, mx: "auto", p: { xs: 2, sm: 4 }, color: "var(--text-primary)" }}>
     <Stack spacing={3}>
-      <Typography component="h1" variant="h4">Shared parenting changes</Typography>
+      <Typography component="h1" variant="h4">
+        {data?.resourceType === "childcare_schedule" ? "Shared resolved care" : "Shared parenting changes"}
+      </Typography>
       {error || expired ? <Alert severity="info">{invalidMessage}</Alert> : rateLimited ?
         <Alert severity="info">This link is temporarily busy. Please wait; it will retry automatically.</Alert> :
         temporaryError ? <Alert severity="warning"
@@ -147,6 +184,23 @@ export function SharedLinkPage({ token }: { token: string }) {
           Could not load shared changes right now. Retrying automatically in 30 seconds. You can also retry without reloading this page.
         </Alert> :
         !data ? <Typography role="status">Loading shared changes…</Typography> : <>
+        {data.resourceType === "childcare_schedule" ? <>
+          <Typography>Live future resolved care from {formatCareDate(data.startDate)} through {formatCareDate(data.endDate)}
+            {data.providerName ? ` · Provider: ${data.providerName}` : " · All providers"}.</Typography>
+          <Typography variant="body2">Expires: {format(data.expiresAt)} · Timezone: {data.timeZone}. Refreshes every 30 seconds.</Typography>
+          {occurrences.length === 0 ? <Typography>No upcoming care is available for this link.</Typography> :
+            <Stack component="ul" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>
+              {occurrences.map((occurrence, index) => <Box component="li" key={`${occurrence.date}-${index}`}
+                sx={{ border: "1px solid var(--dialog-border)", borderRadius: 3, p: 2, background: "var(--dialog-surface)", overflowWrap: "anywhere" }}>
+                <Typography sx={{ fontWeight: 700 }}>{formatCareDate(occurrence.date)} · {occurrence.providerName}</Typography>
+                <Typography>{occurrence.childNames.join(", ") || "Family members"} · {occurrence.allDay
+                  ? "All day" : `${occurrence.startTime ?? ""}–${occurrence.endTime ?? ""}`}</Typography>
+                {occurrence.overrideAction && <Typography variant="body2">
+                  {occurrence.overrideAction === "add" ? "Added day" : `Changed · ${occurrence.overrideAction}`}
+                </Typography>}
+              </Box>)}
+            </Stack>}
+        </> : <>
         <Typography>Live future changes only, from the next change handover. Ongoing and past changes are not shown. Ends are limited to this link’s expiry.</Typography>
         <Typography variant="body2">Expires: {format(data.expiresAt)} · Timezone: {data.timeZone}. Refreshes every 30 seconds.</Typography>
         {changes.length === 0 ? <Typography>No upcoming changes are available for this link.</Typography> :
@@ -159,7 +213,7 @@ export function SharedLinkPage({ token }: { token: string }) {
               {change.label && <Typography sx={{ whiteSpace: "pre-wrap" }}>{change.label}</Typography>}
             </Box>)}
           </Stack>}
-      </>}
+        </>}</>}
     </Stack>
   </Box>;
 }

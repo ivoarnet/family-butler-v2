@@ -5,7 +5,7 @@ import { SharedLinkPage } from "./SharedLinkPage";
 
 const token = "p".repeat(43);
 const requests = fn();
-type MockMode = "loaded" | "invalid" | "empty" | "expiry" | "deleted" | "handover" | "rateLimited"
+type MockMode = "loaded" | "childcare" | "invalid" | "empty" | "expiry" | "deleted" | "handover" | "rateLimited"
   | "networkFailure" | "serverFailure" | "refreshFailure" | "malformedResponse";
 const meta: Meta<typeof SharedLinkPage> = {
   title: "Sharing/Public parenting changes",
@@ -27,6 +27,29 @@ const meta: Meta<typeof SharedLinkPage> = {
       if (mode === "serverFailure" && requests.mock.calls.length <= 2) return new Response("Unavailable", { status: 503 });
       if (mode === "malformedResponse") return new Response("not JSON", { status: 200 });
       const now = Date.now();
+      if (mode === "childcare") {
+        const start = new Date();
+        const startDate = `${start.getFullYear()}-${String(start.getMonth() + 1).padStart(2, "0")}-${String(start.getDate()).padStart(2, "0")}`;
+        const previous = new Date(start);
+        previous.setDate(previous.getDate() - 1);
+        const previousDate = `${previous.getFullYear()}-${String(previous.getMonth() + 1).padStart(2, "0")}-${String(previous.getDate()).padStart(2, "0")}`;
+        const end = new Date(start);
+        end.setDate(end.getDate() + 7);
+        const endDate = `${end.getFullYear()}-${String(end.getMonth() + 1).padStart(2, "0")}-${String(end.getDate()).padStart(2, "0")}`;
+        const expiryDate = new Date(end);
+        expiryDate.setDate(expiryDate.getDate() + 1);
+        return new Response(JSON.stringify({
+          resourceType: "childcare_schedule", timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+          startDate, endDate, providerName: "Grandparents",
+          expiresAt: expiryDate.toISOString(),
+          occurrences: [
+            { date: startDate, providerName: "Grandparents", childNames: ["Alex"], allDay: true,
+              startTime: null, endTime: null, overrideAction: null },
+            { date: previousDate, providerName: "Yesterday should not be shown", childNames: ["Alex"], allDay: true,
+              startTime: null, endTime: null, overrideAction: null },
+          ],
+        }), { status: 200, headers: { "Content-Type": "application/json" } });
+      }
       return new Response(JSON.stringify({
         resourceType: "parenting_changes", timeZone: "Europe/Zurich",
         expiresAt: new Date(now + (mode === "expiry" ? 2000 : 7 * 86400000)).toISOString(),
@@ -60,6 +83,17 @@ export const Loaded: Story = {
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
     await expect(canvas.getByRole("listitem")).toHaveTextContent(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2} – \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
     await expect(canvas.getByText(/Expires:/)).toHaveTextContent(/Expires: \d{2}\.\d{2}\.\d{4} \d{2}:\d{2} · Timezone:/);
+  },
+};
+export const SharedChildcare: Story = {
+  parameters: { shareMock: "childcare" },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await expect(await canvas.findByText("Shared resolved care")).toBeVisible();
+    await expect(canvas.getAllByText("Grandparents").length).toBeGreaterThan(0);
+    await expect(canvas.getByText("Alex · All day")).toBeVisible();
+    await expect(canvas.queryByText("Yesterday should not be shown")).toBeNull();
+    await expect(canvas.getByText(/Live future resolved care/)).toBeVisible();
   },
 };
 export const ViewCountIgnoresRefresh: Story = {

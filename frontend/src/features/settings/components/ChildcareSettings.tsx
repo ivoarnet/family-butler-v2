@@ -6,9 +6,12 @@ import CheckCircleOutlineIcon from "@mui/icons-material/CheckCircleOutlineOutlin
 import AddCircleOutlineIcon from "@mui/icons-material/AddCircleOutlineOutlined";
 import EditOutlinedIcon from "@mui/icons-material/EditOutlined";
 import CalendarMonthIcon from "@mui/icons-material/CalendarMonth";
+import ShareOutlinedIcon from "@mui/icons-material/ShareOutlined";
 import type { FamilyMember } from "../../../types/family";
 import { DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton } from "../../../shared/ui/GlassFormDialog";
 import { DateField, TimeField } from "../../../shared/ui/PickerFields";
+import { ShareLinkDialog, afterLocalShareDay, type ShareLinkValues } from "../../../shared/ui/ShareLinkDialog";
+import { childcareShareScope } from "../../../shared/sharing/shareLinks";
 import { SettingsInfo } from "./SettingsInfo";
 import { ProviderCareCalendar } from "./ProviderCareCalendar";
 
@@ -76,6 +79,7 @@ export function ChildcareSettings({ householdId, members, request }: {
   const [error, setError] = useState("");
   const [provider, setProvider] = useState<{ id?: string; name: string; type: string; active?: boolean } | null>(null);
   const [draft, setDraft] = useState<ChildcareArrangement | null>(null);
+  const [shareDraft, setShareDraft] = useState<ShareLinkValues | null>(null);
   const [preview, setPreview] = useState<ChildcareOccurrence[] | null>(null);
   const [override, setOverride] = useState<(ChildcareOverride & Timing) | null>(null);
   const [addDay, setAddDay] = useState<{ arrangementId: string; date: string } | null>(null);
@@ -132,6 +136,7 @@ export function ChildcareSettings({ householdId, members, request }: {
   });
   const disabled = busy || loading;
   const providerName = (id: string) => data.providers.find((item) => item.id === id)?.name ?? id;
+  const selectedProviderName = scheduleProviderId ? providerName(scheduleProviderId) : "All providers";
   const participantNames = (ids: string[]) => ids.map((id) => members.find((member) => member.id === id)?.firstName ?? id).join(", ");
   const providerOccurrences = occurrences.filter((item) => !scheduleProviderId || item.providerId === scheduleProviderId);
   const changeDraft = (changes: Partial<ChildcareArrangement>) => {
@@ -279,7 +284,13 @@ export function ChildcareSettings({ householdId, members, request }: {
     <section className="settings-card" ref={scheduleSection}>
       <div className="section-toolbar"><span className="section-title-info"><h2>Resolved care</h2>
         <SettingsInfo label="Resolved care information" text="One-off changes are available for today and upcoming care dates only. Past care is read-only." />
-      </span></div>
+      </span>
+        <button type="button" className="icon-button" aria-label="Share resolved care" title="Share resolved care"
+          disabled={disabled || loadFailed || Date.parse(afterLocalShareDay(loadedRange.endDate)) <= Date.now()}
+          onClick={() => setShareDraft({
+            expiresAt: afterLocalShareDay(loadedRange.endDate), note: `Provider: ${selectedProviderName}`, categories: [],
+          })}><ShareOutlinedIcon fontSize="small" /></button>
+      </div>
       <Typography variant="h6" component="h3">Provider schedule</Typography>
       <Stack direction={{ xs: "column", sm: "row" }} spacing={2} sx={{ my: 2 }}>
         <FormField select label="Schedule provider" value={scheduleProviderId} disabled={disabled}
@@ -320,6 +331,25 @@ export function ChildcareSettings({ householdId, members, request }: {
         </Typography>;
       })}</Stack> : <Typography>No cancellations in this range.</Typography>)}
     </section>
+    {shareDraft && <ShareLinkDialog title="Share resolved care" initialValues={shareDraft}
+      information={<Typography variant="body2">{childcareShareScope}</Typography>}
+      onClose={() => setShareDraft(null)} onSave={async (values, signal) => {
+        const result = await request(`/api/households/${encodeURIComponent(householdId)}/share-links`, {
+          method: "POST", signal, body: JSON.stringify({
+            expiresAt: values.expiresAt, note: values.note, resourceType: "childcare_schedule",
+            filters: {
+              startDate: loadedRange.startDate, endDate: loadedRange.endDate,
+              providerId: scheduleProviderId || null,
+              timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+            },
+          }),
+        }) as { token?: string };
+        if (signal.aborted) return;
+        if (!result.token || !/^[A-Za-z0-9_-]{43}$/.test(result.token)) {
+          throw new Error("The new URL is unavailable. Create another link.");
+        }
+        return `${window.location.origin}/shared#${result.token}`;
+      }} />}
 
     <GlassDialog open={!!provider} onClose={() => { if (!busy) setProvider(null); }} aria-labelledby="childcare-provider-title" maxWidth="sm" fullWidth>
       {provider && <Box component="form" onSubmit={(event) => {

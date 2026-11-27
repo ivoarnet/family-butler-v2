@@ -1,6 +1,10 @@
-const { MAX_LINKS, resources, projectMetadata } = require("../../shareLinks");
+const { MAX_LINKS, MAX_CHANGES, CHILDCARE_RESOURCE, resources, projectMetadata,
+  localDateInTimeZone } = require("../../shareLinks");
+const { resolveOccurrences } = require("../../childcare");
+const createChildcareProvider = require("./childcare");
 
 module.exports = function createShareLinksProvider(request) {
+  const childcare = createChildcareProvider(request);
   return {
     async manageShareLinks(householdId, userId, action, data) {
       const result = await request("rpc/manage_share_links", {
@@ -40,7 +44,40 @@ module.exports = function createShareLinksProvider(request) {
       if (Date.parse(result.expiresAt) <= Math.max(now, Date.now())) return null;
       const resource = resources.get(result.resourceType);
       if (!resource) return null;
-      try { return resource.project(result, now); } catch { return null; }
+      try {
+        const projected = resource.project(result, now);
+        if (result.resourceType !== CHILDCARE_RESOURCE) return projected;
+        const expiresAt = new Date(Date.parse(projected.expiresAt)).toISOString();
+        const endDate = projected.filters.endDate;
+        const [data, members] = await Promise.all([
+          childcare.getChildcare(projected.householdId),
+          request("household_members", {
+            params: { select: "id,first_name", household_id: `eq.${projected.householdId}`, limit: 500 },
+          }),
+        ]);
+        const providerNames = new Map(data.providers.map((provider) => [provider.id, provider.name]));
+        const memberNames = new Map(members.map((member) => [member.id, member.first_name]));
+        const startDate = projected.filters.startDate;
+        const occurrences = resolveOccurrences(data, startDate, endDate).filter((occurrence) =>
+          occurrence.date >= localDateInTimeZone(now, projected.filters.timeZone)
+          && (!projected.filters.providerId || occurrence.providerId === projected.filters.providerId));
+        if (occurrences.length > MAX_CHANGES) return null;
+        return {
+          resourceType: CHILDCARE_RESOURCE, expiresAt,
+          timeZone: projected.filters.timeZone, startDate, endDate,
+          providerName: projected.filters.providerId
+            ? providerNames.get(projected.filters.providerId) ?? "Care provider" : null,
+          occurrences: occurrences.map((occurrence) => ({
+            date: occurrence.date,
+            providerName: providerNames.get(occurrence.providerId) ?? "Care provider",
+            childNames: occurrence.childIds.map((id) => memberNames.get(id) ?? "Family member"),
+            allDay: occurrence.allDay, startTime: occurrence.startTime, endTime: occurrence.endTime,
+            overrideAction: occurrence.overrideAction,
+          })),
+        };
+      } catch {
+        return null;
+      }
     },
   };
 };
