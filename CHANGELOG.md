@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+- Removed the repeated expiry timestamp below the sharing dialog's date picker, retaining invalid-date and expired-link warnings. Updated screenshot: [sharing modal](https://github.com/user-attachments/assets/57ad3d1b-b6be-4cc2-8663-82e337f1827d).
+
+- Moved detailed create/edit sharing guidance into a title info-icon tooltip, with keyboard and touch access. Kept concise privacy, expiry, and copy-now messages visible. Updated screenshot: [compact sharing modal](https://github.com/user-attachments/assets/98143675-c091-464d-b914-ae7488fbb386).
+
+- Sharing screens now use Swiss `dd.mm.yyyy hh:mm` dates and 24-hour time. Added an owner-only **Views** counter for successful page opens, excluding automatic refreshes. Re-run `docs/sql/share-links.sql` before deployment; existing counters start at zero. Updated screenshots: [owner view counts](https://github.com/user-attachments/assets/833d6ee3-2cc3-42e3-8135-d0423199f886), [recipient dates](https://github.com/user-attachments/assets/4ce0a528-c169-4ec9-abe4-821fa1389808).
+
+- Moved Shared links guidance into the existing title info-icon tooltip to keep the table compact. Updated screenshot: [shared-links info icon](https://github.com/user-attachments/assets/dc191c1b-377d-4ec0-bee4-ff64b98bd907).
+
+- Moved share management to a central **Settings → Shared links** table for all resource types, leaving only the share icon above Parenting Time changes. Recipient pages now retain the URL fragment for reload, use a dedicated share-token header, and retry unexpected backend failures instead of reporting them as invalid links. Updated screenshots: [central shared-links table](https://github.com/user-attachments/assets/671d0f24-54e8-4c6a-b7d2-b45f74d27cd0), [parenting share icon](https://github.com/user-attachments/assets/b37b0eba-dafd-4d93-a07e-3eef191f6c23).
+
+- Added secure, login-free links for future Parenting Time changes, with a reusable sharing dialog, category selection, expiry, private owner notes, and an edit/delete overview. Links show live future changes only and limit displayed ends to expiry. Apply `docs/sql/share-links.sql` before deployment; configure perimeter abuse limits as described in `docs/SUPABASE.md`. Event/Childcare sharing and agent actions remain planned. Updated screenshots: [sharing dialog](https://github.com/user-attachments/assets/2e1ed19f-7c57-4ed0-8e3e-60b1e4ee8b6d), [owner overview](https://github.com/user-attachments/assets/0e098919-d5b6-4fda-ba1f-eda6af01c0a1), [mobile recipient view](https://github.com/user-attachments/assets/5c5a49d1-8f05-4cb9-9595-c44d678620f6).
+
 - Preserve the reason text when changing a parenting-time category. Updated screenshot: [category and preserved reason](https://github.com/user-attachments/assets/d7526184-13f9-4f92-ad88-10f29a7bdfee).
 
 - Show ongoing and upcoming parenting-time changes in chronological order, with a category filter and editable default reasons. Re-run `docs/sql/parenting-time.sql` to add categories to existing databases. Updated screenshots: [changes list](https://github.com/user-attachments/assets/0a168b5f-11b4-4341-8a03-a1e8863c6b15), [category and reason](https://github.com/user-attachments/assets/d32cf39f-c2a1-461d-bacb-8d190e7c64a4).

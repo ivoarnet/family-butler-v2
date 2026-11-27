@@ -1,0 +1,13 @@
+{
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": ["get", "post", "patch", "delete"],
+      "route": "households/{householdId}/share-links"
+    },
+    { "type": "http", "direction": "out", "name": "res" }
+  ]
+}

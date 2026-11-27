@@ -2,6 +2,8 @@ import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { useMemo, useState } from "react";
 import { ParentingTimeSettings, type ParentingTimeRequest } from "./ParentingTimeSettings";
+import { afterLocalShareDay, localShareDate } from "../../../shared/ui/ShareLinkDialog";
+import type { ShareLink } from "../../../shared/sharing/shareLinks";
 
 const householdId = "00000000-0000-0000-0000-000000000001";
 const fatherId = "00000000-0000-0000-0000-000000000002";
@@ -20,6 +22,7 @@ function ParentingTimeStory({ withPlan = false, failChangeSave = false, withChan
 }) {
   const [refresh, setRefresh] = useState(0);
   const request = useMemo(() => {
+    let links: ShareLink[] = [];
     const data: {
       parties: Array<{ id: string; name: string; memberId: string | null; active: boolean }>;
       plan: Record<string, unknown> | null;
@@ -53,6 +56,21 @@ function ParentingTimeStory({ withPlan = false, failChangeSave = false, withChan
     return (async (path, init = {}) => {
       calls(path, init);
       const url = new URL(path, "http://storybook.local");
+      if (url.pathname.endsWith("/share-links")) {
+        const payload = init.body ? JSON.parse(String(init.body)) : {};
+        if (init.method === "POST") {
+          const link = { ...payload, id: `shared-${links.length}`, createdAt: new Date().toISOString() } as ShareLink;
+          links.push(link);
+          return { link: structuredClone(link), token: "s".repeat(43) };
+        }
+        if (init.method === "PATCH") {
+          const link = links.find((item) => item.id === url.searchParams.get("id"))!;
+          Object.assign(link, payload);
+          return { link: structuredClone(link) };
+        }
+        if (init.method === "DELETE") { links = links.filter((link) => link.id !== url.searchParams.get("id")); return; }
+        return { links: structuredClone(links) };
+      }
       const resource = url.pathname.split("/parenting-time")[1].replace(/^\//, "");
       const body = init.body ? JSON.parse(String(init.body)) as Record<string, unknown> : {};
       if (!resource) return structuredClone(data);
@@ -487,5 +505,90 @@ export const HouseholdPartyLinks: Story = {
     const mumRow = canvas.getByRole("button", { name: "Edit parenting party Mum" }).closest("tr")!;
     await expect(within(mumRow).getByText("Not linked")).toBeVisible();
     expect(calls.mock.calls.some(([path]) => String(path).endsWith("/calendar-settings"))).toBe(false);
+  },
+};
+
+export const ShareChangesCreate: Story = {
+  args: { withPlan: true, withChanges: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    const share = await canvas.findByRole("button", { name: "Share parenting changes" });
+    await waitFor(() => expect(share).toBeEnabled());
+    await expect(canvas.queryByRole("button", { name: "Shared links" })).toBeNull();
+    await userEvent.click(share);
+    const dialog = within(await page.findByRole("dialog", { name: "Share parenting changes" }));
+    await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveValue("");
+    await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveAttribute("maxlength", "1000");
+    for (const category of ["Adjusted Handover", "Holiday", "Diverse"]) await expect(dialog.getByRole("checkbox", { name: category })).toBeChecked();
+    await expect(dialog.queryByText(/Live future changes/)).toBeNull();
+    await userEvent.hover(dialog.getByRole("button", { name: "Sharing information" }));
+    const information = await page.findByRole("tooltip");
+    await expect(information).toHaveTextContent(/ongoing and past changes are excluded/);
+    await expect(information).toHaveTextContent(/Dates use your local timezone/);
+    await userEvent.unhover(dialog.getByRole("button", { name: "Sharing information" }));
+    for (const category of ["Adjusted Handover", "Holiday", "Diverse"]) await userEvent.click(dialog.getByRole("checkbox", { name: category }));
+    await expect(dialog.getByRole("button", { name: "Create link" })).toBeDisabled();
+    await userEvent.click(dialog.getByRole("checkbox", { name: "Holiday" }));
+    await userEvent.type(dialog.getByRole("textbox", { name: "Private note (optional)" }), "For grandparents");
+    await userEvent.click(dialog.getByRole("button", { name: "Create link" }));
+    await expect(await dialog.findByRole("textbox", { name: "New shared link" })).toHaveValue(`${window.location.origin}/shared#${"s".repeat(43)}`);
+    const create = calls.mock.calls.find(([path, init]) => String(path).endsWith("/share-links") && init?.method === "POST");
+    const body = JSON.parse(String(create?.[1]?.body));
+    expect(body).toMatchObject({ resourceType: "parenting_changes", categories: ["holiday"], note: "For grandparents" });
+    expect(body.expiresAt).toBe(afterLocalShareDay(localShareDate(new Date(Date.now() + 4 * 86400000).toISOString())));
+    await waitFor(() => expect(dialog.getByText(/Copy it now — it cannot be recovered later/)).toBeVisible());
+    const originalCopy = navigator.clipboard.writeText;
+    const copy = fn(async () => undefined);
+    navigator.clipboard.writeText = copy;
+    try {
+      await userEvent.click(dialog.getByRole("button", { name: "Copy link" }));
+      await waitFor(() => expect(copy).toHaveBeenCalledWith(`${window.location.origin}/shared#${"s".repeat(43)}`));
+      await expect(dialog.getByRole("button", { name: "Copied" })).toBeVisible();
+    } finally { navigator.clipboard.writeText = originalCopy; }
+    await userEvent.click(dialog.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await expect(canvas.queryByRole("button", { name: "Shared links" })).toBeNull();
+    expect(calls.mock.calls.filter(([path]) => String(path).includes("/share-links"))).toHaveLength(1);
+  },
+};
+
+export const ShareFilteredCategories: Story = {
+  args: { withPlan: true, withChanges: true },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await userEvent.click(await canvas.findByRole("combobox", { name: "Filter by category" }));
+    await userEvent.click(page.getByRole("option", { name: "Holiday" }));
+    await userEvent.click(canvas.getByRole("button", { name: "Share parenting changes" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Share parenting changes" }));
+    await expect(dialog.getByRole("checkbox", { name: "Holiday" })).toBeChecked();
+    await expect(dialog.getByRole("checkbox", { name: "Diverse" })).not.toBeChecked();
+    await expect(dialog.getByRole("checkbox", { name: "Adjusted Handover" })).not.toBeChecked();
+    await userEvent.click(dialog.getByRole("button", { name: "Create link" }));
+    await dialog.findByRole("textbox", { name: "New shared link" });
+    const create = calls.mock.calls.find(([path, init]) => String(path).endsWith("/share-links") && init?.method === "POST");
+    const body = JSON.parse(String(create?.[1]?.body));
+    expect(body.note).toBe("");
+    expect(body.categories).toEqual(["holiday"]);
+    expect(body.expiresAt).toBe(afterLocalShareDay(localShareDate(new Date(Date.now() + 2.5 * 86400000).toISOString())));
+    await userEvent.click(dialog.getByRole("button", { name: "Done" }));
+    await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
+    await userEvent.click(canvas.getByRole("button", { name: "Share parenting changes" }));
+    const fresh = within(await page.findByRole("dialog", { name: "Share parenting changes" }));
+    await expect(fresh.queryByRole("textbox", { name: "New shared link" })).toBeNull();
+    await expect(fresh.getByRole("textbox", { name: "Private note (optional)" })).toHaveValue("");
+  },
+};
+
+export const ShareChangesMobile: Story = {
+  args: { withPlan: true, withChanges: true },
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const share = await canvas.findByRole("button", { name: "Share parenting changes" });
+    await waitFor(() => expect(share).toBeEnabled());
+    await userEvent.click(share);
+    await within(canvasElement.ownerDocument.body).findByRole("dialog", { name: "Share parenting changes" });
   },
 };
