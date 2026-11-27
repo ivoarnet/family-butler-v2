@@ -145,8 +145,10 @@ begin
   select id, time_zone into v_plan from public.parenting_time_plans
     where household_id = p_link.household_id and active limit 1;
   if not found then return null; end if;
-  if length(v_plan.time_zone) > 100 or not exists (
-    select 1 from pg_timezone_names where name = v_plan.time_zone
+  if length(v_plan.time_zone) > 100 or (
+    v_plan.time_zone !~ '^[+-]([01][0-9]|2[0-3])(:?[0-5][0-9])?$' and not exists (
+      select 1 from pg_timezone_names where lower(name) = lower(v_plan.time_zone)
+    )
   ) then return null; end if;
   select coalesce(jsonb_agg(jsonb_build_object(
     'startAt', c.start_at, 'endAt', least(c.end_at, p_link.expires_at),

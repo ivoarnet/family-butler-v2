@@ -408,8 +408,27 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.equal(count(), 1, "concurrent retries count the mounted page once");
   assert.ok(resolve(digest, now, viewId.toUpperCase()).changes);
   assert.equal(count(), 1);
-  assert.ok(resolve(digest, now, anotherViewId).changes);
+  sql(`update public.parenting_time_plans set time_zone = 'europe/zurich' where id = '${plan}'`);
+  const lowercaseZoneProvider = createProvider(async (_endpoint, { body }) =>
+    resolve(body.p_digest, Date.parse(body.p_now), body.p_view_id));
+  const lowercaseZoneResult = await lowercaseZoneProvider.resolveShareLink(digest, now, anotherViewId);
+  assert.equal(lowercaseZoneResult.timeZone, "europe/zurich");
+  assert.equal(lowercaseZoneResult.changes.length, 2);
   assert.equal(count(), 2, "a different mount counts separately");
+  assert.ok(resolve(digest, now, anotherViewId).changes);
+  assert.equal(count(), 2, "lowercase valid time zones preserve view deduplication");
+  for (const timeZone of ["+01:00", "-23:59", "+01", "+0100", "-2359"]) {
+    sql(`update public.parenting_time_plans set time_zone = ${quote(timeZone)} where id = '${plan}'`);
+    assert.equal(resolve(digest, now, anotherViewId).timeZone, timeZone,
+      "SQL preserves fixed-offset time zones supported by newer Intl runtimes");
+    assert.equal(count(), 2);
+  }
+  for (const timeZone of ["+24:00", "+01:60", "+1:00", "+01:00junk"]) {
+    sql(`update public.parenting_time_plans set time_zone = ${quote(timeZone)} where id = '${plan}'`);
+    assert.equal(resolve(digest, now, createViewId(3)), null);
+    assert.equal(count(), 2, "invalid offset projections must not count");
+  }
+  sql(`update public.parenting_time_plans set time_zone = 'Europe/Zurich' where id = '${plan}'`);
   migrate();
   assert.equal(count(), 2, "reapplying migration preserves counts and deduplication");
   assert.ok(resolve(digest, now, viewId).changes);
