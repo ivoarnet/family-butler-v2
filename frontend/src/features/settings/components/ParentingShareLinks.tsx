@@ -20,6 +20,7 @@ export function ParentingShareLinks({ householdId, request, defaultExpiresAt, se
       <ShareOutlinedIcon fontSize="small" />
     </button>
     {draft && <ShareLinkDialog title="Share parenting changes"
+      information={<Typography variant="body2">{parentingShareScope}</Typography>}
       initialValues={draft} categoryOptions={categoryOptions}
       onClose={() => setDraft(null)} onSave={async (values, signal) => {
         const result = await request(base, {
@@ -28,9 +29,6 @@ export function ParentingShareLinks({ householdId, request, defaultExpiresAt, se
         if (signal.aborted) return;
         if (!result.token || !/^[A-Za-z0-9_-]{43}$/.test(result.token)) throw new Error("The new URL is unavailable. Create another link.");
         return `${window.location.origin}/shared#${result.token}`;
-      }}>
-      <Typography variant="body2">{parentingShareScope}</Typography>
-      <Typography variant="body2">Anyone with this link can view these changes until it expires or you delete it. Keep it private.</Typography>
-    </ShareLinkDialog>}
+      }} />}
   </>;
 }

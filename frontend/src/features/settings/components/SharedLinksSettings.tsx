@@ -86,6 +86,10 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
       </table>
     </div>}
     {draft && <ShareLinkDialog title="Edit shared link" initialValues={draft} editing onClose={() => setDraft(null)}
+      information={<>
+        <Typography variant="body2">Create another link to change its categories.</Typography>
+        {shareResourceScope(draft.resourceType) && <Typography variant="body2">{shareResourceScope(draft.resourceType)}</Typography>}
+      </>}
       onSave={async (values, signal) => {
         const result = await request(`${base}?id=${encodeURIComponent(draft.id)}`, {
           method: "PATCH", signal, body: JSON.stringify({ expiresAt: values.expiresAt, note: values.note }),
@@ -93,8 +97,7 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
         if (!signal.aborted) setLinks((current) => current.map((link) => link.id === result.link.id ? result.link : link));
       }}>
       <Typography>{shareResourceLabel(draft.resourceType)}</Typography>
-      <Typography>Categories: {shareCategoriesLabel(draft)}. Create another link to change its categories.</Typography>
-      {shareResourceScope(draft.resourceType) && <Typography variant="body2">{shareResourceScope(draft.resourceType)}</Typography>}
+      <Typography>Categories: {shareCategoriesLabel(draft)}</Typography>
     </ShareLinkDialog>}
     <GlassDialog open={!!deleting} onClose={() => { if (!busy) setDeleting(null); }} maxWidth="xs" fullWidth aria-labelledby="delete-link-title">
       <DialogHeader><Typography id="delete-link-title" variant="h6">Delete shared link?</Typography></DialogHeader>

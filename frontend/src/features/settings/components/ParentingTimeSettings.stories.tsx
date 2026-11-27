@@ -521,8 +521,12 @@ export const ShareChangesCreate: Story = {
     await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveValue("");
     await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveAttribute("maxlength", "1000");
     for (const category of ["Adjusted Handover", "Holiday", "Diverse"]) await expect(dialog.getByRole("checkbox", { name: category })).toBeChecked();
-    await expect(dialog.getByText(/Live future changes/)).toHaveTextContent(/ongoing and past changes are excluded/);
-    await waitFor(() => expect(dialog.getByText(/Dates use your local timezone/)).toBeVisible());
+    await expect(dialog.queryByText(/Live future changes/)).toBeNull();
+    await userEvent.hover(dialog.getByRole("button", { name: "Sharing information" }));
+    const information = await page.findByRole("tooltip");
+    await expect(information).toHaveTextContent(/ongoing and past changes are excluded/);
+    await expect(information).toHaveTextContent(/Dates use your local timezone/);
+    await userEvent.unhover(dialog.getByRole("button", { name: "Sharing information" }));
     for (const category of ["Adjusted Handover", "Holiday", "Diverse"]) await userEvent.click(dialog.getByRole("checkbox", { name: category }));
     await expect(dialog.getByRole("button", { name: "Create link" })).toBeDisabled();
     await userEvent.click(dialog.getByRole("checkbox", { name: "Holiday" }));
@@ -533,7 +537,7 @@ export const ShareChangesCreate: Story = {
     const body = JSON.parse(String(create?.[1]?.body));
     expect(body).toMatchObject({ resourceType: "parenting_changes", categories: ["holiday"], note: "For grandparents" });
     expect(body.expiresAt).toBe(afterLocalShareDay(localShareDate(new Date(Date.now() + 4 * 86400000).toISOString())));
-    await waitFor(() => expect(dialog.getByText(/only a digest is stored/)).toBeVisible());
+    await waitFor(() => expect(dialog.getByText(/Copy it now — it cannot be recovered later/)).toBeVisible());
     const originalCopy = navigator.clipboard.writeText;
     const copy = fn(async () => undefined);
     navigator.clipboard.writeText = copy;

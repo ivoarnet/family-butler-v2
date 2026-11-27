@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState, type ReactNode } from "react";
-import { Alert, Box, Checkbox, FormControlLabel, Stack, Typography } from "@mui/material";
+import { Alert, Box, Checkbox, FormControlLabel, IconButton, Stack, Tooltip, Typography } from "@mui/material";
+import InfoOutlinedIcon from "@mui/icons-material/InfoOutlined";
 import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton,
 } from "./GlassFormDialog";
@@ -20,10 +21,11 @@ export const afterLocalShareDay = (date: string) => {
 const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** Mount for each create/edit session so the one-time URL never survives closing. */
-export function ShareLinkDialog({ initialValues, categoryOptions, children, editing = false, title = "Create shared link", onSave, onClose }: {
+export function ShareLinkDialog({ initialValues, categoryOptions, children, information, editing = false, title = "Create shared link", onSave, onClose }: {
   initialValues: ShareLinkValues;
   categoryOptions?: ShareCategory[];
   children?: ReactNode;
+  information?: ReactNode;
   editing?: boolean;
   title?: string;
   onSave: (values: ShareLinkValues, signal: AbortSignal) => Promise<string | void>;
@@ -58,11 +60,25 @@ export function ShareLinkDialog({ initialValues, categoryOptions, children, edit
         if (!operation.signal.aborted) setBusy(false);
       }
     }}>
-      <DialogHeader><Typography id="share-link-title" variant="h6">{title}</Typography></DialogHeader>
+      <DialogHeader>
+        <Stack direction="row" sx={{ alignItems: "center" }} spacing={1}>
+          <Typography id="share-link-title" variant="h6">{title}</Typography>
+          <Tooltip describeChild enterTouchDelay={0} title={<Stack spacing={1}>
+            {information}
+            <Typography variant="body2">Anyone with this link can view the shared records until it expires or you delete it. Private notes are never shared.</Typography>
+            <Typography variant="body2">Dates use your local timezone ({localTimeZone}). The selected day is included; expiry is the following local midnight (exclusive).</Typography>
+            <Typography variant="body2">Manage links in Settings → Shared links. Save each URL when creating it: only a digest is stored, so it cannot be recovered. Create another link if you lose it.</Typography>
+          </Stack>}>
+            <IconButton type="button" size="small" aria-label="Sharing information" sx={{ color: "var(--text-secondary)" }}>
+              <InfoOutlinedIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
+        </Stack>
+      </DialogHeader>
       <DialogContentPanel>
         {error && <Alert severity="error">{error}</Alert>}
         {url ? <>
-          <Alert severity="success">Link created. Manage it in Settings → Shared links. Save it now: only a digest is stored, so this URL cannot be recovered. Create another link if you lose it.</Alert>
+          <Alert severity="success">Link created. Copy it now — it cannot be recovered later.</Alert>
           <FormField label="New shared link" value={url} slotProps={{ input: { readOnly: true } }} fullWidth
             onFocus={(event) => event.target.select()} />
           <SecondaryButton type="button" onClick={async () => {
@@ -71,14 +87,14 @@ export function ShareLinkDialog({ initialValues, categoryOptions, children, edit
           }}>{copied ? "Copied" : "Copy link"}</SecondaryButton>
         </> : <>
           {children}
+          <Typography variant="body2">Anyone with the link can view it. Keep it private.</Typography>
           <DateField label="Expiry date" value={date} disabled={busy} required error={!validExpiry}
             onChange={(nextDate) => {
               setDate(nextDate);
               setValues((current) => ({ ...current, expiresAt: afterLocalShareDay(nextDate) }));
             }} />
           <Typography variant="body2">
-            Dates use your local timezone ({localTimeZone}). Choosing a date includes that whole day; expiry is the following local midnight (exclusive).
-            {validExpiry ? ` Current expiry: ${formatShareDateTime(values.expiresAt)} (${localTimeZone}).` : editing ? " Choose a valid expiry." : " Choose a future expiry."}
+            {validExpiry ? `Expires: ${formatShareDateTime(values.expiresAt)} (${localTimeZone}).` : editing ? "Choose a valid expiry." : "Choose a future expiry."}
             {editing && Date.parse(values.expiresAt) <= Date.now() ? " This link is expired." : ""}
           </Typography>
           {categoryOptions && <Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0 }}>

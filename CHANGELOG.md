@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Moved detailed create/edit sharing guidance into a title info-icon tooltip, with keyboard and touch access. Kept concise privacy, expiry, and copy-now messages visible. Updated screenshot: [compact sharing modal](https://github.com/user-attachments/assets/98143675-c091-464d-b914-ae7488fbb386).
+
 - Sharing screens now use Swiss `dd.mm.yyyy hh:mm` dates and 24-hour time. Added an owner-only **Views** counter for successful page opens, excluding automatic refreshes. Re-run `docs/sql/share-links.sql` before deployment; existing counters start at zero. Updated screenshots: [owner view counts](https://github.com/user-attachments/assets/833d6ee3-2cc3-42e3-8135-d0423199f886), [recipient dates](https://github.com/user-attachments/assets/4ce0a528-c169-4ec9-abe4-821fa1389808).
 
 - Moved Shared links guidance into the existing title info-icon tooltip to keep the table compact. Updated screenshot: [shared-links info icon](https://github.com/user-attachments/assets/dc191c1b-377d-4ec0-bee4-ff64b98bd907).

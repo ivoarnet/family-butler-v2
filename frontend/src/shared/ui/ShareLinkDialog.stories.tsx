@@ -1,5 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/react-vite";
-import { expect, fn, userEvent, waitFor, within } from "storybook/test";
+import { expect, fireEvent, fn, userEvent, waitFor, within } from "storybook/test";
 import { ShareLinkDialog, afterLocalShareDay, localShareDate, type ShareLinkValues } from "./ShareLinkDialog";
 
 const save = fn(async (_values: ShareLinkValues, _signal: AbortSignal) => undefined);
@@ -16,6 +16,55 @@ const meta: Meta<typeof ShareLinkDialog> = {
 };
 export default meta;
 type Story = StoryObj<typeof ShareLinkDialog>;
+
+export const CompactCreate: Story = {
+  args: {
+    title: "Share parenting changes", editing: false,
+    initialValues: { expiresAt: "2090-12-01T00:00:00Z", note: "", categories: ["holiday"] },
+    categoryOptions: [
+      { value: "adjusted_handover", label: "Adjusted Handover" },
+      { value: "holiday", label: "Holiday" }, { value: "diverse", label: "Diverse" },
+    ],
+    information: "Only future changes in selected categories are shared.",
+  },
+  play: async ({ canvasElement }) => {
+    const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
+    await expect(dialog.queryByText(/Dates use your local timezone/)).toBeNull();
+    await expect(dialog.queryByText(/Only future changes/)).toBeNull();
+    await waitFor(() => expect(dialog.getByText(/Anyone with the link can view it/)).toBeVisible());
+    await expect(dialog.getByRole("button", { name: "Create link" })).toBeEnabled();
+  },
+};
+export const KeyboardInformation: Story = {
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = within(await page.findByRole("dialog"));
+    const info = dialog.getByRole("button", { name: "Sharing information" });
+    await userEvent.tab();
+    await expect(info).toHaveFocus();
+    const tooltip = await page.findByRole("tooltip");
+    await expect(tooltip).toHaveTextContent("The selected day is included");
+    await expect(tooltip).toHaveTextContent("Private notes are never shared");
+    await expect(tooltip).toHaveTextContent("only a digest is stored");
+    expect(save).not.toHaveBeenCalled();
+    await userEvent.tab();
+    await waitFor(() => expect(page.queryByRole("tooltip")).toBeNull());
+  },
+};
+export const MobileInformation: Story = {
+  args: CompactCreate.args,
+  globals: { viewport: { value: "mobile1", isRotated: false } },
+  play: async ({ canvasElement }) => {
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = within(await page.findByRole("dialog"));
+    const info = dialog.getByRole("button", { name: "Sharing information" });
+    await fireEvent.touchStart(info);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent("Only future changes");
+    await fireEvent.touchEnd(info);
+    expect(save).not.toHaveBeenCalled();
+    await waitFor(() => expect(page.queryByRole("tooltip")).toBeNull(), { timeout: 3000 });
+  },
+};
 
 export const EditExpiredNote: Story = {
   play: async ({ canvasElement }) => {
