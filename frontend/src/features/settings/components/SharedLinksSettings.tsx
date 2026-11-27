@@ -7,12 +7,13 @@ import {
 } from "../../../shared/ui/GlassFormDialog";
 import { ShareLinkDialog } from "../../../shared/ui/ShareLinkDialog";
 import { SettingsInfo } from "./SettingsInfo";
+import { formatShareDateTime } from "../../../shared/sharing/formatShareDateTime";
 import {
   shareCategoriesLabel, shareResourceLabel, shareResourceScope, type ShareLink, type ShareLinkRequest,
 } from "../../../shared/sharing/shareLinks";
 
 type Props = { householdId: string; request: ShareLinkRequest };
-const formatDate = (iso: string) => new Date(iso).toLocaleString();
+const formatDate = formatShareDateTime;
 
 export function SharedLinksSettings(props: Props) {
   return <HouseholdSharedLinks key={props.householdId} {...props} />;
@@ -51,7 +52,7 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
   return <>
     <div className="section-toolbar">
       <span className="section-title-info"><h2>Shared links</h2>
-        <SettingsInfo label="Shared links information" text="Manage links you shared from this household. Notes are private. Save each URL when creating it: only a digest is stored, so lost URLs cannot be recovered. Create a new link if needed." />
+        <SettingsInfo label="Shared links information" text="Manage links you shared from this household. Notes are private. Views count successful page opens, not automatic refreshes or unique people. Save each URL when creating it: only a digest is stored, so lost URLs cannot be recovered. Create a new link if needed." />
       </span>
       <SecondaryButton disabled={loading || busy || !!draft || !!deleting} onClick={() => void load()}>Refresh</SecondaryButton>
     </div>
@@ -59,9 +60,9 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
     {error && <Alert severity="error" action={<SecondaryButton onClick={() => void load()}>Retry</SecondaryButton>}>{error}</Alert>}
     {!loading && !error && <div className="table-scroll">
       <table className="settings-table" aria-label="Shared links">
-        <thead><tr><th>Resource / type</th><th>Categories / scope</th><th>Created</th><th>Expires / status</th><th>Private note</th><th className="actions-column">Actions</th></tr></thead>
+        <thead><tr><th>Resource / type</th><th>Categories / scope</th><th>Created</th><th>Expires / status</th><th>Views</th><th>Private note</th><th className="actions-column">Actions</th></tr></thead>
         <tbody>
-          {links.length === 0 && <tr><td colSpan={6}>No shared links yet.</td></tr>}
+          {links.length === 0 && <tr><td colSpan={7}>No shared links yet.</td></tr>}
           {links.map((link) => <tr key={link.id}>
             <td>{shareResourceLabel(link.resourceType)}</td>
             <td>{shareCategoriesLabel(link)}{shareResourceScope(link.resourceType) && <details>
@@ -70,6 +71,7 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
             <td>{formatDate(link.createdAt)}</td>
             <td>{formatDate(link.expiresAt)} ({Intl.DateTimeFormat().resolvedOptions().timeZone})<br />
               <span>{Date.parse(link.expiresAt) > Date.now() ? "Active" : "Expired"}</span></td>
+            <td>{link.viewCount}</td>
             <td style={{ overflowWrap: "anywhere", whiteSpace: "pre-wrap" }}>{link.note || "—"}</td>
             <td className="actions-cell"><div className="action-buttons icon-actions">
               <button type="button" className="icon-button compact-icon-button" disabled={busy}

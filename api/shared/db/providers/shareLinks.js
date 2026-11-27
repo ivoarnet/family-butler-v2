@@ -25,9 +25,12 @@ module.exports = function createShareLinksProvider(request) {
         throw new Error("unavailable");
       }
     },
-    async resolveShareLink(digest, now) {
+    async resolveShareLink(digest, now, viewId) {
       const result = await request("rpc/resolve_share_link", {
-        method: "POST", body: { p_digest: digest, p_now: new Date(now).toISOString() },
+        method: "POST", body: {
+          p_digest: digest, p_now: new Date(now).toISOString(),
+          ...(viewId === undefined ? {} : { p_view_id: viewId }),
+        },
       });
       if (!result || typeof result !== "object" || Array.isArray(result)) return null;
       if (result.error) {

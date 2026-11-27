@@ -2,6 +2,11 @@
 -- All access is through service-role-only RPCs; raw bearer tokens are never stored.
 -- Apply edge/IP throttling separately: the distributed per-link budget below only
 -- limits successful bearer lookups and does not protect the HTTP/auth/DB perimeter.
+-- Reapply before deploying view-count-aware API code. Existing links start at zero.
+-- Only a successful resolve with a fresh UUIDv4 counts; omitted UUIDs are refreshes.
+-- Retain the last 1,024 distinct successful view UUIDs per link, never IPs/user agents.
+-- An evicted UUID may count again. Totals persist independently and saturate at the
+-- JavaScript safe-integer maximum. Deleting a link removes its deduplication data.
 begin;
 
 create table if not exists public.share_links (
@@ -26,6 +31,13 @@ create table if not exists public.share_links (
   read_count integer not null default 0 check (read_count between 0 and 60)
 );
 create index if not exists share_links_owner on public.share_links (household_id, created_by_user_id, created_at, id);
+alter table public.share_links
+  add column if not exists view_count bigint not null default 0
+    check (view_count between 0 and 9007199254740991),
+  add column if not exists recent_view_ids uuid[] not null default '{}'::uuid[]
+    check (cardinality(recent_view_ids) <= 1024 and
+      (cardinality(recent_view_ids) = 0 or array_ndims(recent_view_ids) = 1) and
+      array_position(recent_view_ids, null) is null);
 alter table public.share_links enable row level security;
 revoke all on public.share_links from public, anon, authenticated, service_role;
 
@@ -33,7 +45,8 @@ create or replace function public.share_link_metadata(p_link public.share_links)
 returns jsonb language sql immutable set search_path = public as $$
   select jsonb_build_object(
     'id', p_link.id, 'resourceType', p_link.resource_type, 'expiresAt', p_link.expires_at,
-    'note', p_link.note, 'categories', p_link.categories, 'createdAt', p_link.created_at
+    'note', p_link.note, 'categories', p_link.categories, 'createdAt', p_link.created_at,
+    'viewCount', p_link.view_count
   );
 $$;
 
@@ -127,14 +140,24 @@ returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_plan record;
   v_changes jsonb;
+  v_valid boolean;
 begin
   select id, time_zone into v_plan from public.parenting_time_plans
     where household_id = p_link.household_id and active limit 1;
   if not found then return null; end if;
+  if length(v_plan.time_zone) > 100 or not exists (
+    select 1 from pg_timezone_names where name = v_plan.time_zone
+  ) then return null; end if;
   select coalesce(jsonb_agg(jsonb_build_object(
     'startAt', c.start_at, 'endAt', least(c.end_at, p_link.expires_at),
     'partyName', c.party_name, 'category', c.category, 'label', c.label
-  ) order by c.start_at, c.id), '[]'::jsonb) into v_changes from (
+  ) order by c.start_at, c.id), '[]'::jsonb),
+    coalesce(bool_and(
+      isfinite(c.start_at) and isfinite(c.end_at) and
+      extract(year from c.start_at) between 1 and 9999 and
+      extract(year from c.end_at) between 1 and 9999 and
+      length(c.party_name) between 1 and 100 and length(c.label) between 1 and 200
+    ), true) into v_changes, v_valid from (
     select c.id, c.start_at, c.end_at, p.name as party_name, c.category, c.label
       from public.parenting_time_changes c
       join public.parenting_time_parties p on p.household_id = c.household_id and p.id = c.party_id
@@ -144,13 +167,15 @@ begin
       order by c.start_at, c.id limit 501
   ) c;
   -- Never silently represent a truncated set as the complete shared calendar.
-  if jsonb_array_length(v_changes) > 500 then return null; end if;
+  if not v_valid or jsonb_array_length(v_changes) > 500 then return null; end if;
   return jsonb_build_object('resourceType', p_link.resource_type, 'expiresAt', p_link.expires_at,
     'timeZone', v_plan.time_zone, 'changes', v_changes);
 end;
 $$;
 
-create or replace function public.resolve_share_link(p_digest text, p_now timestamptz)
+-- Replace the old signature instead of leaving ambiguous PostgREST overloads.
+drop function if exists public.resolve_share_link(text, timestamptz);
+create or replace function public.resolve_share_link(p_digest text, p_now timestamptz, p_view_id uuid default null)
 returns jsonb language plpgsql security definer set search_path = public as $$
 declare
   v_link public.share_links;
@@ -159,6 +184,8 @@ declare
   v_result jsonb;
 begin
   if p_digest is null or p_digest !~ '^[0-9a-f]{64}$' or p_now is null or not isfinite(p_now) then return null; end if;
+  if p_view_id is not null and
+    p_view_id::text !~ '^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$' then return null; end if;
   select household_id into v_household from public.share_links
     where token_digest = p_digest and expires_at > clock_timestamp() limit 1;
   if not found then return null; end if;
@@ -170,6 +197,7 @@ begin
     where s.token_digest = p_digest and s.expires_at > clock_timestamp()
     for update of s;
   if not found or v_link.expires_at <= greatest(p_now, clock_timestamp()) then return null; end if;
+  if extract(year from v_link.expires_at) not between 1 and 9999 then return null; end if;
   v_clock := clock_timestamp();
   -- Distributed budget keyed by the verified link, never a caller-supplied forwarded IP.
   if v_link.read_window <= v_clock - interval '1 minute' then
@@ -185,6 +213,15 @@ begin
     else return null;
   end case;
   if v_link.expires_at <= clock_timestamp() then return null; end if;
+  if v_result is not null and p_view_id is not null and not (p_view_id = any(v_link.recent_view_ids)) then
+    -- The existing row lock makes retries and concurrent opens atomic.
+    update public.share_links set
+      view_count = least(view_count + 1, 9007199254740991),
+      recent_view_ids = array_append(
+        case when cardinality(recent_view_ids) >= 1024 then recent_view_ids[2:1024] else recent_view_ids end,
+        p_view_id)
+      where id = v_link.id;
+  end if;
   return v_result;
 end;
 $$;
@@ -192,8 +229,8 @@ $$;
 revoke all on function public.share_link_metadata(public.share_links) from public, anon, authenticated, service_role;
 revoke all on function public.manage_share_links(uuid, uuid, text, jsonb) from public, anon, authenticated, service_role;
 revoke all on function public.resolve_shared_parenting_changes(public.share_links, timestamptz) from public, anon, authenticated, service_role;
-revoke all on function public.resolve_share_link(text, timestamptz) from public, anon, authenticated, service_role;
+revoke all on function public.resolve_share_link(text, timestamptz, uuid) from public, anon, authenticated, service_role;
 grant execute on function public.manage_share_links(uuid, uuid, text, jsonb) to service_role;
-grant execute on function public.resolve_share_link(text, timestamptz) to service_role;
+grant execute on function public.resolve_share_link(text, timestamptz, uuid) to service_role;
 
 commit;

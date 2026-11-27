@@ -1,4 +1,4 @@
-import { StrictMode } from "react";
+import { StrictMode, useState } from "react";
 import type { Meta, StoryObj } from "@storybook/react-vite";
 import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { SharedLinkPage } from "./SharedLinkPage";
@@ -57,6 +57,39 @@ export const Loaded: Story = {
     expect(new Headers(init.headers).get("x-share-token")).toBe(token);
     expect(new Headers(init.headers).has("Authorization")).toBe(false);
     expect(new Headers(init.headers).has("x-supabase-auth-token")).toBe(false);
+    expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
+    await expect(canvas.getByRole("listitem")).toHaveTextContent(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2} – \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
+    await expect(canvas.getByText(/Expires:/)).toHaveTextContent(/Expires: \d{2}\.\d{2}\.\d{4} \d{2}:\d{2} · Timezone:/);
+  },
+};
+export const ViewCountIgnoresRefresh: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Family holiday");
+    const initialIds = requests.mock.calls.map(([, init]) => JSON.parse(init.body).viewId);
+    expect(initialIds[0]).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(new Set(initialIds).size).toBe(1);
+    const before = requests.mock.calls.length;
+    window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true }));
+    await waitFor(() => expect(requests.mock.calls.length).toBeGreaterThan(before));
+    await canvas.findByText("Family holiday");
+    expect(JSON.parse(requests.mock.calls[requests.mock.calls.length - 1][1].body)).toEqual({});
+  },
+};
+function ReopenStory() {
+  const [visit, setVisit] = useState(0);
+  return <><button onClick={() => setVisit((current) => current + 1)}>Open again</button>
+    <SharedLinkPage key={visit} token={token} /></>;
+}
+export const NewOpenCountsAgain: Story = {
+  render: () => <ReopenStory />,
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByText("Family holiday");
+    const initialId = JSON.parse(requests.mock.calls[requests.mock.calls.length - 1][1].body).viewId;
+    await userEvent.click(canvas.getByRole("button", { name: "Open again" }));
+    await canvas.findByText("Family holiday");
+    expect(JSON.parse(requests.mock.calls[requests.mock.calls.length - 1][1].body).viewId).not.toBe(initialId);
   },
 };
 export const Invalid: Story = {
@@ -132,6 +165,7 @@ export const NetworkFailureRecovery: Story = {
     await userEvent.click(canvas.getByRole("button", { name: "Retry" }));
     await expect(await canvas.findByText("Family holiday")).toBeVisible();
     await expect(canvas.queryByRole("button", { name: "Retry" })).toBeNull();
+    expect(new Set(requests.mock.calls.map(([, init]) => JSON.parse(init.body).viewId)).size).toBe(1);
   },
 };
 export const ServerFailureRecovery: Story = {

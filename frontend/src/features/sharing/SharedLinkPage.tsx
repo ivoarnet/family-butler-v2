@@ -1,5 +1,6 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Alert, Box, Button, Stack, Typography } from "@mui/material";
+import { formatShareDateTime } from "../../shared/sharing/formatShareDateTime";
 
 type SharedChange = { startAt: string; endAt: string; partyName: string; category: string; label: string };
 type SharedChanges = { resourceType: "parenting_changes"; expiresAt: string; timeZone: string; changes: SharedChange[] };
@@ -26,6 +27,7 @@ export function SharedLinkPage({ token }: { token: string }) {
   const [temporaryError, setTemporaryError] = useState(false);
   const [retryAttempt, setRetryAttempt] = useState(0);
   const [now, setNow] = useState(Date.now);
+  const pageView = useRef<{ token: string; id: string; counted: boolean } | null>(null);
   useEffect(() => {
     let active = true;
     let controller: AbortController | undefined;
@@ -36,6 +38,10 @@ export function SharedLinkPage({ token }: { token: string }) {
     setRateLimited(false);
     setTemporaryError(false);
     if (!/^[A-Za-z0-9_-]{43}$/.test(token)) { setError(true); return; }
+    if (pageView.current?.token !== token) {
+      pageView.current = { token, id: crypto.randomUUID(), counted: false };
+    }
+    const view = pageView.current;
     const refresh = async () => {
       controller?.abort();
       clearTimeout(refreshTimer);
@@ -48,7 +54,8 @@ export function SharedLinkPage({ token }: { token: string }) {
       controller = operation;
       try {
         const response = await fetch(`${API_BASE_URL}/api/shared-links/resolve`, {
-          method: "POST", headers: { "x-share-token": token },
+          method: "POST", headers: { "x-share-token": token, "Content-Type": "application/json" },
+          body: JSON.stringify(view.counted ? {} : { viewId: view.id }),
           cache: "no-store", credentials: "omit", signal: operation.signal,
         });
         if (!active || operation.signal.aborted) return;
@@ -65,6 +72,7 @@ export function SharedLinkPage({ token }: { token: string }) {
         const result: unknown = await response.json();
         if (!isPayload(result) || Date.parse(result.expiresAt) <= Date.now()) throw new InvalidSharedLinkError();
         if (!active || operation.signal.aborted) return;
+        view.counted = true;
         setNow(Date.now());
         setData(result);
         setError(false);
@@ -127,9 +135,7 @@ export function SharedLinkPage({ token }: { token: string }) {
     };
   }, [token, retryAttempt]);
   const expired = data && Date.parse(data.expiresAt) <= now;
-  const format = (value: string) => new Intl.DateTimeFormat(undefined, {
-    timeZone: data?.timeZone, dateStyle: "medium", timeStyle: "short",
-  }).format(new Date(value));
+  const format = (value: string) => formatShareDateTime(value, data?.timeZone);
   const changes = data?.changes.filter((change) => Date.parse(change.startAt) >= now && Date.parse(change.startAt) < Date.parse(data.expiresAt)) ?? [];
   return <Box component="main" sx={{ maxWidth: 760, mx: "auto", p: { xs: 2, sm: 4 }, color: "var(--text-primary)" }}>
     <Stack spacing={3}>

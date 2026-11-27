@@ -80,11 +80,24 @@ const validateInput = (body, create, now = Date.now()) => {
 const projectMetadata = (link) => {
   assert(link && typeof link === "object" && resources.has(link.resourceType), "invalid share link");
   assert(typeof link.note === "string" && link.note.length <= 1000, "invalid note");
+  assert(Number.isSafeInteger(link.viewCount) && link.viewCount >= 0, "invalid view count");
   return {
     id: validateId(link.id, "id"), resourceType: link.resourceType,
     expiresAt: validateTimestamp(link.expiresAt), note: link.note,
     categories: validateCategories(link.categories), createdAt: validateTimestamp(link.createdAt, "createdAt"),
+    viewCount: link.viewCount,
   };
+};
+
+const validateResolveInput = (body) => {
+  if (body === undefined || body === null || body === "") return undefined;
+  assert(typeof body === "object" && !Array.isArray(body) &&
+    Object.keys(body).every((key) => key === "viewId"), "invalid resolve body");
+  if (!Object.hasOwn(body, "viewId")) return undefined;
+  assert(typeof body.viewId === "string" &&
+    /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(body.viewId),
+  "invalid viewId");
+  return body.viewId.toLowerCase();
 };
 
 const tokenDigest = (token) => createHash("sha256").update(token).digest("hex");
@@ -109,5 +122,5 @@ const getPublicToken = (headers) => {
 
 module.exports = {
   MAX_LINKS, MAX_CHANGES, PUBLIC_HEADERS, resources, validateInput, validateTimestamp,
-  projectMetadata, createToken, tokenDigest, getPublicToken,
+  projectMetadata, validateResolveInput, createToken, tokenDigest, getPublicToken,
 };

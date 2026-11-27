@@ -6,11 +6,13 @@ import type { HouseholdData } from "../../app/types";
 import type { ShareLink, ShareLinkRequest } from "../../../shared/sharing/shareLinks";
 import { afterLocalShareDay, localShareDate } from "../../../shared/ui/ShareLinkDialog";
 import { SharedLinksSettings } from "./SharedLinksSettings";
+import { formatShareDateTime } from "../../../shared/sharing/formatShareDateTime";
 
 const calls = fn<ShareLinkRequest>();
 const sample = (): ShareLink => ({
   id: "parenting-link", resourceType: "parenting_changes", categories: ["holiday"], note: "For grandparents",
   createdAt: "2026-01-01T10:00:00Z", expiresAt: new Date(Date.now() + 14 * 86400000).toISOString(),
+  viewCount: 7,
 });
 const emptyHousehold: HouseholdData = {
   householdId: "first", householdName: "Family Calendar", familyMembers: [],
@@ -129,12 +131,14 @@ export const CentralSettingsNavigation: Story = {
     await expect(table).toHaveClass("settings-table");
     await expect(table.parentElement).toHaveClass("table-scroll");
     await expect(within(table).getAllByRole("columnheader").map((cell) => cell.textContent)).toEqual([
-      "Resource / type", "Categories / scope", "Created", "Expires / status", "Private note", "Actions",
+      "Resource / type", "Categories / scope", "Created", "Expires / status", "Views", "Private note", "Actions",
     ]);
     await expect(within(table).getByText("Parenting changes")).toBeVisible();
     await expect(within(table).getByText("future_resource")).toBeVisible();
     await expect(within(table).getByText("future_category")).toBeVisible();
     await expect(within(table).getByText("For grandparents")).toBeVisible();
+    await expect(within(table).getAllByText("7")).toHaveLength(2);
+    await expect(within(table).getAllByText(formatShareDateTime("2026-01-01T10:00:00Z"))).toHaveLength(2);
     await expect(within(table).getByRole("button", { name: editButton }).parentElement).toHaveClass("action-buttons");
     expect(calls.mock.calls[0][0]).toBe("/api/households/first/share-links");
     await expect(canvas.queryByRole("button", { name: "Copy link" })).toBeNull();
@@ -142,6 +146,18 @@ export const CentralSettingsNavigation: Story = {
     await expect(canvas.queryByRole("table", { name: "Shared links" })).toBeNull();
     await userEvent.click(canvas.getByRole("tab", { name: "Shared links" }));
     await expect(await canvas.findByRole("table", { name: "Shared links" })).toBeVisible();
+  },
+};
+
+export const SwissDateTimeFormat: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("table", { name: "Shared links" });
+    expect(formatShareDateTime("2026-11-30T15:30:00Z", "Europe/Zurich")).toBe("30.11.2026 16:30");
+    expect(formatShareDateTime("2026-07-01T22:05:00Z", "Europe/Zurich")).toBe("02.07.2026 00:05");
+    expect(formatShareDateTime("2026-03-29T01:30:00Z", "Europe/Zurich")).toBe("29.03.2026 03:30");
+    await expect(canvas.getByText(formatShareDateTime("2026-01-01T10:00:00Z"))).toBeVisible();
+    await expect(canvas.getByText("7")).toBeVisible();
   },
 };
 

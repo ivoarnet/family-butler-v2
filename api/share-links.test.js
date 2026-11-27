@@ -4,7 +4,7 @@ const { execFile, execFileSync } = require("node:child_process");
 const { readFileSync } = require("node:fs");
 const path = require("node:path");
 const {
-  validateInput, validateTimestamp, createToken, tokenDigest, getPublicToken, PUBLIC_HEADERS,
+  validateInput, validateTimestamp, validateResolveInput, createToken, tokenDigest, getPublicToken, PUBLIC_HEADERS,
 } = require("./shared/shareLinks");
 const createProvider = require("./shared/db/providers/shareLinks");
 const ownerHandler = require("./share-links");
@@ -20,7 +20,10 @@ const plan = "00000000-0000-0000-0000-000000000006";
 const now = Date.parse("2090-01-01T00:00:00Z");
 const expiresAt = "2090-01-05T00:00:00.000Z";
 const input = { resourceType: "parenting_changes", expiresAt, categories: ["holiday"] };
-const metadata = { ...input, id, note: "", createdAt: "2089-01-01T00:00:00.000Z" };
+const metadata = { ...input, id, note: "", createdAt: "2089-01-01T00:00:00.000Z", viewCount: 0 };
+const viewId = "12345678-abcd-4abc-8abc-123456789abc";
+const anotherViewId = "12345678-abcd-4abc-9abc-123456789abc";
+const createViewId = (number) => `00000000-0000-4000-8000-${String(number).padStart(12, "0")}`;
 const bearer = (token) => ["Bearer", token].join(" ");
 const change = {
   startAt: "2090-01-02T00:00:00.000Z", endAt: "2090-01-06T00:00:00.000Z",
@@ -72,13 +75,24 @@ test("strict creation/update validation, calendar dates, scope and token encodin
   }
 });
 
+test("public view identifiers require an exact UUIDv4 field and legacy refreshes remain uncounted", () => {
+  for (const body of [undefined, null, "", {}]) assert.equal(validateResolveInput(body), undefined);
+  assert.equal(validateResolveInput({ viewId: viewId.toUpperCase() }), viewId);
+  for (const body of [[], "{}", 0, true, { viewId: null }, { viewId: undefined }, { viewId: 123 },
+    { viewId: [] }, { viewId: "" }, { viewId: `${viewId} ` }, { viewId: id },
+    { viewId: viewId.replace("-4abc-", "-5abc-") }, { viewId: viewId.replace("-8abc-", "-7abc-") },
+    { viewId, note: "private" }, { viewCount: 1 }]) {
+    assert.throws(() => validateResolveInput(body), { status: 400 });
+  }
+});
+
 test("provider projects exact metadata/public allowlists, clips expiry and fails closed", async () => {
   const calls = [];
   const provider = createProvider(async (endpoint, options) => {
     calls.push({ endpoint, options });
     return endpoint.endsWith("manage_share_links")
       ? { links: [{ ...metadata, token: "secret", token_digest: "secret", householdId: household }] }
-      : { ...publicData, note: "secret", householdId: household, rules: ["secret"],
+      : { ...publicData, note: "secret", viewCount: 99, recent_view_ids: [viewId], householdId: household, rules: ["secret"],
         changes: [
           { ...change, memberId: other, partyId: party, notes: "secret" },
           { ...change, startAt: "2089-12-31T00:00:00Z" },
@@ -90,6 +104,16 @@ test("provider projects exact metadata/public allowlists, clips expiry and fails
   assert.deepEqual(result, { ...publicData, changes: [{ ...change, endAt: expiresAt }] });
   assert.equal(calls[1].endpoint, "rpc/resolve_share_link");
   assert.deepEqual(Object.keys(calls[1].options.body), ["p_digest", "p_now"]);
+  await provider.resolveShareLink("digest", now, viewId);
+  assert.deepEqual(calls[2].options.body, { p_digest: "digest", p_now: new Date(now).toISOString(), p_view_id: viewId });
+  for (const viewCount of [undefined, null, "1", -1, 0.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1]) {
+    await assert.rejects(createProvider(async () => ({ links: [{ ...metadata, viewCount }] }))
+      .manageShareLinks(household, owner, "list", {}), { message: "unavailable" });
+  }
+  for (const viewCount of [0, 12, Number.MAX_SAFE_INTEGER]) {
+    assert.equal((await createProvider(async () => ({ link: { ...metadata, viewCount } }))
+      .manageShareLinks(household, owner, "update", {})).link.viewCount, viewCount);
+  }
   for (const expires of [new Date(now - 1).toISOString(), new Date(now).toISOString()]) {
     assert.equal(await createProvider(async () => ({ ...publicData, expiresAt: expires })).resolveShareLink("digest", now), null);
   }
@@ -132,7 +156,10 @@ test("owner/public handlers authenticate separately, validate routes, prevent to
     return action === "list" ? { links: [metadata] } : { link: metadata };
   };
   let resolves = 0;
-  db.resolveShareLink = async (digest) => { resolves++; assert.match(digest, /^[a-f0-9]{64}$/); return publicData; };
+  const requestedViews = [];
+  db.resolveShareLink = async (digest, _now, requestedView) => {
+    resolves++; requestedViews.push(requestedView); assert.match(digest, /^[a-f0-9]{64}$/); return publicData;
+  };
   const logs = [];
   const invoke = async (handler, request) => {
     const context = { log: { error: (...args) => logs.push(args) } };
@@ -165,6 +192,14 @@ test("owner/public handlers authenticate separately, validate routes, prevent to
     assert.equal((await invoke(publicHandler, request)).status, 404);
   }
   assert.equal(resolves, 1);
+  for (const body of [undefined, null, "", {}, { viewId: viewId.toUpperCase() }]) {
+    assert.equal((await invoke(publicHandler, { ...shared, body })).status, 200);
+  }
+  assert.deepEqual(requestedViews, [undefined, undefined, undefined, undefined, undefined, viewId]);
+  for (const body of [{ viewId: id }, { viewId: null }, { viewId, viewCount: 1 }, { viewId: `${viewId} ` }]) {
+    assert.equal((await invoke(publicHandler, { ...shared, body })).status, 404);
+  }
+  assert.equal(resolves, 6, "invalid view IDs must not reach the database");
   assert.equal((await invoke(publicHandler, { ...shared, method: "GET" })).status, 405);
   db.resolveShareLink = async () => { throw new Error("token digest and provider credentials"); };
   const unavailable = await invoke(publicHandler, shared);
@@ -289,6 +324,15 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
       input: readFileSync(path.join(__dirname, "../docs/sql", file), "utf8"), stdio: ["pipe", "pipe", "pipe"],
     });
   }
+  sql(`insert into public.share_links(id, household_id, created_by_user_id, resource_type, token_digest, expires_at, categories)
+    values ('${id}', '${household}', '${owner}', 'parenting_changes', repeat('0', 64), '${expiresAt}', array['holiday']);
+    alter table public.share_links drop column view_count, drop column recent_view_ids`);
+  const migrate = () => execFileSync("psql", [...args, "-d", database], {
+    input: readFileSync(path.join(__dirname, "../docs/sql/share-links.sql"), "utf8"), stdio: ["pipe", "pipe", "pipe"],
+  });
+  migrate();
+  assert.equal(sql(`select view_count || ':' || cardinality(recent_view_ids) from public.share_links where id = '${id}'`), "0:0");
+  sql(`delete from public.share_links where id = '${id}'`);
   sql(`
     insert into public.parenting_time_parties(id, household_id, name) values
       ('${party}', '${household}', 'Parent A'), ('${other}', '${other}', 'Private other party');
@@ -300,20 +344,23 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   `);
   const command = (action, data = {}, h = household, u = owner) =>
     JSON.parse(sql(`set role service_role; select public.manage_share_links('${h}', '${u}', ${quote(action)}, ${quote(JSON.stringify(data))}::jsonb)`));
-  const resolve = (digest, at = now) => {
-    const result = sql(`set role service_role; select public.resolve_share_link(${quote(digest)}, ${quote(new Date(at).toISOString())})`);
+  const resolve = (digest, at = now, requestedView) => {
+    const viewArgument = requestedView === undefined ? "" : `, ${quote(requestedView)}::uuid`;
+    const result = sql(`set role service_role; select public.resolve_share_link(${quote(digest)}, ${quote(new Date(at).toISOString())}${viewArgument})`);
     return result ? JSON.parse(result) : null;
   };
-  const resolveAsync = (digest) => new Promise((resolveResult, reject) => {
+  const resolveAsync = (digest, requestedView) => new Promise((resolveResult, reject) => {
+    const viewArgument = requestedView === undefined ? "" : `, ${quote(requestedView)}::uuid`;
     execFile("psql", [...args, "-d", database, "-c",
-      `set role service_role; select public.resolve_share_link(${quote(digest)}, ${quote(new Date(now).toISOString())})`],
+      `set role service_role; select public.resolve_share_link(${quote(digest)}, ${quote(new Date(now).toISOString())}${viewArgument})`],
     { encoding: "utf8" }, (error, stdout) => error ? reject(error) : resolveResult(stdout.trim() ? JSON.parse(stdout.trim()) : null));
   });
   const token = createToken();
   const digest = tokenDigest(token);
   const link = command("create", { ...input, digest, note: "private note" }).link;
   assert.ok(link.id);
-  assert.deepEqual(Object.keys(link).sort(), ["id", "resourceType", "expiresAt", "note", "categories", "createdAt"].sort());
+  assert.deepEqual(Object.keys(link).sort(), ["id", "resourceType", "expiresAt", "note", "categories", "createdAt", "viewCount"].sort());
+  assert.equal(link.viewCount, 0);
   assert.ok(!JSON.stringify(link).includes(digest));
   const provider = createProvider(async (_endpoint, options) => {
     const { p_household, p_user, p_action, p_data } = options.body;
@@ -327,6 +374,8 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.equal(command("create", { ...input, digest: tokenDigest(createToken()), categories: ["holiday", "holiday"] }).status, 400);
   assert.equal(command("create", { ...input, digest: tokenDigest(createToken()), resourceType: "other" }).status, 400);
   assert.equal(command("update", { id: link.id, digest: tokenDigest(createToken()) }).status, 400);
+  assert.equal(command("update", { id: link.id, viewCount: 25 }).status, 400);
+  assert.equal(command("create", { ...input, digest: tokenDigest(createToken()), viewCount: 25 }).status, 400);
   for (const data of [{ ...input, digest: "invalid" }, { ...input, digest, categories: [] },
     { ...input, digest, categories: ["invalid"] }, { ...input, digest, note: null },
     { ...input, digest, note: "x".repeat(1001) }, { ...input, digest, expiresAt: "2090-02-30T00:00:00.000Z" }]) {
@@ -350,6 +399,21 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.deepEqual(Object.keys(result.changes[0]).sort(), ["startAt", "endAt", "partyName", "category", "label"].sort());
   assert.ok(!JSON.stringify(result).includes("private"));
   assert.ok(!JSON.stringify(result).includes(household));
+  const count = () => command("list").links.find((item) => item.id === link.id).viewCount;
+  assert.equal(count(), 0, "legacy refreshes do not count");
+  assert.equal(resolve(digest, now, id), null, "non-v4 identifiers fail closed in SQL too");
+  assert.equal(count(), 0);
+  const duplicateOpens = await Promise.all(Array.from({ length: 8 }, () => resolveAsync(digest, viewId)));
+  assert.ok(duplicateOpens.every((item) => item.changes));
+  assert.equal(count(), 1, "concurrent retries count the mounted page once");
+  assert.ok(resolve(digest, now, viewId.toUpperCase()).changes);
+  assert.equal(count(), 1);
+  assert.ok(resolve(digest, now, anotherViewId).changes);
+  assert.equal(count(), 2, "a different mount counts separately");
+  migrate();
+  assert.equal(count(), 2, "reapplying migration preserves counts and deduplication");
+  assert.ok(resolve(digest, now, viewId).changes);
+  assert.equal(count(), 2);
   sql(`update public.parenting_time_changes set label = 'live label' where label = 'clipped'`);
   assert.equal(resolve(digest).changes[1].label, "live label");
   assert.equal(resolve(tokenDigest(createToken())), null);
@@ -362,8 +426,13 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.equal(resolve(digest, Date.parse(expiresAt) - 1).changes.length, 0);
   assert.equal(resolve(digest, Date.parse(expiresAt)), null);
   assert.equal(resolve(digest, Date.parse(expiresAt) + 1), null);
+  assert.equal(resolve(digest, Date.parse(expiresAt), createViewId(1)), null);
+  assert.equal(resolve(tokenDigest(createToken()), now, createViewId(1)), null);
+  assert.equal(count(), 2);
   command("update", { id: link.id, expiresAt: "2000-01-01T00:00:00.000Z", note: "edited" });
   assert.equal(resolve(digest), null);
+  assert.equal(resolve(digest, now, createViewId(1)), null);
+  assert.equal(count(), 2);
   assert.equal(command("list").links[0].note, "edited");
   command("update", { id: link.id, expiresAt });
   sql(`update public.households set created_by_user_id = '${other}' where id = '${household}'`);
@@ -373,10 +442,11 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.equal(command("delete", { id: link.id }, household, other).status, 404);
   sql(`update public.households set created_by_user_id = '${owner}' where id = '${household}'`);
   sql(`update public.share_links set read_count = 59, read_window = clock_timestamp() where id = '${link.id}'`);
-  const concurrent = await Promise.all([resolveAsync(digest), resolveAsync(digest)]);
+  const concurrent = await Promise.all([resolveAsync(digest, createViewId(1)), resolveAsync(digest, createViewId(2))]);
   assert.equal(concurrent.filter((item) => item.changes).length, 1);
   assert.deepEqual(concurrent.find((item) => item.status === 429), { error: "rate limited", status: 429 });
   assert.equal(sql(`select read_count from public.share_links where id = '${link.id}'`), "60");
+  assert.equal(count(), 3, "the rate-limited distinct open is not counted");
   sql(`update public.share_links set read_window = clock_timestamp() - interval '61 seconds' where id = '${link.id}'`);
   assert.ok(resolve(digest).changes);
   assert.equal(sql(`select read_count from public.share_links where id = '${link.id}'`), "1");
@@ -387,6 +457,7 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   }
   for (const role of ["anon", "authenticated"]) {
     assert.throws(() => sql(`set role ${role}; select public.resolve_share_link('${digest}', now())`));
+    assert.throws(() => sql(`set role ${role}; select public.resolve_share_link('${digest}', now(), '${viewId}')`));
     assert.throws(() => sql(`set role ${role}; select public.manage_share_links('${household}', '${owner}', 'list', '{}')`));
   }
   assert.equal(sql(`select relrowsecurity from pg_class where oid = 'public.share_links'::regclass`), "t");
@@ -397,7 +468,42 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
     select '${household}', '${plan}', '${party}', '2090-01-02T00:00:00Z', '2090-01-03T00:00:00Z', 'holiday', 'bound-' || n
       from generate_series(1, 501) n`);
   assert.equal(resolve(digest), null, "over-limit data fails closed instead of silently truncating");
+  assert.equal(resolve(digest, now, createViewId(3)), null);
+  assert.equal(count(), 3, "unavailable public resources do not count");
   sql("delete from public.parenting_time_changes where label like 'bound-%'");
+  sql(`update public.parenting_time_plans set active = false where id = '${plan}'`);
+  assert.equal(resolve(digest, now, createViewId(3)), null);
+  assert.equal(count(), 3);
+  sql(`update public.parenting_time_plans set active = true where id = '${plan}'`);
+  sql(`update public.parenting_time_plans set time_zone = 'invalid' where id = '${plan}'`);
+  assert.equal(resolve(digest, now, createViewId(3)), null);
+  assert.equal(count(), 3, "an invalid projection must not count");
+  sql(`update public.parenting_time_plans set time_zone = 'Europe/Zurich' where id = '${plan}'`);
+  add("2090-01-02T00:00:00Z", "infinity", "holiday", "invalid-end");
+  assert.equal(resolve(digest, now, createViewId(3)), null);
+  assert.equal(count(), 3);
+  sql("delete from public.parenting_time_changes where label = 'invalid-end'");
+  // Exercise actual RPC updates beyond capacity without weakening the rate limiter.
+  sql(`do $$ declare n integer; begin
+    for n in 10..1044 loop
+      update public.share_links set read_count = 0 where id = '${link.id}';
+      perform public.resolve_share_link('${digest}', '${new Date(now).toISOString()}',
+        ('00000000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid);
+    end loop;
+  end $$`);
+  assert.equal(count(), 1038);
+  assert.equal(sql(`select cardinality(recent_view_ids) from public.share_links where id = '${link.id}'`), "1024");
+  assert.ok(resolve(digest, now, createViewId(1044)).changes);
+  assert.equal(count(), 1038, "retained identifiers are deduplicated");
+  assert.ok(resolve(digest, now, createViewId(10)).changes);
+  assert.equal(count(), 1039, "evicted identifiers can count again");
+  assert.equal(command("update", { id: link.id, note: "counter survives edits" }).link.viewCount, 1039);
+  for (const invalidCount of ["-1", "9007199254740992"]) {
+    assert.throws(() => sql(`update public.share_links set view_count = ${invalidCount} where id = '${link.id}'`));
+  }
+  sql(`update public.share_links set view_count = 9007199254740991 where id = '${link.id}'`);
+  assert.ok(resolve(digest, now, createViewId(2000)).changes);
+  assert.equal(count(), Number.MAX_SAFE_INTEGER);
   sql(`insert into public.share_links(household_id, created_by_user_id, resource_type, token_digest, expires_at, categories)
     select '${household}', '${owner}', 'parenting_changes', lpad(n::text, 64, '0'), '${expiresAt}', array['holiday']
       from generate_series(1, 499) n`);

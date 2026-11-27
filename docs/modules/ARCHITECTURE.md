@@ -100,6 +100,8 @@ The household owner chooses one or more categories, an expiry date, and an optio
 
 Recipients see live matching **dated changes**, not a snapshot or the complete resolved parenting schedule. Each request includes only starts at or after the current server time and strictly before expiry, clipping each end to expiry. Thus ongoing/past changes are excluded even if their end is still upcoming; a category filter never reconstructs or alters the recurring plan. Later matching changes appear automatically. Shared fields are limited to change start/end, party name, category and reason, plus timezone and expiry. Household/member identifiers, recurring rules, other categories, and the owner's private sharing note are never returned.
 
+Sharing screens format timestamps as `dd.mm.yyyy hh:mm` with 24-hour time. Recipient dates retain the parenting plan's timezone; owner dates and the expiry dialog retain the browser's local timezone. The owner overview includes **Views**, counting successful page opens rather than unique people. Reloading or reopening counts again; automatic data refreshes and returning to the same open page do not. Failed, expired, or rate-limited reads do not count. The counter is not returned to recipients, and it is not an audit trail or proof that someone read the content.
+
 ### Security design and research
 
 - A link is a reusable bearer capability: anyone it is forwarded to can use it. It is not identity verification. Use HTTPS, send it only through trusted channels, and delete it if disclosed. Previously read/copied data cannot be recalled.

@@ -4,6 +4,7 @@ import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton,
 } from "./GlassFormDialog";
 import { DateField } from "./PickerFields";
+import { formatShareDateTime } from "../sharing/formatShareDateTime";
 
 export type ShareLinkValues = { expiresAt: string; note: string; categories: string[] };
 export type ShareCategory = { value: string; label: string };
@@ -77,7 +78,7 @@ export function ShareLinkDialog({ initialValues, categoryOptions, children, edit
             }} />
           <Typography variant="body2">
             Dates use your local timezone ({localTimeZone}). Choosing a date includes that whole day; expiry is the following local midnight (exclusive).
-            {validExpiry ? ` Current expiry: ${new Date(values.expiresAt).toLocaleString()} (${localTimeZone}).` : editing ? " Choose a valid expiry." : " Choose a future expiry."}
+            {validExpiry ? ` Current expiry: ${formatShareDateTime(values.expiresAt)} (${localTimeZone}).` : editing ? " Choose a valid expiry." : " Choose a future expiry."}
             {editing && Date.parse(values.expiresAt) <= Date.now() ? " This link is expired." : ""}
           </Typography>
           {categoryOptions && <Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0 }}>

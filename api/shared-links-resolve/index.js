@@ -1,5 +1,5 @@
 const db = require("../shared/db");
-const { PUBLIC_HEADERS, getPublicToken, tokenDigest } = require("../shared/shareLinks");
+const { PUBLIC_HEADERS, getPublicToken, tokenDigest, validateResolveInput } = require("../shared/shareLinks");
 
 module.exports = async function resolveShareLink(context, req) {
   const respond = (status, body, headers = {}) => {
@@ -10,11 +10,10 @@ module.exports = async function resolveShareLink(context, req) {
     const request = req ?? context.req;
     if (request?.method?.toUpperCase() !== "POST") return respond(405, { error: "method not supported" });
     const token = getPublicToken(request.headers);
-    const body = request.body;
-    if (!token || Object.keys(request.query ?? {}).length ||
-      (body !== undefined && body !== null && body !== "" &&
-        (typeof body !== "object" || Array.isArray(body) || Object.keys(body).length))) return unavailable();
-    const result = await db.resolveShareLink(tokenDigest(token), Date.now());
+    if (!token || Object.keys(request.query ?? {}).length) return unavailable();
+    let viewId;
+    try { viewId = validateResolveInput(request.body); } catch { return unavailable(); }
+    const result = await db.resolveShareLink(tokenDigest(token), Date.now(), viewId);
     if (!result || Date.parse(result.expiresAt) <= Date.now()) return unavailable();
     return respond(200, result);
   } catch (error) {
