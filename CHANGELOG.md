@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Removed the repeated expiry timestamp below the sharing dialog's date picker, retaining invalid-date and expired-link warnings. Updated screenshot: [sharing modal](https://github.com/user-attachments/assets/57ad3d1b-b6be-4cc2-8663-82e337f1827d).
+
 - Moved detailed create/edit sharing guidance into a title info-icon tooltip, with keyboard and touch access. Kept concise privacy, expiry, and copy-now messages visible. Updated screenshot: [compact sharing modal](https://github.com/user-attachments/assets/98143675-c091-464d-b914-ae7488fbb386).
 
 - Sharing screens now use Swiss `dd.mm.yyyy hh:mm` dates and 24-hour time. Added an owner-only **Views** counter for successful page opens, excluding automatic refreshes. Re-run `docs/sql/share-links.sql` before deployment; existing counters start at zero. Updated screenshots: [owner view counts](https://github.com/user-attachments/assets/833d6ee3-2cc3-42e3-8135-d0423199f886), [recipient dates](https://github.com/user-attachments/assets/4ce0a528-c169-4ec9-abe4-821fa1389808).

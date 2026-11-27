@@ -31,6 +31,7 @@ export const CompactCreate: Story = {
     const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
     await expect(dialog.queryByText(/Dates use your local timezone/)).toBeNull();
     await expect(dialog.queryByText(/Only future changes/)).toBeNull();
+    await expect(dialog.queryByText(/^Expires:/)).toBeNull();
     await waitFor(() => expect(dialog.getByText(/Anyone with the link can view it/)).toBeVisible());
     await expect(dialog.getByRole("button", { name: "Create link" })).toBeEnabled();
   },
@@ -72,6 +73,8 @@ export const EditExpiredNote: Story = {
     const dialog = within(await page.findByRole("dialog", { name: "Edit shared link" }));
     const button = dialog.getByRole("button", { name: "Save shared link" });
     await expect(button).toBeEnabled();
+    await waitFor(() => expect(dialog.getByText("This link is expired.")).toBeVisible());
+    await expect(dialog.queryByText(/^Expires:/)).toBeNull();
     await userEvent.clear(dialog.getByRole("textbox", { name: "Private note (optional)" }));
     await userEvent.type(dialog.getByRole("textbox", { name: "Private note (optional)" }), "Still private");
     await userEvent.click(button);
@@ -101,6 +104,7 @@ export const ExpiredCreateRejected: Story = {
   play: async ({ canvasElement }) => {
     const dialog = within(await within(canvasElement.ownerDocument.body).findByRole("dialog"));
     await expect(dialog.getByRole("button", { name: "Create link" })).toBeDisabled();
+    await waitFor(() => expect(dialog.getByText("Choose a future expiry.")).toBeVisible());
     expect(save).not.toHaveBeenCalled();
   },
 };

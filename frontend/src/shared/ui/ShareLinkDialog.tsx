@@ -5,7 +5,6 @@ import {
   DialogActionsBar, DialogContentPanel, DialogHeader, FormField, GlassDialog, GradientButton, SecondaryButton,
 } from "./GlassFormDialog";
 import { DateField } from "./PickerFields";
-import { formatShareDateTime } from "../sharing/formatShareDateTime";
 
 export type ShareLinkValues = { expiresAt: string; note: string; categories: string[] };
 export type ShareCategory = { value: string; label: string };
@@ -93,10 +92,8 @@ export function ShareLinkDialog({ initialValues, categoryOptions, children, info
               setDate(nextDate);
               setValues((current) => ({ ...current, expiresAt: afterLocalShareDay(nextDate) }));
             }} />
-          <Typography variant="body2">
-            {validExpiry ? `Expires: ${formatShareDateTime(values.expiresAt)} (${localTimeZone}).` : editing ? "Choose a valid expiry." : "Choose a future expiry."}
-            {editing && Date.parse(values.expiresAt) <= Date.now() ? " This link is expired." : ""}
-          </Typography>
+          {!validExpiry && <Typography variant="body2">{editing ? "Choose a valid expiry." : "Choose a future expiry."}</Typography>}
+          {editing && Date.parse(values.expiresAt) <= Date.now() && <Typography variant="body2">This link is expired.</Typography>}
           {categoryOptions && <Box component="fieldset" disabled={busy} sx={{ border: 0, p: 0, m: 0 }}>
             <Typography component="legend" sx={{ fontWeight: 600 }}>Categories (choose at least one)</Typography>
             <Stack>{categoryOptions.map((category) => <FormControlLabel key={category.value} label={category.label}
