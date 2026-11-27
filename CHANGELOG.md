@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added secure, login-free links for future Parenting Time changes, with a reusable sharing dialog, category selection, expiry, private owner notes, and an edit/delete overview. Links show live future changes only and limit displayed ends to expiry. Apply `docs/sql/share-links.sql` before deployment; configure perimeter abuse limits as described in `docs/SUPABASE.md`. Event/Childcare sharing and agent actions remain planned. Updated screenshots: [sharing dialog](https://github.com/user-attachments/assets/2e1ed19f-7c57-4ed0-8e3e-60b1e4ee8b6d), [owner overview](https://github.com/user-attachments/assets/0e098919-d5b6-4fda-ba1f-eda6af01c0a1), [mobile recipient view](https://github.com/user-attachments/assets/5c5a49d1-8f05-4cb9-9595-c44d678620f6).
+
 - Preserve the reason text when changing a parenting-time category. Updated screenshot: [category and preserved reason](https://github.com/user-attachments/assets/d7526184-13f9-4f92-ad88-10f29a7bdfee).
 
 - Show ongoing and upcoming parenting-time changes in chronological order, with a category filter and editable default reasons. Re-run `docs/sql/parenting-time.sql` to add categories to existing databases. Updated screenshots: [changes list](https://github.com/user-attachments/assets/0a168b5f-11b4-4341-8a03-a1e8863c6b15), [category and reason](https://github.com/user-attachments/assets/d32cf39f-c2a1-461d-bacb-8d190e7c64a4).

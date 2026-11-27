@@ -31,6 +31,16 @@ Existing global `public.tasks` records are deliberately not migrated: they lack 
 
 Open **Tasks** from the module menu, create a member-assigned task, move/reorder it, and reload to verify persistence. Complete a daily/weekly task and verify that exactly one next dated occurrence appears and the series cannot earn again from another occurrence during the same UTC day/week. Reopen and re-complete the original occurrence to verify that the status change succeeds without a second earning. Verify the current week/month leaders in the footer. Verify `GET /api/health?checks=1` and authenticated `/api/households/{householdId}/tasks` against the configured Supabase instance; unauthorized households must return 404. Coins are recorded as earned history, not spendable account credits. See [model and recurrence rules](DATA_MODEL.md#tasks).
 
+## Share links
+
+After the core household schema and the current `docs/sql/parenting-time.sql`, run `docs/sql/share-links.sql` in the Supabase SQL Editor before deploying the API/frontend. Share grants are service-role-only: never add anonymous/authenticated direct-table access or expose `SUPABASE_SECRET_KEY` in the browser. No new packages, Azure resources, or secrets are required.
+
+Use HTTPS and configure host/proxy abuse limits for `/api/shared-links/resolve` and owner link creation. Do not log authorization headers, raw tokens, or creation response bodies in API gateways/APM. The exact `/shared` and `/shared/` routes in the frontend's Static Web Apps configuration serve the anonymous page with no-store, no-referrer, noindex and anti-framing headers; API responses independently set their privacy headers.
+
+Verify `GET /api/health?checks=1`, authenticated parenting reads, and share creation against your configured Supabase instance. Open a newly created link in a signed-out/private browser: only future selected-category changes should appear, no private note. Confirm that editing expiry changes the cutoff, that deleting makes subsequent reads unavailable, and that a different household owner cannot list/edit/delete the grant. Direct Supabase requests using an anonymous or signed-in browser key must not read share records. A copied link cannot be recovered from the owner overview because only its digest is retained.
+
+See [scope and security design](modules/ARCHITECTURE.md#share-links-implementation). Existing calendar, Childcare and parenting resolver behavior is unchanged; only dated parenting changes can be shared in this release.
+
 ## 1) Create a Supabase project
 
 1. Create a new Supabase project.

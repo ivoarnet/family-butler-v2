@@ -20,6 +20,8 @@ import { DateField, TimeField } from "../../../shared/ui/PickerFields";
 import type { ResolvedParentingInterval } from "../../../types/family";
 import { SettingsInfo } from "./SettingsInfo";
 import { UpcomingParentingTimeline } from "./UpcomingParentingTimeline";
+import { ParentingShareLinks } from "./ParentingShareLinks";
+import { afterLocalShareDay, localShareDate } from "../../../shared/ui/ShareLinkDialog";
 
 export type ParentingTimeRequest = (path: string, init?: RequestInit) => Promise<unknown>;
 type Party = { id: string; name: string; memberId: string | null; active: boolean };
@@ -548,10 +550,16 @@ export function ParentingTimeSettings({ householdId, members, request }: {
       <div className="section-toolbar"><span className="section-title-info"><h2>Changes for a period</h2>
         <SettingsInfo label="Parenting-time changes information" text="Holidays, swaps, or special agreements override the regular plan only during the selected time." />
       </span>
+        <div className="icon-actions" style={{ flexWrap: "wrap" }}>
+        <ParentingShareLinks key={householdId} householdId={householdId} request={request} disabled={loading || busy}
+          defaultExpiresAt={afterLocalShareDay(localShareDate(new Date(visibleChanges.length ? Math.max(...visibleChanges.map((change) => Date.parse(change.endAt))) : Date.now()).toISOString()))}
+          selectedCategories={changeCategory === "all" ? Object.keys(changeCategories) : [changeCategory]}
+          categoryOptions={Object.entries(changeCategories).map(([value, category]) => ({ value, label: category.name }))} />
         <button type="button" className="primary-pill no-wrap-button"
           disabled={busy || !data.plan?.active || activeParties.length === 0} onClick={() => setChangeDraft({
           partyId: activeParties[0]?.id ?? "", startAt: "", endAt: "", category: "diverse", label: changeCategories.diverse.defaultLabel,
         })}><AddCircleOutlineIcon fontSize="small" /> Add change</button>
+        </div>
       </div>
       {upcomingChanges.length > 0 && <FormField select label="Filter by category"
         value={changeCategory}

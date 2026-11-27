@@ -76,6 +76,23 @@ Child members can opt into **Hatch background when parenting is not with a house
 
 Apply `docs/sql/household-member-details.sql` before deploying this version. On its first run, previously explicit Parenting calendar child-column selections are copied to member classification, and the hatch preference is enabled for those members only if the old display preference was enabled; subsequent runs do not overwrite user changes. Thereafter member settings and party-member links are the sources for parenting hatching.
 
+## Share links
+
+Apply `docs/sql/share-links.sql` after the core household and Parenting Time schemas. A share grant belongs to a household and its creating user, with a resource type, selected categories, expiry timestamp, private note, creation timestamp and unique SHA-256 token digest. Raw tokens are returned once on creation and are never persisted. The service-role-only table has RLS enabled and no browser access; deleting a household/user removes its grants.
+
+Owner endpoints are relative to `/api/households/{householdId}/share-links` and require authenticated current household ownership. Individual reads/writes are additionally scoped to the creating user.
+
+| Method | Request and response |
+| --- | --- |
+| `GET` | `{ links }` metadata overview, including private notes but never tokens/digests. |
+| `POST` | `{ resourceType: "parenting_changes", expiresAt, note?, categories }` → `{ link, token }`. Requires a future expiry and at least one supported category. |
+| `PATCH ?id={id}` | `{ expiresAt?, note? }` → `{ link }`. Resource/category scope is immutable; create a different link for another scope. A past expiry disables access immediately. |
+| `DELETE ?id={id}` | Permanently revokes the grant; returns 204. |
+
+`POST /api/shared-links/resolve` is an anonymous read-only capability endpoint. Its authorization header carries the raw share token, not a Supabase login token. The server hashes it, checks the grant and current creator ownership, and returns `{ resourceType, expiresAt, timeZone, changes }`. Each change contains only `{ startAt, endAt, partyName, category, label }`. Invalid/expired/deleted grants return the same 404. The private sharing note is distinct from a change's public reason (`label`). Atomic service-role-only RPCs handle management and redemption; each grant also holds a read-window timestamp and counter for the shared 60-reads/minute budget (429 with `Retry-After: 60`).
+
+For `parenting_changes`, categories are `adjusted_handover`, `holiday`, and `diverse`. Reads use the moving half-open window `[now, expiresAt)`: change starts must be inside it and change ends are clipped to expiry. Ongoing changes are excluded; recurring rules and resolved responsibility are not shared. Results are live, so newly added matching changes appear until expiry. See [security design](modules/ARCHITECTURE.md#share-links-implementation).
+
 ## Parenting time — persisted plan and server resolver
 
 Parenting time models who is responsible for all children in a household. It is separate from childcare, ordinary `Event` records, and `DayConfiguration`. A `ParentingTimeParty` can optionally link to a `HouseholdMember` in the same household; it does not require one, so a co-parent need not be represented as a household member.

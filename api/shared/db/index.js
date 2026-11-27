@@ -18,6 +18,8 @@ const getProvider = () => {
 };
 
 module.exports = {
+  manageShareLinks: (...args) => getProvider().manageShareLinks(...args),
+  resolveShareLink: (...args) => getProvider().resolveShareLink(...args),
   getTasksHousehold: (...args) => getProvider().getTasksHousehold(...args),
   getTasks: (...args) => getProvider().getTasks(...args),
   mutateTasks: (...args) => getProvider().mutateTasks(...args),
