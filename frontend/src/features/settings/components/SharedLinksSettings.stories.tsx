@@ -80,6 +80,26 @@ export const SharedLinksOverview: Story = {
   },
 };
 
+export const TitleInformation: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    const page = within(canvasElement.ownerDocument.body);
+    await canvas.findByRole("table", { name: "Shared links" });
+    const info = canvas.getByRole("button", { name: "Shared links information" });
+    await expect(info.parentElement).toHaveClass("section-title-info");
+    await expect(canvas.queryByText(/Manage links you shared/)).toBeNull();
+    await userEvent.tab();
+    await expect(info).toHaveFocus();
+    await expect(await page.findByRole("tooltip")).toHaveTextContent("Notes are private.");
+    await expect(page.getByRole("tooltip")).toHaveTextContent("lost URLs cannot be recovered");
+    await userEvent.tab();
+    await waitFor(() => expect(page.queryByRole("tooltip")).toBeNull());
+    await userEvent.hover(info);
+    await expect(await page.findByRole("tooltip")).toHaveTextContent("Create a new link if needed.");
+    await userEvent.unhover(info);
+  },
+};
+
 export const SharedLinksMobile: Story = {
   args: { navigation: true, narrow: true },
   globals: { viewport: { value: "mobile1", isRotated: false } },

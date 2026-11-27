@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Moved Shared links guidance into the existing title info-icon tooltip to keep the table compact. Updated screenshot: [shared-links info icon](https://github.com/user-attachments/assets/dc191c1b-377d-4ec0-bee4-ff64b98bd907).
+
 - Moved share management to a central **Settings → Shared links** table for all resource types, leaving only the share icon above Parenting Time changes. Recipient pages now retain the URL fragment for reload, use a dedicated share-token header, and retry unexpected backend failures instead of reporting them as invalid links. Updated screenshots: [central shared-links table](https://github.com/user-attachments/assets/671d0f24-54e8-4c6a-b7d2-b45f74d27cd0), [parenting share icon](https://github.com/user-attachments/assets/b37b0eba-dafd-4d93-a07e-3eef191f6c23).
 
 - Added secure, login-free links for future Parenting Time changes, with a reusable sharing dialog, category selection, expiry, private owner notes, and an edit/delete overview. Links show live future changes only and limit displayed ends to expiry. Apply `docs/sql/share-links.sql` before deployment; configure perimeter abuse limits as described in `docs/SUPABASE.md`. Event/Childcare sharing and agent actions remain planned. Updated screenshots: [sharing dialog](https://github.com/user-attachments/assets/2e1ed19f-7c57-4ed0-8e3e-60b1e4ee8b6d), [owner overview](https://github.com/user-attachments/assets/0e098919-d5b6-4fda-ba1f-eda6af01c0a1), [mobile recipient view](https://github.com/user-attachments/assets/5c5a49d1-8f05-4cb9-9595-c44d678620f6).

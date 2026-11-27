@@ -6,6 +6,7 @@ import {
   DialogActionsBar, DialogContentPanel, DialogHeader, GlassDialog, GradientButton, SecondaryButton,
 } from "../../../shared/ui/GlassFormDialog";
 import { ShareLinkDialog } from "../../../shared/ui/ShareLinkDialog";
+import { SettingsInfo } from "./SettingsInfo";
 import {
   shareCategoriesLabel, shareResourceLabel, shareResourceScope, type ShareLink, type ShareLinkRequest,
 } from "../../../shared/sharing/shareLinks";
@@ -49,11 +50,11 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
 
   return <>
     <div className="section-toolbar">
-      <h2>Shared links</h2>
+      <span className="section-title-info"><h2>Shared links</h2>
+        <SettingsInfo label="Shared links information" text="Manage links you shared from this household. Notes are private. Save each URL when creating it: only a digest is stored, so lost URLs cannot be recovered. Create a new link if needed." />
+      </span>
       <SecondaryButton disabled={loading || busy || !!draft || !!deleting} onClick={() => void load()}>Refresh</SecondaryButton>
     </div>
-    <p>Manage all links you have shared from this household. Private notes are only visible to you.</p>
-    <p>URLs cannot be recovered: only a digest is stored. Save each new link when creating it, or create another.</p>
     {loading && <div role="status">Loading shared links…</div>}
     {error && <Alert severity="error" action={<SecondaryButton onClick={() => void load()}>Retry</SecondaryButton>}>{error}</Alert>}
     {!loading && !error && <div className="table-scroll">
