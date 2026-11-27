@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+- Added sharing for filtered resolved care, with provider-specific default notes and expiry tied to the selected end date. Shared views include only future occurrences in the chosen provider/date range. Updated screenshot: [resolved-care sharing](https://github.com/user-attachments/assets/3492a969-bb27-44cd-b04e-68dfb6212a38).
+
 - Removed the repeated expiry timestamp below the sharing dialog's date picker, retaining invalid-date and expired-link warnings. Updated screenshot: [sharing modal](https://github.com/user-attachments/assets/57ad3d1b-b6be-4cc2-8663-82e337f1827d).
 
 - Moved detailed create/edit sharing guidance into a title info-icon tooltip, with keyboard and touch access. Kept concise privacy, expiry, and copy-now messages visible. Updated screenshot: [compact sharing modal](https://github.com/user-attachments/assets/98143675-c091-464d-b914-ae7488fbb386).

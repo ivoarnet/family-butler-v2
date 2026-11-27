@@ -90,9 +90,10 @@ export const SharedChildcare: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("Shared resolved care")).toBeVisible();
-    await expect(canvas.getAllByText("Grandparents").length).toBeGreaterThan(0);
-    await expect(canvas.getByText("Alex · All day")).toBeVisible();
-    await expect(canvas.queryByText("Yesterday should not be shown")).toBeNull();
+    const occurrence = canvas.getByRole("listitem");
+    await expect(occurrence).toHaveTextContent(/Grandparents/);
+    await expect(occurrence).toHaveTextContent(/Alex.*All day/);
+    await expect(canvas.queryByText(/Yesterday should not be shown/)).toBeNull();
     await expect(canvas.getByText(/Live future resolved care/)).toBeVisible();
   },
 };

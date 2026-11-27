@@ -47,8 +47,8 @@ alter table public.share_links
   add constraint share_links_filters_check check (
     (resource_type = 'parenting_changes' and filters = '{}'::jsonb)
     or (resource_type = 'childcare_schedule' and jsonb_typeof(filters) = 'object'
-      and jsonb_object_length(filters) = 4
       and filters ?& array['startDate', 'endDate', 'providerId', 'timeZone']
+      and filters - array['startDate', 'endDate', 'providerId', 'timeZone'] = '{}'::jsonb
       and jsonb_typeof(filters->'startDate') = 'string'
       and jsonb_typeof(filters->'endDate') = 'string'
       and jsonb_typeof(filters->'timeZone') = 'string'
@@ -68,10 +68,11 @@ create or replace function public.share_link_metadata(p_link public.share_links)
 returns jsonb language sql immutable set search_path = public as $$
   select jsonb_build_object(
     'id', p_link.id, 'resourceType', p_link.resource_type, 'expiresAt', p_link.expires_at,
-    'note', p_link.note, 'categories', p_link.categories, 'filters', p_link.filters,
+    'note', p_link.note, 'categories', p_link.categories,
     'createdAt', p_link.created_at,
     'viewCount', p_link.view_count
-  );
+  ) || case when p_link.resource_type = 'childcare_schedule'
+    then jsonb_build_object('filters', p_link.filters) else '{}'::jsonb end;
 $$;
 
 create or replace function public.manage_share_links(
@@ -129,6 +130,11 @@ begin
     if not isfinite(v_expiry) or (p_action = 'create' and v_expiry <= clock_timestamp()) then
       return jsonb_build_object('error', 'invalid request', 'status', 400);
     end if;
+    if p_action = 'update' and v_link.resource_type = 'childcare_schedule' and p_data ? 'expiresAt'
+      and (v_expiry at time zone (v_link.filters->>'timeZone'))::date <>
+        ((v_link.filters->>'endDate')::date + 1) then
+      return jsonb_build_object('error', 'invalid request', 'status', 400);
+    end if;
   end if;
   if p_action = 'create' then
     if p_data->>'resourceType' not in ('parenting_changes', 'childcare_schedule') or
@@ -137,22 +143,23 @@ begin
       jsonb_typeof(p_data->'categories') is distinct from 'array' then
       return jsonb_build_object('error', 'invalid request', 'status', 400);
     end if;
-    if p_data->>'resourceType' = 'parenting_changes' and
-      (jsonb_typeof(coalesce(p_data->'filters', '{}'::jsonb)) is distinct from 'object'
-        or coalesce(p_data->'filters', '{}'::jsonb) <> '{}'::jsonb) then
-      return jsonb_build_object('error', 'invalid request', 'status', 400);
+    if p_data->>'resourceType' = 'parenting_changes' then
+      if jsonb_typeof(coalesce(p_data->'filters', '{}'::jsonb)) is distinct from 'object'
+        or coalesce(p_data->'filters', '{}'::jsonb) <> '{}'::jsonb then
+        return jsonb_build_object('error', 'invalid request', 'status', 400);
+      end if;
     end if;
-    if p_data->>'resourceType' = 'childcare_schedule' and (
-      jsonb_typeof(p_data->'filters') is distinct from 'object' or
-      jsonb_object_length(p_data->'filters') <> 4 or
-      not (p_data->'filters' ?& array['startDate', 'endDate', 'providerId', 'timeZone']) or
-      jsonb_typeof(p_data->'filters'->'startDate') is distinct from 'string' or
-      jsonb_typeof(p_data->'filters'->'endDate') is distinct from 'string' or
-      jsonb_typeof(p_data->'filters'->'timeZone') is distinct from 'string' or
-      (p_data->'filters'->'providerId' <> 'null'::jsonb and
-        jsonb_typeof(p_data->'filters'->'providerId') is distinct from 'string')
-    ) then
-      return jsonb_build_object('error', 'invalid request', 'status', 400);
+    if p_data->>'resourceType' = 'childcare_schedule' then
+      if jsonb_typeof(p_data->'filters') is distinct from 'object' or
+        not (p_data->'filters' ?& array['startDate', 'endDate', 'providerId', 'timeZone']) or
+        (p_data->'filters') - array['startDate', 'endDate', 'providerId', 'timeZone'] <> '{}'::jsonb or
+        jsonb_typeof(p_data->'filters'->'startDate') is distinct from 'string' or
+        jsonb_typeof(p_data->'filters'->'endDate') is distinct from 'string' or
+        jsonb_typeof(p_data->'filters'->'timeZone') is distinct from 'string' or
+        (p_data->'filters'->'providerId' <> 'null'::jsonb and
+          jsonb_typeof(p_data->'filters'->'providerId') is distinct from 'string') then
+        return jsonb_build_object('error', 'invalid request', 'status', 400);
+      end if;
     end if;
     if (select count(*) from (select 1 from public.share_links where household_id = p_household limit 500) bounded) >= 500 then
       return jsonb_build_object('error', 'limit reached', 'status', 409);
@@ -177,7 +184,7 @@ begin
   end if;
   return jsonb_build_object('link', public.share_link_metadata(v_link));
 exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow
-  or check_violation or not_null_violation then
+  or invalid_parameter_value or check_violation or not_null_violation then
   return jsonb_build_object('error', 'invalid request', 'status', 400);
 end;
 $$;

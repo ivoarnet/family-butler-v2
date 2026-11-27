@@ -24,7 +24,7 @@ const input = { resourceType: "parenting_changes", expiresAt, categories: ["holi
 const childcareFilters = {
   startDate: "2090-01-01", endDate: "2090-01-04", providerId, timeZone: "UTC",
 };
-const childcareInput = { resourceType: "childcare_schedule", expiresAt, filters: childcareFilters };
+const childcareInput = { resourceType: "childcare_schedule", expiresAt, categories: [], filters: childcareFilters };
 const metadata = { ...input, id, note: "", createdAt: "2089-01-01T00:00:00.000Z", viewCount: 0 };
 const viewId = "12345678-abcd-4abc-8abc-123456789abc";
 const anotherViewId = "12345678-abcd-4abc-9abc-123456789abc";
@@ -401,16 +401,32 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   });
   const token = createToken();
   const digest = tokenDigest(token);
-  const link = command("create", { ...input, digest, note: "private note" }).link;
+  const linkCreate = command("create", { ...input, digest, note: "private note" });
+  assert.ok(linkCreate.link, JSON.stringify(linkCreate));
+  const link = linkCreate.link;
   assert.ok(link.id);
   assert.deepEqual(Object.keys(link).sort(), ["id", "resourceType", "expiresAt", "note", "categories", "createdAt", "viewCount"].sort());
   assert.equal(link.viewCount, 0);
   assert.ok(!JSON.stringify(link).includes(digest));
+  const childcareDigest = tokenDigest(createToken());
+  const childcareCreate = command("create", { ...childcareInput, digest: childcareDigest });
+  assert.ok(childcareCreate.link, JSON.stringify(childcareCreate));
+  const childcareLink = childcareCreate.link;
+  assert.deepEqual(childcareLink.filters, childcareFilters);
+  assert.deepEqual(childcareLink.categories, []);
+  assert.equal(command("update", { id: childcareLink.id, expiresAt: "2090-01-06T00:00:00.000Z" }).status, 400);
+  assert.equal(Date.parse(command("list").links.find((item) => item.id === childcareLink.id).expiresAt), Date.parse(expiresAt));
+  const childcareResolution = resolve(childcareDigest);
+  assert.equal(childcareResolution.resourceType, "childcare_schedule");
+  assert.equal(Date.parse(childcareResolution.expiresAt), Date.parse(expiresAt));
+  assert.equal(childcareResolution.householdId, household);
+  assert.deepEqual(childcareResolution.filters, childcareFilters);
+  assert.deepEqual(command("delete", { id: childcareLink.id }), { ok: true });
   const provider = createProvider(async (_endpoint, options) => {
     const { p_household, p_user, p_action, p_data } = options.body;
     return command(p_action, p_data, p_household, p_user);
   });
-  assert.equal((await provider.manageShareLinks(household, owner, "list", {})).links[0].id, link.id);
+  assert.ok((await provider.manageShareLinks(household, owner, "list", {})).links.some((item) => item.id === link.id));
   assert.equal(command("list", {}, household, other).status, 404);
   assert.equal(command("update", { id: link.id, note: "attack" }, other, other).status, 404);
   assert.equal(command("delete", { id: link.id }, household, other).status, 404);
@@ -496,7 +512,7 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.equal(resolve(digest), null);
   assert.equal(resolve(digest, now, createViewId(1)), null);
   assert.equal(count(), 2);
-  assert.equal(command("list").links[0].note, "edited");
+  assert.equal(command("list").links.find((item) => item.id === link.id).note, "edited");
   command("update", { id: link.id, expiresAt });
   sql(`update public.households set created_by_user_id = '${other}' where id = '${household}'`);
   assert.equal(resolve(digest), null);
