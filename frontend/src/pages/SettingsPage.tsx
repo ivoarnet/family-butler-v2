@@ -15,13 +15,14 @@ import { HouseholdDialog } from "../features/settings/components/HouseholdDialog
 import { MemberDialog } from "../features/settings/components/MemberDialog";
 import { ChildcareSettings, type ChildcareRequest } from "../features/settings/components/ChildcareSettings";
 import { ParentingTimeSettings } from "../features/settings/components/ParentingTimeSettings";
+import { SharedLinksSettings } from "../features/settings/components/SharedLinksSettings";
 import { DEFAULT_MEMBER_COLOR, MEMBER_COLORS, normalizeMemberColor } from "../shared/family/memberAvatarColors";
 import { DAY_CONFIGURATION_OPTIONS } from "../shared/calendar/dayConfigurations";
 import { Contact, DayConfigurationCategory, EventType, FamilyMember, MemberAvatarColor } from "../types/family";
 import { ContactFormState, HouseholdData, HouseholdSummary, MemberFormState, SettingsSection, ThemeMode } from "../features/app/types";
 
 
-type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare" | "parenting-time";
+type SettingsWorkspaceTab = "members" | "contacts" | "events" | "calendar" | "childcare" | "parenting-time" | "shared-links";
 const DEFAULT_EVENT_TYPE_COLOR = "#7f8bff";
 const getDayConfigurationLabel = (category: DayConfigurationCategory): string =>
   DAY_CONFIGURATION_OPTIONS.find((option) => option.value === category)?.label ?? category;
@@ -688,12 +689,14 @@ export function SettingsPage({
         ) : null}
 
         {showSettingsWorkspace ? (
-          <div className="settings-tabs">
+          <div className="settings-tabs" style={{ minWidth: 0 }}>
             <Tabs
               value={settingsWorkspaceTab}
               onChange={(_, value) => setSettingsWorkspaceTab(value as SettingsWorkspaceTab)}
               aria-label="Settings sections"
-              centered
+              variant="scrollable"
+              scrollButtons="auto"
+              allowScrollButtonsMobile
               textColor="inherit"
               indicatorColor="secondary"
               sx={{ "& .MuiTabs-indicator": { backgroundColor: "var(--text-primary)" } }}
@@ -704,6 +707,7 @@ export function SettingsPage({
               <Tab value="calendar" label="Calendar" />
               <Tab value="childcare" label="Childcare" />
               <Tab value="parenting-time" label="Parenting Time" />
+              <Tab value="shared-links" label="Shared links" />
             </Tabs>
           </div>
         ) : null}
@@ -873,6 +877,14 @@ export function SettingsPage({
               : childcareRequest ? <ParentingTimeSettings key={activeHouseholdId} householdId={activeHouseholdId}
                 members={householdData.familyMembers} request={childcareRequest} />
               : <div role="alert">Sign in to manage parenting time.</div>}
+          </section>
+        ) : null}
+        {showSettingsWorkspace && settingsWorkspaceTab === "shared-links" ? (
+          <section className="settings-section" style={{ minWidth: 0 }}>
+            {!activeHouseholdId ? <div className="coming-soon-card">Select or create a household to manage shared links.</div>
+              : isContextLoading || householdData.householdId !== activeHouseholdId ? <div role="status">Loading selected household…</div>
+              : childcareRequest ? <SharedLinksSettings key={activeHouseholdId} householdId={activeHouseholdId} request={childcareRequest} />
+              : <div role="alert">Sign in to manage shared links.</div>}
           </section>
         ) : null}
         {showSettingsWorkspace && settingsWorkspaceTab === "members" ? (

@@ -61,7 +61,7 @@ export function ShareLinkDialog({ initialValues, categoryOptions, children, edit
       <DialogContentPanel>
         {error && <Alert severity="error">{error}</Alert>}
         {url ? <>
-          <Alert severity="success">Link created. Save it now: only a digest is stored, so this URL cannot be recovered from Shared links. Create another link if you lose it.</Alert>
+          <Alert severity="success">Link created. Manage it in Settings → Shared links. Save it now: only a digest is stored, so this URL cannot be recovered. Create another link if you lose it.</Alert>
           <FormField label="New shared link" value={url} slotProps={{ input: { readOnly: true } }} fullWidth
             onFocus={(event) => event.target.select()} />
           <SecondaryButton type="button" onClick={async () => {

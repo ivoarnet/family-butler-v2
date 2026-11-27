@@ -18,8 +18,8 @@ module.exports = async function resolveShareLink(context, req) {
     if (!result || Date.parse(result.expiresAt) <= Date.now()) return unavailable();
     return respond(200, result);
   } catch (error) {
-    if (error.status === 429) return respond(429, { error: "Too many requests" }, { "Retry-After": "60" });
+    if (error?.status === 429) return respond(429, { error: "Too many requests" }, { "Retry-After": "60" });
     // Bearers, digests, and provider errors must never enter application logs or responses.
-    return unavailable();
+    return respond(503, { error: "Shared links temporarily unavailable" });
   }
 };

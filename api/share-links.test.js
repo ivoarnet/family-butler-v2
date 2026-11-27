@@ -56,6 +56,15 @@ test("strict creation/update validation, calendar dates, scope and token encodin
   assert.match(tokenDigest(token), /^[a-f0-9]{64}$/);
   assert.notEqual(token, createToken());
   assert.equal(getPublicToken({ Authorization: bearer(token) }), token);
+  for (const name of ["x-share-token", "X-Share-Token", "X-SHARE-TOKEN"]) {
+    assert.equal(getPublicToken({ [name]: token }), token);
+    assert.equal(getPublicToken({ [name]: token, authorization: bearer("proxy-credential") }), token);
+    for (const value of ["", undefined, null, [token], bearer(token), `${token}=`, ` ${token}`, `${token} `,
+      "a".repeat(43), 123]) {
+      assert.equal(getPublicToken({ [name]: value, authorization: bearer(token) }), null);
+    }
+  }
+  assert.equal(getPublicToken({ "x-share-token": token, "X-Share-Token": token, authorization: bearer(token) }), null);
   for (const headers of [{}, { "x-supabase-auth-token": token }, { authorization: token },
     { authorization: bearer(`${token}=`) }, { authorization: bearer(`${token} `) },
     { authorization: ["Bearer", "", token].join(" ") }, { authorization: bearer("a".repeat(43)) }]) {
@@ -158,7 +167,9 @@ test("owner/public handlers authenticate separately, validate routes, prevent to
   assert.equal(resolves, 1);
   assert.equal((await invoke(publicHandler, { ...shared, method: "GET" })).status, 405);
   db.resolveShareLink = async () => { throw new Error("token digest and provider credentials"); };
-  assert.deepEqual((await invoke(publicHandler, shared)).body, { error: "share link not found" });
+  const unavailable = await invoke(publicHandler, shared);
+  assert.equal(unavailable.status, 503);
+  assert.deepEqual(unavailable.body, { error: "Shared links temporarily unavailable" });
   db.resolveShareLink = async () => ({ ...publicData, expiresAt: new Date(Date.now() - 1).toISOString() });
   assert.equal((await invoke(publicHandler, shared)).status, 404);
   db.resolveShareLink = async () => { throw Object.assign(new Error("sensitive"), { status: 429 }); };
@@ -176,6 +187,74 @@ test("owner/public handlers authenticate separately, validate routes, prevent to
   await require("./health")(healthContext, { method: "GET", query: { checks: "1" } });
   assert.equal(healthContext.res.status, 200);
   assert.equal(healthContext.res.body.checks.database.connected, true);
+});
+
+test("dedicated public token survives absent/replaced Authorization without user authentication or token leakage", async (t) => {
+  const oldFetch = global.fetch;
+  const oldResolve = db.resolveShareLink;
+  t.after(() => { global.fetch = oldFetch; db.resolveShareLink = oldResolve; });
+  global.fetch = async () => assert.fail("share headers must not authenticate Supabase users");
+  const token = createToken();
+  const digest = tokenDigest(token);
+  const logs = [];
+  const invoke = async (headers, handler = publicHandler) => {
+    const context = { log: { error: (...args) => logs.push(args) } };
+    await handler(context, { method: "POST", headers, body: {}, params: { householdId: household } });
+    assert.deepEqual(Object.fromEntries(Object.keys(PUBLIC_HEADERS).map((key) => [key, context.res.headers[key]])), PUBLIC_HEADERS);
+    for (const secret of [token, digest, "provider-credential"]) {
+      assert.ok(!JSON.stringify(context.res).includes(secret));
+      assert.ok(!JSON.stringify(logs).includes(secret));
+    }
+    return context.res;
+  };
+  const calls = [];
+  db.resolveShareLink = createProvider(async (endpoint, options) => {
+    calls.push({ endpoint, options });
+    assert.equal(endpoint, "rpc/resolve_share_link");
+    assert.equal(options.body.p_digest, digest);
+    assert.ok(!JSON.stringify(options).includes(token));
+    return publicData;
+  }).resolveShareLink;
+  for (const headers of [
+    { "x-share-token": token },
+    { "X-Share-Token": token, Authorization: bearer("proxy-credential") },
+    { "x-share-token": token, authorization: bearer(createToken()) },
+    { authorization: bearer(token) },
+  ]) {
+    const result = await invoke(headers);
+    assert.equal(result.status, 200);
+    assert.deepEqual(result.body, { ...publicData, changes: [{ ...change, endAt: expiresAt }] });
+  }
+  assert.equal(calls.length, 4);
+  for (const value of ["", undefined, null, [token], `${token}=`, `${token} `, bearer(token), "a".repeat(43)]) {
+    for (const name of ["x-share-token", "X-Share-Token"]) {
+      const result = await invoke({ [name]: value, authorization: bearer(token) });
+      assert.equal(result.status, 404);
+      assert.deepEqual(result.body, { error: "share link not found" });
+    }
+  }
+  assert.equal(calls.length, 4, "invalid dedicated tokens must never fall back or reach the database");
+  assert.equal((await invoke({ "x-share-token": token }, ownerHandler)).status, 401);
+  for (const missing of [null, { ...publicData, expiresAt: "2000-01-01T00:00:00Z" }]) {
+    db.resolveShareLink = createProvider(async () => missing).resolveShareLink;
+    const result = await invoke({ "x-share-token": token });
+    assert.equal(result.status, 404);
+    assert.deepEqual(result.body, { error: "share link not found" });
+  }
+  db.resolveShareLink = createProvider(async () => {
+    throw new Error(`transport failed: ${token} ${digest} provider-credential`);
+  }).resolveShareLink;
+  const unavailable = await invoke({ "x-share-token": token });
+  assert.equal(unavailable.status, 503);
+  assert.deepEqual(unavailable.body, { error: "Shared links temporarily unavailable" });
+  db.resolveShareLink = createProvider(async () => ({
+    status: 429, error: `rate limited: ${token} ${digest} provider-credential`,
+  })).resolveShareLink;
+  const throttled = await invoke({ "x-share-token": token });
+  assert.equal(throttled.status, 429);
+  assert.deepEqual(throttled.body, { error: "Too many requests" });
+  assert.equal(throttled.headers["Retry-After"], "60");
+  assert.deepEqual(logs, []);
 });
 
 const pgSocket = process.env.SHARE_LINKS_TEST_PG_SOCKET || process.env.GROCERY_TEST_PG_SOCKET;

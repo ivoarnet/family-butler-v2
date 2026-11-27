@@ -54,7 +54,8 @@ export const Loaded: Story = {
     await expect(canvas.queryByRole("button")).toBeNull();
     const [, init] = requests.mock.calls[requests.mock.calls.length - 1];
     expect(init).toMatchObject({ method: "POST", cache: "no-store", credentials: "omit" });
-    expect(new Headers(init.headers).get("Authorization")).toBe(["Bearer", token].join(" "));
+    expect(new Headers(init.headers).get("x-share-token")).toBe(token);
+    expect(new Headers(init.headers).has("Authorization")).toBe(false);
     expect(new Headers(init.headers).has("x-supabase-auth-token")).toBe(false);
   },
 };

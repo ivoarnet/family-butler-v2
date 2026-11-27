@@ -48,7 +48,7 @@ export function SharedLinkPage({ token }: { token: string }) {
       controller = operation;
       try {
         const response = await fetch(`${API_BASE_URL}/api/shared-links/resolve`, {
-          method: "POST", headers: { Authorization: ["Bearer", token].join(" ") },
+          method: "POST", headers: { "x-share-token": token },
           cache: "no-store", credentials: "omit", signal: operation.signal,
         });
         if (!active || operation.signal.aborted) return;

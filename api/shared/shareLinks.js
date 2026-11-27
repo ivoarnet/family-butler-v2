@@ -90,12 +90,21 @@ const projectMetadata = (link) => {
 const tokenDigest = (token) => createHash("sha256").update(token).digest("hex");
 const createToken = () => randomBytes(32).toString("base64url");
 const getPublicToken = (headers) => {
-  const header = headers?.authorization ?? headers?.Authorization;
-  if (typeof header !== "string") return null;
-  const parts = header.split(" ");
-  if (parts.length !== 2 || parts[0].toLowerCase() !== "bearer" || !/^[A-Za-z0-9_-]{43}$/.test(parts[1])) return null;
-  if (Buffer.from(parts[1], "base64url").toString("base64url") !== parts[1]) return null;
-  return parts[1];
+  const shareHeaders = Object.keys(headers ?? {}).filter((name) => name.toLowerCase() === "x-share-token");
+  let token;
+  if (shareHeaders.length) {
+    if (shareHeaders.length !== 1) return null;
+    token = headers[shareHeaders[0]];
+  } else {
+    const header = headers?.authorization ?? headers?.Authorization;
+    if (typeof header !== "string") return null;
+    const parts = header.split(" ");
+    if (parts.length !== 2 || parts[0].toLowerCase() !== "bearer") return null;
+    token = parts[1];
+  }
+  if (typeof token !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(token)) return null;
+  if (Buffer.from(token, "base64url").toString("base64url") !== token) return null;
+  return token;
 };
 
 module.exports = {

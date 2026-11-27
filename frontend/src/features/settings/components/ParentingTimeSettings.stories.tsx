@@ -3,7 +3,7 @@ import { expect, fn, userEvent, waitFor, within } from "storybook/test";
 import { useMemo, useState } from "react";
 import { ParentingTimeSettings, type ParentingTimeRequest } from "./ParentingTimeSettings";
 import { afterLocalShareDay, localShareDate } from "../../../shared/ui/ShareLinkDialog";
-import type { ShareLink } from "./ParentingShareLinks";
+import type { ShareLink } from "../../../shared/sharing/shareLinks";
 
 const householdId = "00000000-0000-0000-0000-000000000001";
 const fatherId = "00000000-0000-0000-0000-000000000002";
@@ -508,15 +508,16 @@ export const HouseholdPartyLinks: Story = {
   },
 };
 
-export const ShareChangesCreateAndManage: Story = {
+export const ShareChangesCreate: Story = {
   args: { withPlan: true, withChanges: true },
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     const page = within(canvasElement.ownerDocument.body);
     const share = await canvas.findByRole("button", { name: "Share parenting changes" });
     await waitFor(() => expect(share).toBeEnabled());
+    await expect(canvas.queryByRole("button", { name: "Shared links" })).toBeNull();
     await userEvent.click(share);
-    let dialog = within(await page.findByRole("dialog", { name: "Share parenting changes" }));
+    const dialog = within(await page.findByRole("dialog", { name: "Share parenting changes" }));
     await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveValue("");
     await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveAttribute("maxlength", "1000");
     for (const category of ["Adjusted Handover", "Holiday", "Diverse"]) await expect(dialog.getByRole("checkbox", { name: category })).toBeChecked();
@@ -543,42 +544,8 @@ export const ShareChangesCreateAndManage: Story = {
     } finally { navigator.clipboard.writeText = originalCopy; }
     await userEvent.click(dialog.getByRole("button", { name: "Done" }));
     await waitFor(() => expect(page.queryByRole("dialog")).toBeNull());
-    await userEvent.click(canvas.getByRole("button", { name: "Shared links" }));
-    let overview = within(await page.findByRole("dialog", { name: "Shared links" }));
-    await waitFor(() => expect(overview.getByText("Private note: For grandparents")).toBeVisible());
-    await expect(overview.getByText("Categories: Holiday")).toBeVisible();
-    await expect(overview.getByText(/Parenting changes · Active/)).toBeVisible();
-    await expect(overview.getByText(/^Created:/)).toBeVisible();
-    await expect(overview.queryByRole("textbox", { name: "New shared link" })).toBeNull();
-    await expect(overview.queryByRole("button", { name: "Copy link" })).toBeNull();
-    await userEvent.click(overview.getByRole("button", { name: "Edit link" }));
-    dialog = within(await page.findByRole("dialog", { name: "Edit shared link" }));
-    await expect(dialog.getByRole("textbox", { name: "Private note (optional)" })).toHaveValue("For grandparents");
-    await userEvent.clear(dialog.getByRole("textbox", { name: "Private note (optional)" }));
-    await userEvent.type(dialog.getByRole("textbox", { name: "Private note (optional)" }), "Updated private note");
-    const newDate = new Date(Date.now() + 7 * 86400000);
-    const picker = within(dialog.getByRole("group", { name: "Expiry date" }));
-    for (const [name, value] of [["Day", String(newDate.getDate()).padStart(2, "0")],
-      ["Month", String(newDate.getMonth() + 1).padStart(2, "0")], ["Year", String(newDate.getFullYear())]]) {
-      await userEvent.click(picker.getByRole("spinbutton", { name }));
-      await userEvent.keyboard(value);
-    }
-    await userEvent.click(dialog.getByRole("button", { name: "Save shared link" }));
-    overview = within(await page.findByRole("dialog", { name: "Shared links" }));
-    await waitFor(() => expect(overview.getByText("Private note: Updated private note")).toBeVisible());
-    const edit = calls.mock.calls.find(([, init]) => init?.method === "PATCH");
-    expect(JSON.parse(String(edit?.[1]?.body))).toEqual({
-      note: "Updated private note", expiresAt: afterLocalShareDay(localShareDate(newDate.toISOString())),
-    });
-    await userEvent.click(overview.getByRole("button", { name: "Delete link" }));
-    let confirm = within(await page.findByRole("dialog", { name: "Delete shared link?" }));
-    await userEvent.click(confirm.getByRole("button", { name: "Cancel" }));
-    await waitFor(() => expect(overview.getByRole("button", { name: "Delete link" })).toBeVisible());
-    expect(calls.mock.calls.some(([, init]) => init?.method === "DELETE")).toBe(false);
-    await userEvent.click(overview.getByRole("button", { name: "Delete link" }));
-    confirm = within(await page.findByRole("dialog", { name: "Delete shared link?" }));
-    await userEvent.click(confirm.getByRole("button", { name: "Delete permanently" }));
-    await expect(await overview.findByText("No shared links yet.")).toBeVisible();
+    await expect(canvas.queryByRole("button", { name: "Shared links" })).toBeNull();
+    expect(calls.mock.calls.filter(([path]) => String(path).includes("/share-links"))).toHaveLength(1);
   },
 };
 
