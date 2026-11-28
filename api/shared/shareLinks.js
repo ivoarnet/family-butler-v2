@@ -4,6 +4,8 @@ const { assert, validateId, validateDate } = require("./validation");
 const CATEGORIES = ["holiday", "adjusted_handover", "diverse"];
 const MAX_LINKS = 500;
 const MAX_CHANGES = 500;
+const DAY_MS = 86400000;
+const CHILDCARE_RESOURCE = "childcare_schedule";
 const PUBLIC_HEADERS = {
   "Cache-Control": "no-store",
   "Referrer-Policy": "no-referrer",
@@ -29,6 +31,33 @@ const validateCategories = (value) => {
   return [...value];
 };
 
+const localDateInTimeZone = (timestamp, timeZone) => {
+  const parts = new Intl.DateTimeFormat("en", {
+    timeZone, year: "numeric", month: "2-digit", day: "2-digit",
+  }).formatToParts(new Date(timestamp));
+  const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
+  return `${values.year}-${values.month}-${values.day}`;
+};
+
+const validateChildcareFilters = (value, expiresAt) => {
+  assert(value && typeof value === "object" && !Array.isArray(value)
+    && Object.keys(value).length === 4
+    && Object.keys(value).every((key) => ["startDate", "endDate", "providerId", "timeZone"].includes(key)),
+  "filters must contain startDate, endDate, providerId and timeZone");
+  const startDate = validateDate(value.startDate, "startDate");
+  const endDate = validateDate(value.endDate, "endDate");
+  const providerId = value.providerId == null ? null : validateId(value.providerId, "providerId");
+  assert(typeof value.timeZone === "string" && value.timeZone.length <= 100, "invalid time zone");
+  try { new Intl.DateTimeFormat("en", { timeZone: value.timeZone }); } catch { assert(false, "invalid time zone"); }
+  const nextDate = new Date(Date.parse(`${endDate}T00:00:00Z`) + DAY_MS).toISOString().slice(0, 10);
+  assert(localDateInTimeZone(Date.parse(expiresAt), value.timeZone) === nextDate,
+    "childcare expiry must follow the selected end date");
+  const start = Date.parse(`${startDate}T00:00:00Z`);
+  const end = Date.parse(`${endDate}T00:00:00Z`);
+  assert(end >= start && (end - start) / DAY_MS < 366, "childcare date range must be ordered and at most 366 days");
+  return { startDate, endDate, providerId, timeZone: value.timeZone };
+};
+
 const projectParentingChanges = (result, now) => {
   assert(typeof result.timeZone === "string" && result.timeZone.length <= 100, "invalid time zone");
   try { new Intl.DateTimeFormat("en", { timeZone: result.timeZone }); } catch { assert(false, "invalid time zone"); }
@@ -51,23 +80,46 @@ const projectParentingChanges = (result, now) => {
   return { resourceType: "parenting_changes", expiresAt, timeZone: result.timeZone, changes };
 };
 
+const projectChildcareSchedule = (result) => ({
+  resourceType: CHILDCARE_RESOURCE,
+  expiresAt: validateTimestamp(result.expiresAt),
+  householdId: validateId(result.householdId, "householdId"),
+  filters: validateChildcareFilters(result.filters, result.expiresAt),
+});
+
 // Resource handlers own their allowlisted public projection; no provider object is returned verbatim.
-const resources = new Map([["parenting_changes", { project: projectParentingChanges }]]);
+const resources = new Map([
+  ["parenting_changes", { project: projectParentingChanges }],
+  [CHILDCARE_RESOURCE, { project: projectChildcareSchedule }],
+]);
 
 const validateInput = (body, create, now = Date.now()) => {
   assert(body && typeof body === "object" && !Array.isArray(body), "JSON object body is required");
-  const allowed = create ? ["resourceType", "expiresAt", "note", "categories"] : ["expiresAt", "note"];
+  const allowed = create ? ["resourceType", "expiresAt", "note", "categories", "filters"] : ["expiresAt", "note"];
   assert(Object.keys(body).length > 0 && Object.keys(body).every((key) => allowed.includes(key)),
     "unsupported share-link fields");
   const data = {};
+  let expiresAt;
   if (create) {
     assert(resources.has(body.resourceType), "unsupported resourceType");
     data.resourceType = body.resourceType;
-    data.categories = validateCategories(body.categories);
   }
   if (create || Object.hasOwn(body, "expiresAt")) {
-    data.expiresAt = validateTimestamp(body.expiresAt);
-    assert(!create || Date.parse(data.expiresAt) > now, "expiresAt must be in the future");
+    expiresAt = validateTimestamp(body.expiresAt);
+    data.expiresAt = expiresAt;
+    assert(!create || Date.parse(expiresAt) > now, "expiresAt must be in the future");
+  }
+  if (create) {
+    if (body.resourceType === CHILDCARE_RESOURCE) {
+      assert(body.categories === undefined || (Array.isArray(body.categories) && body.categories.length === 0),
+        "childcare links do not support categories");
+      data.categories = [];
+      data.filters = validateChildcareFilters(body.filters, expiresAt);
+    } else {
+      assert(body.filters === undefined, "filters are only supported for childcare links");
+      data.categories = validateCategories(body.categories);
+      data.filters = {};
+    }
   }
   if (Object.hasOwn(body, "note")) {
     assert(typeof body.note === "string" && body.note.length <= 1000 && !body.note.includes("\0"),
@@ -81,10 +133,16 @@ const projectMetadata = (link) => {
   assert(link && typeof link === "object" && resources.has(link.resourceType), "invalid share link");
   assert(typeof link.note === "string" && link.note.length <= 1000, "invalid note");
   assert(Number.isSafeInteger(link.viewCount) && link.viewCount >= 0, "invalid view count");
+  const expiresAt = validateTimestamp(link.expiresAt);
+  const categories = link.resourceType === CHILDCARE_RESOURCE
+    ? (assert(Array.isArray(link.categories) && link.categories.length === 0, "invalid categories"), [])
+    : validateCategories(link.categories);
   return {
     id: validateId(link.id, "id"), resourceType: link.resourceType,
-    expiresAt: validateTimestamp(link.expiresAt), note: link.note,
-    categories: validateCategories(link.categories), createdAt: validateTimestamp(link.createdAt, "createdAt"),
+    expiresAt, note: link.note, categories,
+    ...(link.resourceType === CHILDCARE_RESOURCE
+      ? { filters: validateChildcareFilters(link.filters, expiresAt) } : {}),
+    createdAt: validateTimestamp(link.createdAt, "createdAt"),
     viewCount: link.viewCount,
   };
 };
@@ -122,5 +180,6 @@ const getPublicToken = (headers) => {
 
 module.exports = {
   MAX_LINKS, MAX_CHANGES, PUBLIC_HEADERS, resources, validateInput, validateTimestamp,
-  projectMetadata, validateResolveInput, createToken, tokenDigest, getPublicToken,
+  CHILDCARE_RESOURCE, validateChildcareFilters, localDateInTimeZone, projectMetadata, validateResolveInput,
+  createToken, tokenDigest, getPublicToken,
 };

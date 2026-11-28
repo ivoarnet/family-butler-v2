@@ -87,9 +87,12 @@ function HouseholdSharedLinks({ householdId, request }: Props) {
     </div>}
     {draft && <ShareLinkDialog title="Edit shared link" initialValues={draft} editing onClose={() => setDraft(null)}
       information={<>
-        <Typography variant="body2">Create another link to change its categories.</Typography>
+        <Typography variant="body2">{draft.resourceType === "childcare_schedule"
+          ? "The expiry date is the end of the shared care filter; create a new link to change the date or provider filter."
+          : "Create another link to change its categories."}</Typography>
         {shareResourceScope(draft.resourceType) && <Typography variant="body2">{shareResourceScope(draft.resourceType)}</Typography>}
       </>}
+      expiryLocked={draft.resourceType === "childcare_schedule"}
       onSave={async (values, signal) => {
         const result = await request(`${base}?id=${encodeURIComponent(draft.id)}`, {
           method: "PATCH", signal, body: JSON.stringify({ expiresAt: values.expiresAt, note: values.note }),

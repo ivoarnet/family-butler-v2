@@ -17,9 +17,14 @@ const other = "00000000-0000-0000-0000-000000000003";
 const id = "00000000-0000-0000-0000-000000000004";
 const party = "00000000-0000-0000-0000-000000000005";
 const plan = "00000000-0000-0000-0000-000000000006";
+const providerId = "00000000-0000-0000-0000-000000000007";
 const now = Date.parse("2090-01-01T00:00:00Z");
 const expiresAt = "2090-01-05T00:00:00.000Z";
 const input = { resourceType: "parenting_changes", expiresAt, categories: ["holiday"] };
+const childcareFilters = {
+  startDate: "2090-01-01", endDate: "2090-01-04", providerId, timeZone: "UTC",
+};
+const childcareInput = { resourceType: "childcare_schedule", expiresAt, categories: [], filters: childcareFilters };
 const metadata = { ...input, id, note: "", createdAt: "2089-01-01T00:00:00.000Z", viewCount: 0 };
 const viewId = "12345678-abcd-4abc-8abc-123456789abc";
 const anotherViewId = "12345678-abcd-4abc-9abc-123456789abc";
@@ -32,7 +37,10 @@ const change = {
 const publicData = { resourceType: "parenting_changes", expiresAt, timeZone: "Europe/Zurich", changes: [change] };
 
 test("strict creation/update validation, calendar dates, scope and token encoding", () => {
-  assert.deepEqual(validateInput(input, true, now), { ...input, note: "" });
+  assert.deepEqual(validateInput(input, true, now), { ...input, note: "", filters: {} });
+  assert.deepEqual(validateInput(childcareInput, true, now), {
+    ...childcareInput, categories: [], note: "",
+  });
   assert.deepEqual(validateInput({ note: "private", expiresAt: "2000-01-01T00:00:00+01:00" }, false, now),
     { note: "private", expiresAt: "1999-12-31T23:00:00.000Z" });
   assert.equal(validateTimestamp("2024-02-29T12:30:00.123456Z"), "2024-02-29T12:30:00.123Z");
@@ -49,6 +57,13 @@ test("strict creation/update validation, calendar dates, scope and token encodin
     { ...input, note: "x".repeat(1001) }, { ...input, note: "\0" }]) {
     assert.throws(() => validateInput(invalid, true, now), { status: 400 });
   }
+  for (const invalid of [
+    { ...childcareInput, categories: ["holiday"] },
+    { ...childcareInput, filters: { ...childcareFilters, providerId: "invalid" } },
+    { ...childcareInput, filters: { ...childcareFilters, timeZone: "invalid" } },
+    { ...childcareInput, filters: { ...childcareFilters, endDate: "2090-01-03" } },
+    { ...childcareInput, filters: { ...childcareFilters, startDate: "2088-01-01" } },
+  ]) assert.throws(() => validateInput(invalid, true, now), { status: 400 });
   for (const invalid of [{}, { categories: ["diverse"] }, { resourceType: "parenting_changes" },
     { token_digest: "overwrite" }, { created_by_user_id: other }, { expiresAt: null }]) {
     assert.throws(() => validateInput(invalid, false), { status: 400 });
@@ -128,6 +143,35 @@ test("provider projects exact metadata/public allowlists, clips expiry and fails
   await assert.rejects(createProvider(async () => ({ status: 429, error: "secret" })).resolveShareLink("digest", now), { status: 429 });
   await assert.rejects(createProvider(async () => ({ link: { ...metadata, id: "bad" } }))
     .manageShareLinks(household, owner, "create", {}), (error) => !error.status && error.message === "unavailable");
+});
+
+test("childcare share resolves live filtered future occurrences without exposing record IDs", async () => {
+  const rows = {
+    childcare_providers: [{
+      id: providerId, household_id: household, name: "Grandparents", type: "grandparent", active: true,
+    }],
+    childcare_arrangements: [{
+      id: id, household_id: household, provider_id: providerId, child_ids: [party], weekdays: [1, 2, 3, 4, 5, 6, 7],
+      start_date: "2090-01-01", end_date: null, all_day: true, start_time: null, end_time: null,
+    }],
+    childcare_overrides: [],
+    household_members: [{ id: party, first_name: "Alex" }],
+  };
+  const descriptor = {
+    resourceType: "childcare_schedule", expiresAt, householdId: household, filters: childcareFilters,
+  };
+  const provider = createProvider(async (endpoint) => endpoint === "rpc/resolve_share_link" ? descriptor : rows[endpoint]);
+  const result = await provider.resolveShareLink("digest", now);
+  assert.deepEqual(result, {
+    resourceType: "childcare_schedule", expiresAt, timeZone: "UTC",
+    startDate: "2090-01-01", endDate: "2090-01-04", providerName: "Grandparents",
+    occurrences: Array.from({ length: 4 }, (_, index) => ({
+      date: `2090-01-0${index + 1}`, providerName: "Grandparents", childNames: ["Alex"],
+      allDay: true, startTime: null, endTime: null, overrideAction: null,
+    })),
+  });
+  assert.deepEqual((await provider.resolveShareLink("digest", now + 86400000)).occurrences.map((item) => item.date),
+    ["2090-01-02", "2090-01-03", "2090-01-04"]);
 });
 
 test("owner/public handlers authenticate separately, validate routes, prevent token persistence and redact failures", async (t) => {
@@ -357,16 +401,32 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   });
   const token = createToken();
   const digest = tokenDigest(token);
-  const link = command("create", { ...input, digest, note: "private note" }).link;
+  const linkCreate = command("create", { ...input, digest, note: "private note" });
+  assert.ok(linkCreate.link, JSON.stringify(linkCreate));
+  const link = linkCreate.link;
   assert.ok(link.id);
   assert.deepEqual(Object.keys(link).sort(), ["id", "resourceType", "expiresAt", "note", "categories", "createdAt", "viewCount"].sort());
   assert.equal(link.viewCount, 0);
   assert.ok(!JSON.stringify(link).includes(digest));
+  const childcareDigest = tokenDigest(createToken());
+  const childcareCreate = command("create", { ...childcareInput, digest: childcareDigest });
+  assert.ok(childcareCreate.link, JSON.stringify(childcareCreate));
+  const childcareLink = childcareCreate.link;
+  assert.deepEqual(childcareLink.filters, childcareFilters);
+  assert.deepEqual(childcareLink.categories, []);
+  assert.equal(command("update", { id: childcareLink.id, expiresAt: "2090-01-06T00:00:00.000Z" }).status, 400);
+  assert.equal(Date.parse(command("list").links.find((item) => item.id === childcareLink.id).expiresAt), Date.parse(expiresAt));
+  const childcareResolution = resolve(childcareDigest);
+  assert.equal(childcareResolution.resourceType, "childcare_schedule");
+  assert.equal(Date.parse(childcareResolution.expiresAt), Date.parse(expiresAt));
+  assert.equal(childcareResolution.householdId, household);
+  assert.deepEqual(childcareResolution.filters, childcareFilters);
+  assert.deepEqual(command("delete", { id: childcareLink.id }), { ok: true });
   const provider = createProvider(async (_endpoint, options) => {
     const { p_household, p_user, p_action, p_data } = options.body;
     return command(p_action, p_data, p_household, p_user);
   });
-  assert.equal((await provider.manageShareLinks(household, owner, "list", {})).links[0].id, link.id);
+  assert.ok((await provider.manageShareLinks(household, owner, "list", {})).links.some((item) => item.id === link.id));
   assert.equal(command("list", {}, household, other).status, 404);
   assert.equal(command("update", { id: link.id, note: "attack" }, other, other).status, 404);
   assert.equal(command("delete", { id: link.id }, household, other).status, 404);
@@ -452,7 +512,7 @@ test("PostgreSQL share-link ownership, projections, live edits, bounds, expiry, 
   assert.equal(resolve(digest), null);
   assert.equal(resolve(digest, now, createViewId(1)), null);
   assert.equal(count(), 2);
-  assert.equal(command("list").links[0].note, "edited");
+  assert.equal(command("list").links.find((item) => item.id === link.id).note, "edited");
   command("update", { id: link.id, expiresAt });
   sql(`update public.households set created_by_user_id = '${other}' where id = '${household}'`);
   assert.equal(resolve(digest), null);

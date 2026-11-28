@@ -13,24 +13,47 @@ create table if not exists public.share_links (
   id uuid primary key default gen_random_uuid(),
   household_id uuid not null references public.households(id) on delete cascade,
   created_by_user_id uuid not null references auth.users(id) on delete cascade,
-  resource_type text not null check (resource_type = 'parenting_changes'),
+  resource_type text not null,
   token_digest text not null unique check (token_digest ~ '^[0-9a-f]{64}$'),
   expires_at timestamptz not null check (isfinite(expires_at)),
   note text not null default '' check (length(note) <= 1000),
-  categories text[] not null check (
-    cardinality(categories) between 1 and 3 and
-    array_ndims(categories) = 1 and array_position(categories, null) is null and
-    categories <@ array['holiday', 'adjusted_handover', 'diverse']::text[] and
-    cardinality(categories) =
-      (case when 'holiday' = any(categories) then 1 else 0 end +
-       case when 'adjusted_handover' = any(categories) then 1 else 0 end +
-       case when 'diverse' = any(categories) then 1 else 0 end)
-  ),
+  categories text[] not null default '{}'::text[],
+  filters jsonb not null default '{}'::jsonb,
   created_at timestamptz not null default clock_timestamp(),
   read_window timestamptz not null default clock_timestamp(),
   read_count integer not null default 0 check (read_count between 0 and 60)
 );
 create index if not exists share_links_owner on public.share_links (household_id, created_by_user_id, created_at, id);
+alter table public.share_links
+  add column if not exists filters jsonb not null default '{}'::jsonb;
+alter table public.share_links
+  drop constraint if exists share_links_resource_type_check,
+  drop constraint if exists share_links_categories_check,
+  drop constraint if exists share_links_filters_check;
+alter table public.share_links
+  add constraint share_links_resource_type_check
+    check (resource_type in ('parenting_changes', 'childcare_schedule')),
+  add constraint share_links_categories_check check (
+    (resource_type = 'parenting_changes' and
+      cardinality(categories) between 1 and 3 and
+      array_ndims(categories) = 1 and array_position(categories, null) is null and
+      categories <@ array['holiday', 'adjusted_handover', 'diverse']::text[] and
+      cardinality(categories) =
+        (case when 'holiday' = any(categories) then 1 else 0 end +
+         case when 'adjusted_handover' = any(categories) then 1 else 0 end +
+         case when 'diverse' = any(categories) then 1 else 0 end))
+    or (resource_type = 'childcare_schedule' and cardinality(categories) = 0)
+  ),
+  add constraint share_links_filters_check check (
+    (resource_type = 'parenting_changes' and filters = '{}'::jsonb)
+    or (resource_type = 'childcare_schedule' and jsonb_typeof(filters) = 'object'
+      and filters ?& array['startDate', 'endDate', 'providerId', 'timeZone']
+      and filters - array['startDate', 'endDate', 'providerId', 'timeZone'] = '{}'::jsonb
+      and jsonb_typeof(filters->'startDate') = 'string'
+      and jsonb_typeof(filters->'endDate') = 'string'
+      and jsonb_typeof(filters->'timeZone') = 'string'
+      and (filters->'providerId' = 'null'::jsonb or jsonb_typeof(filters->'providerId') = 'string'))
+  );
 alter table public.share_links
   add column if not exists view_count bigint not null default 0
     check (view_count between 0 and 9007199254740991),
@@ -45,9 +68,11 @@ create or replace function public.share_link_metadata(p_link public.share_links)
 returns jsonb language sql immutable set search_path = public as $$
   select jsonb_build_object(
     'id', p_link.id, 'resourceType', p_link.resource_type, 'expiresAt', p_link.expires_at,
-    'note', p_link.note, 'categories', p_link.categories, 'createdAt', p_link.created_at,
+    'note', p_link.note, 'categories', p_link.categories,
+    'createdAt', p_link.created_at,
     'viewCount', p_link.view_count
-  );
+  ) || case when p_link.resource_type = 'childcare_schedule'
+    then jsonb_build_object('filters', p_link.filters) else '{}'::jsonb end;
 $$;
 
 create or replace function public.manage_share_links(
@@ -58,6 +83,7 @@ declare
   v_links jsonb;
   v_expiry timestamptz;
   v_categories text[];
+  v_filters jsonb;
 begin
   perform 1 from public.households
     where id = p_household and created_by_user_id = p_user for update;
@@ -78,7 +104,7 @@ begin
     return jsonb_build_object('error', 'invalid request', 'status', 400);
   end if;
   if exists (select 1 from jsonb_object_keys(p_data) k where not (
-    (p_action = 'create' and k in ('resourceType', 'expiresAt', 'note', 'categories', 'digest')) or
+    (p_action = 'create' and k in ('resourceType', 'expiresAt', 'note', 'categories', 'filters', 'digest')) or
     (p_action = 'update' and k in ('id', 'expiresAt', 'note')) or
     (p_action = 'delete' and k = 'id')
   )) then return jsonb_build_object('error', 'invalid request', 'status', 400); end if;
@@ -104,21 +130,49 @@ begin
     if not isfinite(v_expiry) or (p_action = 'create' and v_expiry <= clock_timestamp()) then
       return jsonb_build_object('error', 'invalid request', 'status', 400);
     end if;
+    if p_action = 'update' and v_link.resource_type = 'childcare_schedule' and p_data ? 'expiresAt'
+      and (v_expiry at time zone (v_link.filters->>'timeZone'))::date <>
+        ((v_link.filters->>'endDate')::date + 1) then
+      return jsonb_build_object('error', 'invalid request', 'status', 400);
+    end if;
   end if;
   if p_action = 'create' then
-    if p_data->>'resourceType' is distinct from 'parenting_changes' or
+    if p_data->>'resourceType' not in ('parenting_changes', 'childcare_schedule') or
       jsonb_typeof(p_data->'digest') is distinct from 'string' or
       (p_data->>'digest') !~ '^[0-9a-f]{64}$' or
       jsonb_typeof(p_data->'categories') is distinct from 'array' then
       return jsonb_build_object('error', 'invalid request', 'status', 400);
     end if;
+    if p_data->>'resourceType' = 'parenting_changes' then
+      if jsonb_typeof(coalesce(p_data->'filters', '{}'::jsonb)) is distinct from 'object'
+        or coalesce(p_data->'filters', '{}'::jsonb) <> '{}'::jsonb then
+        return jsonb_build_object('error', 'invalid request', 'status', 400);
+      end if;
+    end if;
+    if p_data->>'resourceType' = 'childcare_schedule' then
+      if jsonb_typeof(p_data->'filters') is distinct from 'object' or
+        not (p_data->'filters' ?& array['startDate', 'endDate', 'providerId', 'timeZone']) or
+        (p_data->'filters') - array['startDate', 'endDate', 'providerId', 'timeZone'] <> '{}'::jsonb or
+        jsonb_typeof(p_data->'filters'->'startDate') is distinct from 'string' or
+        jsonb_typeof(p_data->'filters'->'endDate') is distinct from 'string' or
+        jsonb_typeof(p_data->'filters'->'timeZone') is distinct from 'string' or
+        (p_data->'filters'->'providerId' <> 'null'::jsonb and
+          jsonb_typeof(p_data->'filters'->'providerId') is distinct from 'string') then
+        return jsonb_build_object('error', 'invalid request', 'status', 400);
+      end if;
+    end if;
     if (select count(*) from (select 1 from public.share_links where household_id = p_household limit 500) bounded) >= 500 then
       return jsonb_build_object('error', 'limit reached', 'status', 409);
     end if;
-    select array_agg(value) into v_categories from jsonb_array_elements_text(p_data->'categories');
-    insert into public.share_links (household_id, created_by_user_id, resource_type, token_digest, expires_at, note, categories)
+    if jsonb_array_length(p_data->'categories') > 0 then
+      select array_agg(value) into v_categories from jsonb_array_elements_text(p_data->'categories');
+    else
+      v_categories := '{}'::text[];
+    end if;
+    v_filters := coalesce(p_data->'filters', '{}'::jsonb);
+    insert into public.share_links (household_id, created_by_user_id, resource_type, token_digest, expires_at, note, categories, filters)
       values (p_household, p_user, p_data->>'resourceType', p_data->>'digest', v_expiry,
-        coalesce(p_data->>'note', ''), v_categories) returning * into v_link;
+        coalesce(p_data->>'note', ''), v_categories, v_filters) returning * into v_link;
   else
     if not (p_data ? 'expiresAt' or p_data ? 'note') then
       return jsonb_build_object('error', 'invalid request', 'status', 400);
@@ -130,7 +184,7 @@ begin
   end if;
   return jsonb_build_object('link', public.share_link_metadata(v_link));
 exception when invalid_text_representation or invalid_datetime_format or datetime_field_overflow
-  or check_violation or not_null_violation then
+  or invalid_parameter_value or check_violation or not_null_violation then
   return jsonb_build_object('error', 'invalid request', 'status', 400);
 end;
 $$;
@@ -212,6 +266,9 @@ begin
   case v_link.resource_type
     when 'parenting_changes' then
       v_result := public.resolve_shared_parenting_changes(v_link, p_now);
+    when 'childcare_schedule' then
+      v_result := jsonb_build_object('resourceType', v_link.resource_type, 'expiresAt', v_link.expires_at,
+        'householdId', v_link.household_id, 'filters', v_link.filters);
     else return null;
   end case;
   if v_link.expires_at <= clock_timestamp() then return null; end if;

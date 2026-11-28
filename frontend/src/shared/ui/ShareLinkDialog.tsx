@@ -20,12 +20,14 @@ export const afterLocalShareDay = (date: string) => {
 const localTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
 
 /** Mount for each create/edit session so the one-time URL never survives closing. */
-export function ShareLinkDialog({ initialValues, categoryOptions, children, information, editing = false, title = "Create shared link", onSave, onClose }: {
+export function ShareLinkDialog({ initialValues, categoryOptions, children, information, editing = false, expiryLocked = false,
+  title = "Create shared link", onSave, onClose }: {
   initialValues: ShareLinkValues;
   categoryOptions?: ShareCategory[];
   children?: ReactNode;
   information?: ReactNode;
   editing?: boolean;
+  expiryLocked?: boolean;
   title?: string;
   onSave: (values: ShareLinkValues, signal: AbortSignal) => Promise<string | void>;
   onClose: () => void;
@@ -87,7 +89,7 @@ export function ShareLinkDialog({ initialValues, categoryOptions, children, info
         </> : <>
           {children}
           <Typography variant="body2">Anyone with the link can view it. Keep it private.</Typography>
-          <DateField label="Expiry date" value={date} disabled={busy} required error={!validExpiry}
+          <DateField label="Expiry date" value={date} disabled={busy || expiryLocked} required error={!validExpiry}
             onChange={(nextDate) => {
               setDate(nextDate);
               setValues((current) => ({ ...current, expiresAt: afterLocalShareDay(nextDate) }));

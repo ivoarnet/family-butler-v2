@@ -76,6 +76,7 @@ function createMockRequest(empty: boolean, fail: boolean, weekdays = [1, 2, 3, 4
     calls(path, init);
     if (fail) throw new Error("Could not load childcare. Check your connection.");
     const url = new URL(path, "http://storybook.local");
+    if (url.pathname.endsWith("/share-links") && init.method === "POST") return { token: "A".repeat(43) };
     const resource = url.pathname.split("/childcare")[1].replace(/^\//, "");
     const body = init.body ? JSON.parse(String(init.body)) : undefined;
     if (init.method === "POST" && resource === "preview") {
@@ -350,6 +351,34 @@ export const LocalDateDefaults: Story = {
     await expect(canvas.getByRole("combobox", { name: "Schedule view" })).toHaveTextContent("List");
     await expect(canvas.queryByRole("table", { name: /Provider care calendar/ })).not.toBeInTheDocument();
     await expect(calls.mock.calls.some(([path]) => String(path).includes(`/occurrences?startDate=${date()}&endDate=${endDate}`))).toBe(true);
+  },
+};
+export const ShareResolvedCare: Story = {
+  play: async ({ canvasElement }) => {
+    const canvas = within(canvasElement);
+    await canvas.findByRole("table", { name: "Childcare occurrences" });
+    await waitFor(() => expect(canvas.getByRole("button", { name: "Show care" })).toBeEnabled());
+    const startDate = date();
+    const endDate = date(14);
+    await setPickerDate(canvasElement, "Range start", startDate);
+    await setPickerDate(canvasElement, "Range end", endDate);
+    await userEvent.click(canvas.getByRole("button", { name: "Show care" }));
+    await waitFor(() => expect(canvas.getByText(`Showing ${startDate} – ${endDate}`)).toBeInTheDocument());
+    await chooseScheduleOption(canvasElement, "Schedule provider", "Grandma Jo");
+    await userEvent.click(canvas.getByRole("button", { name: "Share resolved care" }));
+    const page = within(canvasElement.ownerDocument.body);
+    const dialog = within(await page.findByRole("dialog"));
+    await expect(dialog.getByLabelText("Private note (optional)")).toHaveValue("Provider: Grandma Jo");
+    await userEvent.click(dialog.getByRole("button", { name: "Create link" }));
+    await dialog.findByText("Link created. Copy it now — it cannot be recovered later.");
+    const request = calls.mock.calls.find(([path, init]) => String(path).endsWith("/share-links") && init?.method === "POST");
+    expect(request).toBeDefined();
+    expect(JSON.parse(String(request?.[1]?.body))).toMatchObject({
+      resourceType: "childcare_schedule", note: "Provider: Grandma Jo",
+      filters: {
+        startDate, endDate, providerId, timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone,
+      },
+    });
   },
 };
 export const HistoricalCareReadOnly: Story = {
