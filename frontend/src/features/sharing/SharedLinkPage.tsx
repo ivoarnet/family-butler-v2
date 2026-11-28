@@ -48,9 +48,12 @@ const localDateInTimeZone = (time: number, timeZone: string) => {
   const values = Object.fromEntries(parts.map(({ type, value }) => [type, value]));
   return `${values.year}-${values.month}-${values.day}`;
 };
-const formatCareDate = (date: string) => new Intl.DateTimeFormat(undefined, {
-  timeZone: "UTC", weekday: "short", day: "numeric", month: "short", year: "numeric",
+const formatCareDate = (date: string) => new Intl.DateTimeFormat("de-CH", {
+  timeZone: "UTC", day: "2-digit", month: "2-digit", year: "numeric",
 }).format(new Date(`${date}T00:00:00Z`));
+const formatCareTime = (time: string) => new Intl.DateTimeFormat("de-CH", {
+  timeZone: "UTC", hour: "2-digit", minute: "2-digit", hourCycle: "h23",
+}).format(new Date(`1970-01-01T${time}Z`));
 
 export function SharedLinkPage({ token }: { token: string }) {
   const [data, setData] = useState<SharedData | null>(null);
@@ -189,30 +192,32 @@ export function SharedLinkPage({ token }: { token: string }) {
             {data.providerName ? ` · Provider: ${data.providerName}` : " · All providers"}.</Typography>
           <Typography variant="body2">Expires: {format(data.expiresAt)} · Timezone: {data.timeZone}. Refreshes every 30 seconds.</Typography>
           {occurrences.length === 0 ? <Typography>No upcoming care is available for this link.</Typography> :
-            <Stack component="ul" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>
-              {occurrences.map((occurrence, index) => <Box component="li" key={`${occurrence.date}-${index}`}
-                sx={{ border: "1px solid var(--dialog-border)", borderRadius: 3, p: 2, background: "var(--dialog-surface)", overflowWrap: "anywhere" }}>
-                <Typography sx={{ fontWeight: 700 }}>{formatCareDate(occurrence.date)} · {occurrence.providerName}</Typography>
-                <Typography>{occurrence.childNames.join(", ") || "Family members"} · {occurrence.allDay
-                  ? "All day" : `${occurrence.startTime ?? ""}–${occurrence.endTime ?? ""}`}</Typography>
-                {occurrence.overrideAction && <Typography variant="body2">
-                  {occurrence.overrideAction === "add" ? "Added day" : `Changed · ${occurrence.overrideAction}`}
-                </Typography>}
-              </Box>)}
-            </Stack>}
+            <div className="table-scroll"><table className="settings-table" aria-label="Shared care occurrences">
+              <thead><tr><th>Date and time</th><th>Provider</th><th>Participants</th><th>Schedule</th></tr></thead>
+              <tbody>{occurrences.map((occurrence, index) => <tr key={`${occurrence.date}-${index}`}>
+                <td>{formatCareDate(occurrence.date)}{occurrence.allDay ? " · All day" :
+                  ` ${occurrence.startTime ? formatCareTime(occurrence.startTime) : ""}–${occurrence.endTime ? formatCareTime(occurrence.endTime) : ""}`}</td>
+                <td>{occurrence.providerName}</td>
+                <td>{occurrence.childNames.join(", ") || "Family members"}</td>
+                <td>{occurrence.overrideAction
+                  ? occurrence.overrideAction === "add" ? "Added day" : `Changed · ${occurrence.overrideAction}`
+                  : "Recurring"}</td>
+              </tr>)}</tbody>
+            </table></div>}
         </> : <>
         <Typography>Live future changes only, from the next change handover. Ongoing and past changes are not shown. Ends are limited to this link’s expiry.</Typography>
         <Typography variant="body2">Expires: {format(data.expiresAt)} · Timezone: {data.timeZone}. Refreshes every 30 seconds.</Typography>
         {changes.length === 0 ? <Typography>No upcoming changes are available for this link.</Typography> :
-          <Stack component="ul" spacing={2} sx={{ listStyle: "none", p: 0, m: 0 }}>
-            {changes.map((change, index) => <Box component="li" key={`${change.startAt}-${index}`}
-              sx={{ border: "1px solid var(--dialog-border)", borderRadius: 3, p: 2, background: "var(--dialog-surface)", overflowWrap: "anywhere" }}>
-              <Typography sx={{ fontWeight: 700 }}>{change.partyName}</Typography>
-              <Typography>{format(change.startAt)} – {format(new Date(Math.min(Date.parse(change.endAt), Date.parse(data.expiresAt))).toISOString())}</Typography>
-              <Typography variant="body2">{categoryLabels[change.category] ?? "Change"}</Typography>
-              {change.label && <Typography sx={{ whiteSpace: "pre-wrap" }}>{change.label}</Typography>}
-            </Box>)}
-          </Stack>}
+          <div className="table-scroll"><table className="settings-table" aria-label="Shared parenting changes">
+            <thead><tr><th>Party</th><th>From</th><th>Until</th><th>Category</th><th>Reason</th></tr></thead>
+            <tbody>{changes.map((change, index) => <tr key={`${change.startAt}-${index}`}>
+              <td>{change.partyName}</td>
+              <td>{format(change.startAt)}</td>
+              <td>{format(new Date(Math.min(Date.parse(change.endAt), Date.parse(data.expiresAt))).toISOString())}</td>
+              <td>{categoryLabels[change.category] ?? "Change"}</td>
+              <td style={{ whiteSpace: "pre-wrap" }}>{change.label}</td>
+            </tr>)}</tbody>
+          </table></div>}
         </>}</>}
     </Stack>
   </Box>;

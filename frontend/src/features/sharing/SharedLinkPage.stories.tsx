@@ -45,6 +45,8 @@ const meta: Meta<typeof SharedLinkPage> = {
           occurrences: [
             { date: startDate, providerName: "Grandparents", childNames: ["Alex"], allDay: true,
               startTime: null, endTime: null, overrideAction: null },
+            { date: startDate, providerName: "Grandparents", childNames: ["Sam"], allDay: false,
+              startTime: "09:30", endTime: "15:00", overrideAction: "replace" },
             { date: previousDate, providerName: "Yesterday should not be shown", childNames: ["Alex"], allDay: true,
               startTime: null, endTime: null, overrideAction: null },
           ],
@@ -81,7 +83,9 @@ export const Loaded: Story = {
     expect(new Headers(init.headers).has("Authorization")).toBe(false);
     expect(new Headers(init.headers).has("x-supabase-auth-token")).toBe(false);
     expect(new Headers(init.headers).get("Content-Type")).toBe("application/json");
-    await expect(canvas.getByRole("listitem")).toHaveTextContent(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2} – \d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/);
+    const table = within(canvas.getByRole("table", { name: "Shared parenting changes" }));
+    await expect(table.getByText("Family holiday")).toBeVisible();
+    await expect(table.getAllByText(/\d{2}\.\d{2}\.\d{4} \d{2}:\d{2}/)).toHaveLength(2);
     await expect(canvas.getByText(/Expires:/)).toHaveTextContent(/Expires: \d{2}\.\d{2}\.\d{4} \d{2}:\d{2} · Timezone:/);
   },
 };
@@ -90,9 +94,11 @@ export const SharedChildcare: Story = {
   play: async ({ canvasElement }) => {
     const canvas = within(canvasElement);
     await expect(await canvas.findByText("Shared resolved care")).toBeVisible();
-    const occurrence = canvas.getByRole("listitem");
+    const table = within(canvas.getByRole("table", { name: "Shared care occurrences" }));
+    const occurrence = table.getByRole("row", { name: /Grandparents.*Alex/ });
     await expect(occurrence).toHaveTextContent(/Grandparents/);
-    await expect(occurrence).toHaveTextContent(/Alex.*All day/);
+    await expect(occurrence).toHaveTextContent(/\d{2}\.\d{2}\.\d{4} · All day.*Alex.*Recurring/);
+    await expect(table.getByRole("row", { name: /Sam/ })).toHaveTextContent(/\d{2}\.\d{2}\.\d{4} 09:30–15:00.*Changed · replace/);
     await expect(canvas.queryByText(/Yesterday should not be shown/)).toBeNull();
     await expect(canvas.getByText(/Live future resolved care/)).toBeVisible();
   },
